@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Grazie — Roberto Rocco</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,800&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --ground: #F2F3F6;
+    --paper: #FFFFFF;
+    --ink: #1C1D2B;
+    --muted: #5B5E72;
+    --line: #DADCE5;
+    --sea: #1F5F8B;
+    --tuff: #C9962E;
+    --tuff-soft: #F4E9CF;
+    --display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+    --body: "Newsreader", "Iowan Old Style", Georgia, "Times New Roman", serif;
+    --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --ground: #12141C;
+      --paper: #1A1D28;
+      --ink: #ECEDF3;
+      --muted: #A3A7BA;
+      --line: #2C3040;
+      --sea: #7DB6E0;
+      --tuff: #E6BA5C;
+      --tuff-soft: #2E2716;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --ground: #12141C;
+    --paper: #1A1D28;
+    --ink: #ECEDF3;
+    --muted: #A3A7BA;
+    --line: #2C3040;
+    --sea: #7DB6E0;
+    --tuff: #E6BA5C;
+    --tuff-soft: #2E2716;
+  }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--body);
+    font-size: 18px;
+    line-height: 1.6;
+    padding-inline: 20px;
+    padding-block: 40px 56px;
+  }
+  .wrap { max-width: 640px; margin: 0 auto; display: grid; gap: 40px; }
+
+  header { display: grid; gap: 14px; }
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  h1 {
+    font-family: var(--display);
+    font-weight: 800;
+    font-size: clamp(64px, 18vw, 120px);
+    line-height: 0.9;
+    letter-spacing: -0.03em;
+    margin: 0;
+    color: var(--ink);
+  }
+  h1 .dot { color: var(--tuff); }
+  .lede { margin: 0; font-size: 20px; max-width: 34em; text-wrap: pretty; }
+  .lede em { color: var(--sea); }
+
+  section { display: grid; gap: 12px; }
+  h2 {
+    font-family: var(--display);
+    font-weight: 500;
+    font-size: 15px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0 0 4px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  h2::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+
+  details {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    transition: border-color .2s ease;
+  }
+  details[open] { border-color: var(--tuff); }
+  summary {
+    list-style: none;
+    cursor: pointer;
+    padding: 16px 18px;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 12px;
+    border-radius: 14px;
+  }
+  summary::-webkit-details-marker { display: none; }
+  summary:focus-visible { outline: 3px solid var(--sea); outline-offset: 2px; }
+  .who { display: grid; gap: 2px; }
+  .name { font-family: var(--display); font-weight: 800; font-size: 21px; line-height: 1.2; }
+  .role { font-family: var(--mono); font-size: 12px; color: var(--muted); letter-spacing: 0.02em; }
+  .chev {
+    width: 30px; height: 30px; border-radius: 50%;
+    display: grid; place-items: center;
+    background: var(--tuff-soft); color: var(--tuff);
+    font-family: var(--mono); font-size: 18px; line-height: 1;
+    transition: transform .25s ease;
+  }
+  details[open] .chev { transform: rotate(45deg); }
+  .msg { padding: 0 18px 18px; display: grid; gap: 10px; }
+  .msg p { margin: 0; text-wrap: pretty; }
+  .msg .sign { font-style: italic; color: var(--muted); }
+
+  .hint { font-family: var(--mono); font-size: 12px; color: var(--muted); margin: -24px 0 0; }
+
+  footer {
+    border-top: 1px solid var(--line);
+    padding-top: 20px;
+    display: grid; gap: 4px;
+    font-size: 15px; color: var(--muted);
+  }
+  footer .thesis { font-style: italic; color: var(--ink); }
+  footer .mono { font-family: var(--mono); font-size: 12px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    details, .chev { transition: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Master's thesis · Acknowledgements</div>
+    <h1>Grazie<span class="dot">.</span></h1>
+    <p class="lede">A thesis has one name on the cover, but it is never written by one person. These pages are for the people who carried me there. If you scanned the code, <em>you are probably one of them.</em></p>
+  </header>
+
+  <p class="hint">Tap a name to read the message.</p>
+
+  <section aria-labelledby="h-family">
+    <h2 id="h-family">Family</h2>
+    <details>
+      <summary><span class="who"><span class="name">Mamma e Papà</span><span class="role">from the very first line</span></span><span class="chev" aria-hidden="true">+</span></summary>
+      <div class="msg">
+        <p>You never asked me what a control barrier function was, and you never needed to. You made sure I could spend years finding out. Every hour in the lab rests on the hours you gave first.</p>
+        <p class="sign">This one is yours as much as mine.</p>
+      </div>
+    </details>
+    <details>
+      <summary><span class="who"><span class="name">My brothers and sisters</span><span class="role">the first testers of my patience</span></span><span class="chev" aria-hidden="true">+</span></summary>
+      <div class="msg">
+        <p>For the dinners where I talked about robot arms for far too long, and for pretending to follow. Thank you for keeping me grounded when the deadlines did not.</p>
+      </div>
+    </details>
+  </section>
+
+  <section aria-labelledby="h-friends">
+    <h2 id="h-friends">Friends</h2>
+    <details>
+      <summary><span class="who"><span class="name">The ones who were always there</span><span class="role">weekends, calls, and coffee</span></span><span class="chev" aria-hidden="true">+</span></summary>
+      <div class="msg">
+        <p>For dragging me out of the lab when I needed it and leaving me alone when I needed that instead. You knew the difference better than I did.</p>
+      </div>
+    </details>
+    <details>
+      <summary><span class="who"><span class="name">The 24 volunteers</span><span class="role">288 trials, zero complaints (almost)</span></span><span class="chev" aria-hidden="true">+</span></summary>
+      <div class="msg">
+        <p>You gave up an hour each to steer a simulated robot with a haptic handle and fill in six questionnaires. Every chart in Chapter 4 is made of your time. Thank you.</p>
+      </div>
+    </details>
+  </section>
+
+  <section aria-labelledby="h-lab">
+    <h2 id="h-lab">University and lab</h2>
+    <details>
+      <summary><span class="who"><span class="name">My supervisors</span><span class="role">PRISMA Lab · Federico II</span></span><span class="chev" aria-hidden="true">+</span></summary>
+      <div class="msg">
+        <p>For trusting me with a real robot, for the reviews that made every chapter sharper, and for pushing on exactly the parts I hoped nobody would ask about.</p>
+      </div>
+    </details>
+    <details>
+      <summary><span class="who"><span class="name">Colleagues at PRISMA Lab</span><span class="role">the people beside the robot</span></span><span class="chev" aria-hidden="true">+</span></summary>
+      <div class="msg">
+        <p>For the help on hardware days, the debugging at odd hours, and the calm when the EtherCAT bus went down. The TRIAGo moved because you were there.</p>
+      </div>
+    </details>
+  </section>
+
+  <footer>
+    <span>Roberto Rocco</span>
+    <span class="thesis">Shared-autonomy teleoperation of a bimanual manipulator</span>
+    <span class="mono">Università degli Studi di Napoli Federico II · 2026</span>
+  </footer>
+</div>
+</body>
+</html>
