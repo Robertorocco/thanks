@@ -1,0 +1,78 @@
+// I mondi del percorso, in ordine. Ogni mondo inizia con un checkpoint:
+// se il giocatore urta un ostacolo riparte dall'inizio del mondo, il cronometro continua.
+//
+// Tipi di ostacolo:
+//   basso -> si salta (swipe in su)
+//   alto  -> si scivola sotto (swipe in giù)
+//   muro  -> si cambia corsia (swipe a sinistra/destra)
+
+export const MONDI = [
+  {
+    nome: 'Liceo Vittorini',
+    anni: '2015 – 2020',
+    luogo: 'Napoli',
+    lunghezza: 450,
+    velocita: 12,
+    cielo: 0xBFE3F5,
+    terreno: 0xD9C7A3,
+    corsie: 0xE8DCC4,
+    edifici: [0xF1D9A7, 0xE6B98A, 0xF4EBD9],
+    ostacoli: { basso: 0x7A5230, alto: 0x2F5D3A, muro: 0x9A3B2E },
+  },
+  {
+    nome: 'Federico II · Triennale',
+    anni: '2020 – 2023',
+    luogo: 'Napoli',
+    lunghezza: 500,
+    velocita: 13.5,
+    cielo: 0xCFE0F0,
+    terreno: 0x8E8A84,
+    corsie: 0xB9B4AC,
+    edifici: [0xC9962E, 0xE2D3B5, 0xA9A397],
+    ostacoli: { basso: 0x2C5F8A, alto: 0xC9962E, muro: 0x5B5E72 },
+  },
+  {
+    nome: 'Federico II · Magistrale',
+    anni: '2023 – 2026',
+    luogo: 'Napoli',
+    lunghezza: 500,
+    velocita: 15,
+    cielo: 0xDDE6EE,
+    terreno: 0x5F6B78,
+    corsie: 0x8A97A5,
+    edifici: [0xE9EEF3, 0xB8C4D0, 0x6C7A89],
+    ostacoli: { basso: 0xE07A2E, alto: 0x3A3F4A, muro: 0xF2C14E },
+  },
+  {
+    nome: 'ElRow Festival',
+    anni: '2024 – 2025',
+    luogo: 'Campovolo, Emilia-Romagna',
+    lunghezza: 450,
+    velocita: 16,
+    cielo: 0x2A1640,
+    terreno: 0x3B2A52,
+    corsie: 0x6B4A8E,
+    edifici: [0xFF4FA3, 0x3EE0D0, 0xFFD23F],
+    ostacoli: { basso: 0x1A1A1A, alto: 0xFF4FA3, muro: 0x3EE0D0 },
+  },
+  {
+    nome: 'Rennes',
+    anni: '2026',
+    luogo: 'Bretagna, Francia',
+    lunghezza: 500,
+    velocita: 17.5,
+    cielo: 0xA9B7C6,
+    terreno: 0x4E5A52,
+    corsie: 0x7D8B80,
+    edifici: [0xD8D2C4, 0x8B5E3C, 0x5E6B7A],
+    ostacoli: { basso: 0x3E6E9E, alto: 0xE9E4D8, muro: 0x1F2A44 },
+  },
+];
+
+export const TRAGUARDO = {
+  nome: 'Laurea',
+  data: '28 settembre 2026',
+};
+
+// Ogni caffè raccolto toglie questo tempo dal totale (secondi).
+export const BONUS_CAFFE = 0.25;

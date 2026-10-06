@@ -1,0 +1,85 @@
+:root {
+  --ground: #F2F3F6;
+  --paper: #FFFFFF;
+  --ink: #1C1D2B;
+  --muted: #5B5E72;
+  --line: #DADCE5;
+  --sea: #1F5F8B;
+  --tuff: #C9962E;
+  --tuff-soft: #F4E9CF;
+  --display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --body: "Newsreader", "Iowan Old Style", Georgia, "Times New Roman", serif;
+  --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --ground: #12141C;
+    --paper: #1A1D28;
+    --ink: #ECEDF3;
+    --muted: #A3A7BA;
+    --line: #2C3040;
+    --sea: #7DB6E0;
+    --tuff: #E6BA5C;
+    --tuff-soft: #2E2716;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ground: #12141C;
+  --paper: #1A1D28;
+  --ink: #ECEDF3;
+  --muted: #A3A7BA;
+  --line: #2C3040;
+  --sea: #7DB6E0;
+  --tuff: #E6BA5C;
+  --tuff-soft: #2E2716;
+}
+
+body {
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--body);
+  font-size: 18px;
+  line-height: 1.6;
+  padding-inline: 20px;
+  padding-block: 40px 56px;
+}
+.wrap { max-width: 640px; margin: 0 auto; display: grid; gap: 40px; }
+
+header { display: grid; gap: 14px; }
+.eyebrow {
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+h1 {
+  font-family: var(--display);
+  font-weight: 800;
+  font-size: clamp(64px, 18vw, 120px);
+  line-height: 0.9;
+  letter-spacing: -0.03em;
+  margin: 0;
+  color: var(--ink);
+}
+h1 .dot { color: var(--tuff); }
+.lede { margin: 0; font-size: 20px; max-width: 34em; text-wrap: pretty; }
+.lede em { color: var(--sea); }
+
+.indietro {
+  justify-self: start;
+  font-family: var(--mono); font-size: 13px;
+  color: var(--muted); text-decoration: none;
+}
+.indietro:hover { color: var(--ink); }
+
+footer {
+  border-top: 1px solid var(--line);
+  padding-top: 20px;
+  display: grid; gap: 4px;
+  font-size: 15px; color: var(--muted);
+}
+footer .thesis { font-style: italic; color: var(--ink); }
+footer .mono { font-family: var(--mono); font-size: 12px; }

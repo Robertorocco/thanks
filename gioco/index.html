@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#12141C">
+<title>Corri, Roberto · Gioco</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,800&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="gioco.css">
+</head>
+<body>
+
+<div id="scena" aria-hidden="true"></div>
+
+<div id="hud" hidden>
+  <div class="riga">
+    <span id="hud-tempo" class="tempo">0:00.0</span>
+    <span id="hud-caffe" class="caffe">☕ 0</span>
+    <button id="hud-pausa" class="pausa" type="button" aria-label="Pausa">II</button>
+  </div>
+  <div id="hud-mondo" class="mondo"></div>
+  <div class="progresso"><div id="hud-barra" class="barra"></div><div id="hud-tacche"></div></div>
+</div>
+
+<div id="banner" class="banner" hidden></div>
+
+<section id="schermo-inizio" class="schermo">
+  <div class="carta">
+    <a class="indietro" href="../">← Menù</a>
+    <div class="eyebrow">Dal liceo alla laurea</div>
+    <h1>Corri, Roberto<span class="dot">.</span></h1>
+    <p>Cinque mondi, un traguardo. Ogni mondo ha un checkpoint: se urti un ostacolo riparti da lì, ma il cronometro non si ferma. Ogni caffè raccolto toglie un quarto di secondo.</p>
+    <ul class="comandi">
+      <li><b>← →</b> scorri per cambiare corsia</li>
+      <li><b>↑</b> scorri in su per saltare</li>
+      <li><b>↓</b> scorri in giù per scivolare</li>
+    </ul>
+    <form id="modulo-nome">
+      <label for="nome">Il tuo nome, per la classifica</label>
+      <input id="nome" name="nome" maxlength="24" autocomplete="given-name" required placeholder="Es. Zia Anna">
+      <button type="submit" class="primario">Inizia</button>
+    </form>
+    <button type="button" class="link" data-apri="classifica">Guarda la classifica</button>
+  </div>
+</section>
+
+<section id="schermo-pausa" class="schermo" hidden>
+  <div class="carta">
+    <h2>In pausa</h2>
+    <p>Il cronometro è fermo.</p>
+    <button id="riprendi" type="button" class="primario">Riprendi</button>
+    <button type="button" class="link" data-ricomincia>Ricomincia da capo</button>
+  </div>
+</section>
+
+<section id="schermo-fine" class="schermo" hidden>
+  <div class="carta">
+    <div class="eyebrow" id="fine-data"></div>
+    <h2>Laureato<span class="dot">!</span></h2>
+    <p class="risultato"><span id="fine-tempo" class="tempo-grande">0:00.0</span></p>
+    <p id="fine-dettaglio" class="dettaglio"></p>
+    <ol id="fine-classifica" class="classifica"></ol>
+    <button type="button" class="primario" data-ricomincia>Rigioca</button>
+    <div class="link-fondo">
+      <a href="../ringraziamenti/">Leggi i ringraziamenti</a>
+      <a href="../">Menù</a>
+    </div>
+  </div>
+</section>
+
+<section id="schermo-classifica" class="schermo" hidden>
+  <div class="carta">
+    <div class="eyebrow">Tempo totale, caffè inclusi</div>
+    <h2>Classifica</h2>
+    <ol id="classifica" class="classifica"></ol>
+    <button type="button" class="primario" data-chiudi-classifica>Gioca</button>
+    <div class="link-fondo"><a href="../">Menù</a></div>
+  </div>
+</section>
+
+<script type="module" src="main.js"></script>
+</body>
+</html>

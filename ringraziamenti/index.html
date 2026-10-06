@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Grazie — Roberto Rocco</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,800&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../stile.css">
+<style>
+  .status { display: grid; gap: 16px; }
+  .wip {
+    display: inline-flex; align-items: center; gap: 10px;
+    justify-self: start;
+    font-family: var(--mono); font-size: 13px; letter-spacing: 0.04em;
+    color: var(--ink); background: var(--tuff-soft);
+    border: 1px solid var(--tuff);
+    border-radius: 999px; padding: 8px 16px; margin: 0;
+  }
+  .wip::before {
+    content: ""; width: 8px; height: 8px; border-radius: 50%;
+    background: var(--tuff);
+    animation: pulse 1.6s ease-in-out infinite;
+  }
+  @keyframes pulse { 50% { opacity: .25; } }
+  @media (prefers-reduced-motion: reduce) {
+    .wip::before { animation: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <a class="indietro" href="../">← Menù</a>
+    <div class="eyebrow">Tesi di laurea magistrale · Ringraziamenti</div>
+    <h1>Grazie<span class="dot">.</span></h1>
+    <p class="lede">Una tesi ha un solo nome in copertina, ma non è mai il lavoro di una persona sola. Questa pagina è per chi mi ha accompagnato fin qui. Se hai inquadrato il codice, <em>probabilmente sei uno di loro.</em></p>
+  </header>
+
+  <div class="status">
+    <p class="wip">Lavori in corso</p>
+    <p class="lede">I ringraziamenti sono in fase di scrittura. Torna presto a trovarmi.</p>
+  </div>
+
+  <footer>
+    <span>Roberto Rocco</span>
+    <span class="thesis">Shared-autonomy teleoperation of a bimanual manipulator</span>
+    <span class="mono">Università degli Studi di Napoli Federico II · 2026</span>
+  </footer>
+</div>
+</body>
+</html>
