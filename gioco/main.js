@@ -1,6 +1,10 @@
 import * as THREE from './lib/three.module.min.js';
-import { MONDI, TRAGUARDO, BONUS_CAFFE } from './mondi.js';
+import { MONDI, TRAGUARDO, BONUS_CAFFE, SPINTA, CRESCITA } from './mondi.js';
 import { inviaTempo, leggiClassifica, formattaTempo } from './classifica.js';
+import {
+  creaRoberto, posaCorsa, posaFerma, creaOstacolo, creaCaffe, creaArco,
+  creaEdificio, creaMonumento, creaLampione, creaAlbero, caricaFotoLuogo,
+} from './modelli.js';
 
 // ---------------------------------------------------------------------------
 // Percorso
@@ -8,7 +12,7 @@ import { inviaTempo, leggiClassifica, formattaTempo } from './classifica.js';
 
 const CORSIE = [-2.2, 0, 2.2];
 const VISTA = 150;          // metri generati davanti al giocatore
-const DIETRO = 15;          // metri tenuti dietro prima di rimuovere un oggetto
+const DIETRO = 30;          // metri tenuti dietro prima di rimuovere un oggetto (serve anche all'intro)
 const TRANSIZIONE = 40;     // metri di sfumatura dei colori tra due mondi
 
 let cursore = 0;
@@ -18,6 +22,18 @@ const TRATTI = MONDI.map((m, indice) => {
   return t;
 });
 const LUNGHEZZA = cursore;
+
+function mondoDi(pos) {
+  for (let i = TRATTI.length - 1; i >= 0; i--) if (pos >= TRATTI[i].inizio) return i;
+  return 0;
+}
+
+// Velocità in un punto del percorso: cresce dentro ogni mondo e riparte al successivo.
+function velocitaIn(pos) {
+  const t = TRATTI[mondoDi(Math.min(pos, LUNGHEZZA - 0.01))];
+  const k = THREE.MathUtils.clamp((pos - t.inizio) / t.lunghezza, 0, 1);
+  return t.velocita * SPINTA * (1 + CRESCITA * k);
+}
 
 // Generatore pseudo-casuale con seme: tutti i partecipanti corrono lo stesso percorso.
 function rng(seme) {
@@ -37,30 +53,96 @@ function mescola(lista, r) {
   return lista;
 }
 
+const PROFONDITA = { basso: 0.8, alto: 0.4, muro: 0.9 };
+
 // Tutto ciò che compare lungo il percorso, ordinato per distanza.
+// Per gli ostacoli `d` è il centro e `profondita` la lunghezza lungo la corsa.
 const ENTITA = [];
 
 for (const t of TRATTI) {
   const r = rng(1009 + t.indice * 7919);
-  const tipi = ['basso', 'alto', 'muro'];
-  let d = t.inizio + 40;
-  while (d < t.fine - 25) {
-    const corsie = mescola([0, 1, 2], r);
-    const doppio = r() < 0.3 + 0.08 * t.indice;
-    for (const c of corsie.slice(0, doppio ? 2 : 1)) {
-      ENTITA.push({ d, genere: 'ostacolo', tipo: tipi[Math.floor(r() * 3)], corsia: c, mondo: t.indice });
+  const diff = t.indice / (TRATTI.length - 1);   // 0 nel primo mondo, 1 nell'ultimo
+  const ostacolo = (d, corsia, tipo, profondita = PROFONDITA[tipo]) =>
+    ENTITA.push({ d, genere: 'ostacolo', tipo, corsia, profondita, mondo: t.indice });
+  const caffe = (d, corsia) => ENTITA.push({ d, genere: 'caffe', corsia, mondo: t.indice });
+  const azione = () => (r() < 0.5 ? 'basso' : 'alto');
+
+  // Corridoio: due corsie chiuse da pareti lunghe, quella libera si sposta di una
+  // corsia alla volta. Dentro la corsia libera può esserci un salto o una scivolata.
+  function corridoio(d) {
+    const tratti = 3 + Math.floor(r() * (2 + diff * 2));
+    let libera = Math.floor(r() * 3);
+    for (let i = 0; i < tratti; i++) {
+      const v = velocitaIn(d);
+      const lungo = v * (0.8 + r() * 0.4);
+      const centro = d + lungo / 2;
+      for (const c of [0, 1, 2]) if (c !== libera) ostacolo(centro, c, 'muro', lungo);
+      if (lungo > 10 && r() < 0.3 + 0.4 * diff) ostacolo(centro, libera, azione());
+      else if (r() < 0.6) caffe(centro, libera);
+      d += lungo + v * 0.55;
+      const mosse = [libera - 1, libera + 1].filter(c => c >= 0 && c <= 2);
+      libera = mosse[Math.floor(r() * mosse.length)];
     }
-    if (r() < 0.6) ENTITA.push({ d, genere: 'caffe', corsia: corsie[2], mondo: t.indice });
-    d += t.velocita * (1.0 - 0.03 * t.indice + r() * 0.55);
+    return d;
   }
-  for (let q = t.inizio; q < t.fine; q += 7) {
+
+  let d = t.inizio + 45;
+  while (d < t.fine - 30) {
+    const v = velocitaIn(d);
+    const corsie = mescola([0, 1, 2], r);
+    const x = r();
+    const pCorridoio = 0.12 + 0.12 * diff;
+    const pMuraglia = pCorridoio + 0.16 + 0.1 * diff;
+    const pBarriera = pMuraglia + 0.12 + 0.08 * diff;
+    const pDoppio = pBarriera + 0.3;
+
+    if (x < pCorridoio && d + v * 6 < t.fine - 30) {
+      d = corridoio(d);
+    } else if (x < pMuraglia) {
+      // Due muri: una sola corsia percorribile, a volte con un ostacolo da saltare o scivolare.
+      ostacolo(d, corsie[0], 'muro');
+      ostacolo(d, corsie[1], 'muro');
+      if (r() < 0.5 + 0.3 * diff) ostacolo(d, corsie[2], azione());
+      else caffe(d, corsie[2]);
+    } else if (x < pBarriera) {
+      // Tutte e tre le corsie chiuse da ostacoli bassi o alti: bisogna saltare o scivolare.
+      const tutti = r() < 0.6 ? azione() : null;
+      for (const c of corsie) ostacolo(d, c, tutti ?? azione());
+    } else if (x < pDoppio) {
+      const tipi = ['basso', 'alto', 'muro'];
+      ostacolo(d, corsie[0], tipi[Math.floor(r() * 3)]);
+      ostacolo(d, corsie[1], tipi[Math.floor(r() * 3)]);
+      if (r() < 0.6) caffe(d, corsie[2]);
+    } else {
+      const tipi = ['basso', 'alto', 'muro'];
+      ostacolo(d, corsie[0], tipi[Math.floor(r() * 3)]);
+      if (r() < 0.6) caffe(d, corsie[1 + Math.floor(r() * 2)]);
+    }
+    d += velocitaIn(d) * (1.05 - 0.15 * diff + r() * 0.45);
+  }
+
+  // Scenografia: monumento con la foto del luogo, edifici, lampioni, alberi.
+  const latoMonumento = t.indice % 2 ? 1 : -1;
+  const dMonumento = t.inizio + 70;
+  ENTITA.push({ d: dMonumento, genere: 'monumento', lato: latoMonumento, mondo: t.indice });
+  caricaFotoLuogo(t.stile);
+  for (let q = t.inizio - (t.indice === 0 ? 28 : 0); q < t.fine; q += 7) {
     for (const lato of [-1, 1]) {
-      if (r() < 0.2) continue;
+      if (r() < 0.15) continue;
+      if (lato === latoMonumento && Math.abs(q - dMonumento) < 14) continue;
       ENTITA.push({
-        d: q + r() * 3, genere: 'quinta', lato, mondo: t.indice,
-        larghezza: 3 + r() * 3, altezza: 3 + r() * (t.indice === 3 ? 4 : 10),
-        profondita: 4 + r() * 3, scarto: r() * 3, colore: t.edifici[Math.floor(r() * t.edifici.length)],
+        d: q + r() * 3, genere: 'edificio', lato, mondo: t.indice,
+        larghezza: 3 + r() * 3, altezza: 4 + r() * (t.stile === 'festival' ? 5 : t.stile === 'rennes' ? 6 : 12),
+        profondita: 4 + r() * 3, scarto: r() * 2, colore: t.edifici[Math.floor(r() * t.edifici.length)],
       });
+    }
+  }
+  for (let q = t.inizio + (t.indice === 0 ? -12 : 12); q < t.fine; q += 24) {
+    for (const lato of [-1, 1]) ENTITA.push({ d: q, genere: 'lampione', lato, mondo: t.indice });
+  }
+  if (t.stile === 'liceo' || t.stile === 'rennes') {
+    for (let q = t.inizio + 6; q < t.fine; q += 16) {
+      ENTITA.push({ d: q, genere: 'albero', lato: (q / 16) % 2 < 1 ? -1 : 1, scala: 0.8 + r() * 0.5, mondo: t.indice });
     }
   }
   if (t.indice > 0) ENTITA.push({ d: t.inizio, genere: 'arco', testo: t.nome, colore: 0xC9962E });
@@ -69,6 +151,7 @@ ENTITA.push({ d: LUNGHEZZA, genere: 'arco', testo: `${TRAGUARDO.nome} · ${TRAGU
 ENTITA.sort((a, b) => a.d - b.d);
 
 const CAFFE_TOTALI = ENTITA.filter(e => e.genere === 'caffe').length;
+const mezzaLunghezza = e => (e.profondita ?? 0) / 2;
 
 // ---------------------------------------------------------------------------
 // Scena
@@ -77,18 +160,24 @@ const CAFFE_TOTALI = ENTITA.filter(e => e.genere === 'caffe').length;
 const contenitore = document.getElementById('scena');
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 contenitore.appendChild(renderer.domElement);
 
 const scena = new THREE.Scene();
 scena.background = new THREE.Color(TRATTI[0].cielo);
-scena.fog = new THREE.Fog(TRATTI[0].cielo, 50, VISTA - 10);
+scena.fog = new THREE.Fog(TRATTI[0].cielo, 60, VISTA - 5);
 
 const camera = new THREE.PerspectiveCamera(65, 1, 0.1, 400);
 
-scena.add(new THREE.HemisphereLight(0xffffff, 0x666666, 1.6));
-const sole = new THREE.DirectionalLight(0xffffff, 1.4);
-sole.position.set(-4, 10, 6);
-scena.add(sole);
+const cielo = new THREE.HemisphereLight(0xffffff, 0x77736a, 1.5);
+scena.add(cielo);
+const sole = new THREE.DirectionalLight(0xfff4e0, 1.6);
+sole.castShadow = true;
+sole.shadow.mapSize.set(1024, 1024);
+Object.assign(sole.shadow.camera, { left: -12, right: 12, top: 14, bottom: -14, near: 1, far: 50 });
+sole.shadow.bias = -0.0008;
+scena.add(sole, sole.target);
 
 function ridimensiona() {
   const w = window.innerWidth, h = window.innerHeight;
@@ -100,168 +189,91 @@ function ridimensiona() {
 window.addEventListener('resize', ridimensiona);
 ridimensiona();
 
-const materiali = new Map();
-function materiale(colore) {
-  if (!materiali.has(colore)) materiali.set(colore, new THREE.MeshLambertMaterial({ color: colore }));
-  return materiali.get(colore);
-}
-const cubo = new THREE.BoxGeometry(1, 1, 1);
-
-function blocco(w, h, p, colore, x = 0, y = h / 2, z = 0) {
-  const m = new THREE.Mesh(cubo, materiale(colore));
-  m.scale.set(w, h, p);
-  m.position.set(x, y, z);
-  return m;
-}
-
 // Strada a tre corsie con texture che scorre.
 const tela = document.createElement('canvas');
 tela.width = 256; tela.height = 256;
 {
   const g = tela.getContext('2d');
   g.fillStyle = '#ffffff'; g.fillRect(0, 0, 256, 256);
-  g.fillStyle = 'rgba(0,0,0,.07)'; g.fillRect(0, 0, 256, 128);
+  g.fillStyle = 'rgba(0,0,0,.06)'; g.fillRect(0, 0, 256, 128);
+  for (let i = 0; i < 400; i++) {
+    g.fillStyle = `rgba(0,0,0,${Math.random() * 0.05})`;
+    g.fillRect(Math.random() * 256, Math.random() * 256, 3, 3);
+  }
   g.fillStyle = 'rgba(255,255,255,.9)';
   for (const x of [85, 171]) g.fillRect(x - 3, 20, 6, 90);
-  g.fillStyle = 'rgba(0,0,0,.25)';
-  g.fillRect(0, 0, 6, 256); g.fillRect(250, 0, 6, 256);
+  g.fillStyle = 'rgba(0,0,0,.3)';
+  g.fillRect(0, 0, 8, 256); g.fillRect(248, 0, 8, 256);
 }
 const texStrada = new THREE.CanvasTexture(tela);
 texStrada.wrapS = texStrada.wrapT = THREE.RepeatWrapping;
 texStrada.colorSpace = THREE.SRGBColorSpace;
+texStrada.anisotropy = 8;
 const LUNGHEZZA_STRADA = 260;
 const TILE = 6;
 texStrada.repeat.set(1, LUNGHEZZA_STRADA / TILE);
-const strada = new THREE.Mesh(
-  new THREE.PlaneGeometry(6.6, LUNGHEZZA_STRADA),
-  new THREE.MeshLambertMaterial({ map: texStrada, color: TRATTI[0].corsie }),
-);
-strada.rotation.x = -Math.PI / 2;
-strada.position.set(0, 0.01, -LUNGHEZZA_STRADA / 2 + 20);
-scena.add(strada);
 
-const prato = new THREE.Mesh(
-  new THREE.PlaneGeometry(200, LUNGHEZZA_STRADA),
-  new THREE.MeshLambertMaterial({ color: TRATTI[0].terreno }),
-);
-prato.rotation.x = -Math.PI / 2;
-prato.position.set(0, 0, -LUNGHEZZA_STRADA / 2 + 20);
-scena.add(prato);
-
-// ---------------------------------------------------------------------------
-// Roberto (segnaposto low-poly)
-// ---------------------------------------------------------------------------
-
-const PELLE = 0xE0B08A, CAPELLI = 0x2B1D14, MAGLIA = 0x1F5F8B, PANTALONI = 0x2A2D3A, SCARPE = 0xF2F2F2;
-
-const roberto = new THREE.Group();
-const corpo = new THREE.Group();
-roberto.add(corpo);
-
-corpo.add(blocco(0.62, 0.7, 0.34, MAGLIA, 0, 1.15));
-const testa = new THREE.Group();
-testa.position.y = 1.62;
-testa.add(blocco(0.4, 0.42, 0.4, PELLE, 0, 0));
-testa.add(blocco(0.44, 0.14, 0.44, CAPELLI, 0, 0.22));
-testa.add(blocco(0.44, 0.3, 0.1, CAPELLI, 0, 0.06, 0.2));
-corpo.add(testa);
-
-function arto(colore, colorePunta, x, y, lungo) {
-  const g = new THREE.Group();
-  g.position.set(x, y, 0);
-  g.add(blocco(0.2, lungo, 0.22, colore, 0, -lungo / 2));
-  g.add(blocco(0.22, 0.12, 0.3, colorePunta, 0, -lungo - 0.02, -0.04));
-  corpo.add(g);
-  return g;
+function piano(w, x, y, mat) {
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, LUNGHEZZA_STRADA), mat);
+  m.rotation.x = -Math.PI / 2;
+  m.position.set(x, y, -LUNGHEZZA_STRADA / 2 + 20);
+  m.receiveShadow = true;
+  scena.add(m);
+  return m;
 }
-const gambaSx = arto(PANTALONI, SCARPE, -0.16, 0.8, 0.72);
-const gambaDx = arto(PANTALONI, SCARPE, 0.16, 0.8, 0.72);
-const braccioSx = arto(MAGLIA, PELLE, -0.42, 1.46, 0.56);
-const braccioDx = arto(MAGLIA, PELLE, 0.42, 1.46, 0.56);
+const strada = piano(6.6, 0, 0.01, new THREE.MeshLambertMaterial({ map: texStrada, color: TRATTI[0].corsie }));
+const prato = piano(300, 0, 0, new THREE.MeshLambertMaterial({ color: TRATTI[0].terreno }));
+const matMarciapiede = new THREE.MeshLambertMaterial({ color: 0xffffff });
+const marciapiedi = [piano(3, -4.8, 0.06, matMarciapiede), piano(3, 4.8, 0.06, matMarciapiede)];
 
-const ombra = new THREE.Mesh(
-  new THREE.CircleGeometry(0.45, 20),
-  new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.25, depthWrite: false }),
-);
-ombra.rotation.x = -Math.PI / 2;
-ombra.position.y = 0.02;
-scena.add(ombra);
+// ---------------------------------------------------------------------------
+// Roberto
+// ---------------------------------------------------------------------------
+
+const ALTEZZA_ROBERTO = 0.8;     // scala del modello: alto circa 1,8 m
+const R = creaRoberto();
+const roberto = R.radice;
+roberto.scale.setScalar(ALTEZZA_ROBERTO);
 scena.add(roberto);
 
 // ---------------------------------------------------------------------------
 // Oggetti del percorso
 // ---------------------------------------------------------------------------
 
-function etichetta(testo, colore) {
-  const c = document.createElement('canvas');
-  c.width = 1024; c.height = 128;
-  const g = c.getContext('2d');
-  g.fillStyle = '#' + colore.toString(16).padStart(6, '0');
-  g.fillRect(0, 0, 1024, 128);
-  g.fillStyle = '#1C1D2B';
-  g.font = '800 64px "Bricolage Grotesque", "Avenir Next", system-ui, sans-serif';
-  g.textAlign = 'center'; g.textBaseline = 'middle';
-  g.fillText(testo.toUpperCase(), 512, 68, 980);
-  const tex = new THREE.CanvasTexture(c);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return new THREE.Mesh(new THREE.PlaneGeometry(8, 1), new THREE.MeshBasicMaterial({ map: tex }));
-}
-
 function creaMesh(e) {
   const t = TRATTI[e.mondo ?? 0];
-  if (e.genere === 'ostacolo') {
-    const col = t.ostacoli[e.tipo];
-    const g = new THREE.Group();
-    if (e.tipo === 'basso') {
-      g.add(blocco(1.8, 0.8, 0.8, col));
-      g.add(blocco(1.9, 0.08, 0.9, 0xffffff, 0, 0.82));
-    } else if (e.tipo === 'alto') {
-      g.add(blocco(2.0, 0.55, 0.4, col, 0, 1.5));
-      g.add(blocco(0.12, 1.8, 0.12, 0x333333, -0.95, 0.9));
-      g.add(blocco(0.12, 1.8, 0.12, 0x333333, 0.95, 0.9));
-    } else {
-      g.add(blocco(1.9, 2.6, 0.9, col));
-      g.add(blocco(1.5, 0.2, 0.92, 0xffffff, 0, 2.0));
-    }
-    g.position.x = CORSIE[e.corsia];
-    return g;
-  }
-  if (e.genere === 'caffe') {
-    const g = new THREE.Group();
-    const tazza = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.2, 0.36, 12), materiale(0xffffff));
-    const crema = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.02, 12), materiale(0x6B3E1F));
-    crema.position.y = 0.18;
-    g.add(tazza, crema);
-    g.position.set(CORSIE[e.corsia], 1.0, 0);
-    return g;
-  }
-  if (e.genere === 'quinta') {
-    const x = e.lato * (6 + e.larghezza / 2 + e.scarto);
-    return blocco(e.larghezza, e.altezza, e.profondita, e.colore, x);
-  }
-  if (e.genere === 'arco') {
-    const g = new THREE.Group();
-    g.add(blocco(0.4, 4.6, 0.4, e.colore, -4, 2.3));
-    g.add(blocco(0.4, 4.6, 0.4, e.colore, 4, 2.3));
-    const cartello = etichetta(e.testo, e.colore);
-    cartello.position.y = 4.6;
-    g.add(cartello);
-    return g;
-  }
+  let m;
+  if (e.genere === 'ostacolo') { m = creaOstacolo(e, t); m.position.x = CORSIE[e.corsia]; }
+  else if (e.genere === 'caffe') { m = creaCaffe(); m.position.set(CORSIE[e.corsia], 0.85, 0); }
+  else if (e.genere === 'edificio') m = creaEdificio(e, t);
+  else if (e.genere === 'monumento') m = creaMonumento(e, t);
+  else if (e.genere === 'lampione') m = creaLampione(e.lato);
+  else if (e.genere === 'albero') m = creaAlbero(e.lato, e.scala);
+  else if (e.genere === 'arco') m = creaArco(e);
+  return m;
+}
+
+function rimuovi(e) {
+  scena.remove(e.mesh);
+  e.mesh.traverse(o => {
+    // Le geometrie e i materiali condivisi restano in cache; si liberano solo le texture clonate.
+    if (o.material && !Array.isArray(o.material) && o.material.map?.isCanvasTexture === false) o.material.dispose();
+  });
+  e.mesh = null;
 }
 
 let prossima = 0;      // indice della prossima entità da far comparire
 const attive = [];
 
 function svuota() {
-  for (const e of attive) { scena.remove(e.mesh); e.mesh = null; }
+  for (const e of attive) rimuovi(e);
   attive.length = 0;
 }
 
 function riposiziona(pos) {
   svuota();
   prossima = 0;
-  while (prossima < ENTITA.length && ENTITA[prossima].d < pos - DIETRO) prossima++;
+  while (prossima < ENTITA.length && ENTITA[prossima].d < pos - 40) prossima++;
 }
 
 // ---------------------------------------------------------------------------
@@ -269,7 +281,7 @@ function riposiziona(pos) {
 // ---------------------------------------------------------------------------
 
 const G = {
-  stato: 'inizio',     // inizio | conto | gioco | caduto | pausa | fine
+  stato: 'inizio',     // inizio | intro | conto | gioco | caduto | pausa | fine
   pos: 0,
   tempo: 0,
   caffe: 0,
@@ -288,13 +300,7 @@ const G = {
 };
 
 const GRAVITA = 28, SALTO = 10;
-
-function velocita() { return TRATTI[G.mondo].velocita; }
-
-function mondoDi(pos) {
-  for (let i = TRATTI.length - 1; i >= 0; i--) if (pos >= TRATTI[i].inizio) return i;
-  return 0;
-}
+const DURATA_INTRO = 3.6;
 
 function azzeraGiocatore() {
   G.corsia = 1; G.x = 0; G.y = 0; G.vy = 0; G.scivola = 0;
@@ -306,8 +312,17 @@ function nuovaPartita() {
   azzeraGiocatore();
   riposiziona(0);
   mostraSchermo(null);
+  hud.radice.hidden = true;
+  G.stato = 'intro';
+  G.timer = 0;
+  G.bannerIntro = false;
+}
+
+function iniziaCorsa() {
+  G.stato = 'gioco';
   hud.radice.hidden = false;
-  avviaConto(`Mondo 1 di ${TRATTI.length} · ${TRATTI[0].nome} · ${TRATTI[0].anni}`);
+  const t = TRATTI[0];
+  banner(`Via!<small>Mondo 1 di ${TRATTI.length} · ${t.nome} · ${t.anni}</small>`, 1.8);
 }
 
 function avviaConto(sottotitolo) {
@@ -372,6 +387,10 @@ function comando(azione) {
   }
 }
 
+function saltaIntro() {
+  if (G.stato === 'intro' && G.timer < DURATA_INTRO - 0.4) G.timer = DURATA_INTRO - 0.4;
+}
+
 window.addEventListener('keydown', ev => {
   const tasti = {
     ArrowLeft: 'sinistra', KeyA: 'sinistra',
@@ -379,6 +398,7 @@ window.addEventListener('keydown', ev => {
     ArrowUp: 'su', KeyW: 'su', Space: 'su',
     ArrowDown: 'giu', KeyS: 'giu',
   };
+  if (G.stato === 'intro') saltaIntro();
   if (tasti[ev.code] && G.stato === 'gioco') { ev.preventDefault(); comando(tasti[ev.code]); }
   if (ev.code === 'Escape' || ev.code === 'KeyP') metti_in_pausa();
 });
@@ -387,6 +407,7 @@ let tocco = null;
 contenitore.addEventListener('touchstart', ev => {
   const t = ev.changedTouches[0];
   tocco = { x: t.clientX, y: t.clientY, usato: false };
+  saltaIntro();
 }, { passive: true });
 contenitore.addEventListener('touchmove', ev => {
   if (!tocco || tocco.usato) return;
@@ -430,8 +451,9 @@ document.getElementById('hud-tacche').innerHTML =
 
 const elBanner = document.getElementById('banner');
 let durataBanner = 0;
-function banner(html, durata) {
+function banner(html, durata, posizione = '') {
   elBanner.innerHTML = html;
+  elBanner.className = `banner ${posizione}`;
   elBanner.hidden = false;
   durataBanner = durata;
 }
@@ -520,11 +542,16 @@ function aggiornaColori() {
   scena.fog.color.copy(scena.background);
   strada.material.color.copy(sfuma('corsie', G.pos));
   prato.material.color.copy(sfuma('terreno', G.pos));
+  matMarciapiede.color.copy(prato.material.color).lerp(cB.setHex(0xffffff), 0.35);
+  const notte = TRATTI[mondoDi(G.pos)].stile === 'festival';
+  cielo.intensity += ((notte ? 0.7 : 1.5) - cielo.intensity) * 0.05;
+  sole.intensity += ((notte ? 0.5 : 1.6) - sole.intensity) * 0.05;
 }
 
 function aggiornaEntita() {
-  while (prossima < ENTITA.length && ENTITA[prossima].d < G.pos + VISTA) {
+  while (prossima < ENTITA.length && ENTITA[prossima].d - mezzaLunghezza(ENTITA[prossima]) < G.pos + VISTA) {
     const e = ENTITA[prossima++];
+    if (e.d + mezzaLunghezza(e) < G.pos - DIETRO) continue;
     if (e.genere === 'caffe' && G.raccolti.has(e)) continue;
     e.mesh = creaMesh(e);
     scena.add(e.mesh);
@@ -532,12 +559,15 @@ function aggiornaEntita() {
   }
   for (let i = attive.length - 1; i >= 0; i--) {
     const e = attive[i];
-    if (e.d < G.pos - DIETRO) {
-      scena.remove(e.mesh); e.mesh = null; attive.splice(i, 1);
+    if (e.d + mezzaLunghezza(e) < G.pos - DIETRO) {
+      rimuovi(e); attive.splice(i, 1);
       continue;
     }
     e.mesh.position.z = G.pos - e.d;
-    if (e.genere === 'caffe') e.mesh.rotation.y += 0.05;
+    if (e.genere === 'caffe') {
+      e.mesh.rotation.y += 0.05;
+      e.mesh.position.y = 0.85 + Math.sin(performance.now() / 250 + e.d) * 0.08;
+    }
   }
 }
 
@@ -546,39 +576,64 @@ function controllaUrti() {
   const basso = G.y, alto = G.y + altezza;
   for (let i = attive.length - 1; i >= 0; i--) {
     const e = attive[i];
-    if (Math.abs(e.d - G.pos) > 0.8) continue;
+    if (e.genere !== 'ostacolo' && e.genere !== 'caffe') continue;
+    if (Math.abs(e.d - G.pos) > mezzaLunghezza(e) + 0.4) continue;
     if (Math.abs(CORSIE[e.corsia] - G.x) > 1.15) continue;
     if (e.genere === 'caffe') {
       G.caffe++;
       G.raccolti.add(e);
-      scena.remove(e.mesh); e.mesh = null; attive.splice(i, 1);
+      rimuovi(e); attive.splice(i, 1);
       continue;
     }
-    if (e.genere !== 'ostacolo') continue;
-    const [oBasso, oAlto] = e.tipo === 'basso' ? [0, 0.82] : e.tipo === 'alto' ? [1.22, 3] : [0, 2.6];
+    const [oBasso, oAlto] = e.tipo === 'basso' ? [0, 0.85] : e.tipo === 'alto' ? [1.2, 3] : [0, 3];
     if (alto > oBasso && basso < oAlto) { caduta(); return; }
   }
 }
 
-function animaRoberto(dt, inCorsa) {
+function animaRoberto(dt) {
   roberto.position.set(G.x, G.y, 0);
-  ombra.position.x = G.x;
-  ombra.scale.setScalar(1 - Math.min(G.y, 2) * 0.2);
+  roberto.rotation.y = 0;
 
-  if (inCorsa) G.passo += dt * velocita() * 0.9;
-  const s = Math.sin(G.passo);
+  if (G.stato === 'intro') {
+    const corre = G.timer > DURATA_INTRO - 1.2;
+    const saluto = THREE.MathUtils.smoothstep(G.timer, 0.3, 0.7) * (1 - THREE.MathUtils.smoothstep(G.timer, 1.6, 2.0));
+    if (corre) { G.passo += dt * 14; posaCorsa(R, G.passo, Math.min(1, (G.timer - (DURATA_INTRO - 1.2)) * 2)); }
+    else posaFerma(R, G.timer, saluto);
+    R.corpo.rotation.x = 0;
+    return;
+  }
+
+  const inCorsa = G.stato === 'gioco';
+  if (inCorsa) G.passo += dt * velocitaIn(G.pos) * 0.75;
   const inAria = G.y > 0.001;
-  const ampiezza = inAria ? 0.3 : 0.9;
-  gambaSx.rotation.x = s * ampiezza;
-  gambaDx.rotation.x = -s * ampiezza;
-  braccioSx.rotation.x = -s * ampiezza * 0.8;
-  braccioDx.rotation.x = s * ampiezza * 0.8;
+  posaCorsa(R, G.passo, inAria ? 0.35 : 1);
+  if (inAria) for (const { ginocchio } of R.gambe) ginocchio.rotation.x = 1.1;
 
   const piegato = G.scivola > 0 ? -1.15 : 0;
-  corpo.rotation.x += (piegato - corpo.rotation.x) * Math.min(1, dt * 18);
-  corpo.position.y = G.scivola > 0 ? 0.3 : (inAria ? 0 : Math.abs(s) * 0.06);
+  R.corpo.rotation.x += (piegato - R.corpo.rotation.x) * Math.min(1, dt * 18);
+  R.corpo.position.y = G.scivola > 0 ? 0.35 : (inAria ? 0 : Math.abs(Math.sin(G.passo)) * 0.06);
   roberto.rotation.z = (G.x - CORSIE[G.corsia]) * 0.12;
-  if (G.stato === 'caduto') { corpo.rotation.x = 1.3; corpo.position.y = 0.3; }
+  if (G.stato === 'caduto') { R.corpo.rotation.x = 1.3; R.corpo.position.y = 0.3; }
+}
+
+const guarda = new THREE.Vector3(), daIntro = new THREE.Vector3();
+function aggiornaCamera() {
+  const dietroPos = new THREE.Vector3(G.x * 0.45, 3.3 + G.y * 0.25, 6.2);
+  const dietroGuarda = new THREE.Vector3(G.x * 0.45, 1.3, -10);
+  if (G.stato === 'intro') {
+    // Prima davanti al volto, poi un giro attorno a Roberto fino alla visuale di corsa.
+    const k = THREE.MathUtils.smootherstep(G.timer, 1.6, DURATA_INTRO - 0.2);
+    const ang = k * Math.PI;
+    const raggio = THREE.MathUtils.lerp(1.5, 6.2, k);
+    const avvicina = 1 - THREE.MathUtils.smootherstep(G.timer, 0, 1.2);
+    daIntro.set(Math.sin(ang) * raggio * 0.6, THREE.MathUtils.lerp(1.55, 3.3, k), -Math.cos(ang) * raggio - avvicina * 0.8);
+    camera.position.copy(daIntro);
+    guarda.set(0, 1.5, 0).lerp(dietroGuarda, k * k);
+    camera.lookAt(guarda);
+    return;
+  }
+  camera.position.copy(dietroPos);
+  camera.lookAt(dietroGuarda);
 }
 
 let ultimo = performance.now();
@@ -586,7 +641,14 @@ function ciclo(ora) {
   const dt = Math.min(0.05, (ora - ultimo) / 1000);
   ultimo = ora;
 
-  if (G.stato === 'conto') {
+  if (G.stato === 'intro') {
+    G.timer += dt;
+    if (!G.bannerIntro && G.timer > 0.4) {
+      G.bannerIntro = true;
+      banner('Roberto Rocco<small>Dal liceo alla laurea</small>', 1.5, 'in-basso');
+    }
+    if (G.timer >= DURATA_INTRO) iniziaCorsa();
+  } else if (G.stato === 'conto') {
     const prima = Math.ceil(G.timer);
     G.timer -= dt;
     const n = Math.ceil(G.timer);
@@ -597,10 +659,10 @@ function ciclo(ora) {
     if (G.timer <= 0) G.stato = 'gioco';
   } else if (G.stato === 'gioco') {
     G.tempo += dt;
-    G.pos += velocita() * dt;
+    G.pos += velocitaIn(G.pos) * dt;
 
     const bersaglio = CORSIE[G.corsia];
-    G.x += (bersaglio - G.x) * Math.min(1, dt * 14);
+    G.x += (bersaglio - G.x) * Math.min(1, dt * 15);
     G.vy -= GRAVITA * dt;
     G.y = Math.max(0, G.y + G.vy * dt);
     if (G.y === 0) G.vy = 0;
@@ -625,12 +687,13 @@ function ciclo(ora) {
   texStrada.offset.y = (G.pos / TILE) % 1;
   aggiornaEntita();
   aggiornaColori();
-  animaRoberto(dt, G.stato === 'gioco');
+  animaRoberto(dt);
+  aggiornaCamera();
 
-  camera.position.set(G.x * 0.45, 3.3 + G.y * 0.25, 6.2);
-  camera.lookAt(G.x * 0.45, 1.3, -10);
+  sole.position.set(G.x - 6, 14, 8);
+  sole.target.position.set(G.x, 0, -6);
 
-  if (G.stato !== 'inizio' && G.stato !== 'fine' && G.stato !== 'pausa') {
+  if (G.stato !== 'inizio' && G.stato !== 'fine' && G.stato !== 'pausa' && G.stato !== 'intro') {
     hud.tempo.textContent = formattaTempo(G.tempo);
     hud.caffe.textContent = `☕ ${G.caffe}`;
     hud.mondo.textContent = `${G.mondo + 1}/${TRATTI.length} · ${TRATTI[G.mondo].nome}`;
@@ -645,4 +708,4 @@ riposiziona(0);
 requestAnimationFrame(ciclo);
 
 // Aiuto per i test automatici.
-window.__gioco = { G, ENTITA, TRATTI, LUNGHEZZA, comando };
+window.__gioco = { G, ENTITA, TRATTI, LUNGHEZZA, comando, velocitaIn };

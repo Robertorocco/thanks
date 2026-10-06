@@ -1,6 +1,9 @@
 // I mondi del percorso, in ordine. Ogni mondo inizia con un checkpoint:
 // se il giocatore urta un ostacolo riparte dall'inizio del mondo, il cronometro continua.
 //
+// `stile` sceglie i modelli degli ostacoli e degli edifici (vedi modelli.js) e il nome
+// della foto facoltativa del luogo in assets/luoghi/<stile>.jpg.
+//
 // Tipi di ostacolo:
 //   basso -> si salta (swipe in su)
 //   alto  -> si scivola sotto (swipe in giù)
@@ -9,9 +12,10 @@
 export const MONDI = [
   {
     nome: 'Liceo Vittorini',
+    stile: 'liceo',
     anni: '2015 – 2020',
     luogo: 'Napoli',
-    lunghezza: 450,
+    lunghezza: 550,
     velocita: 12,
     cielo: 0xBFE3F5,
     terreno: 0xD9C7A3,
@@ -21,9 +25,10 @@ export const MONDI = [
   },
   {
     nome: 'Federico II · Triennale',
+    stile: 'triennale',
     anni: '2020 – 2023',
     luogo: 'Napoli',
-    lunghezza: 500,
+    lunghezza: 600,
     velocita: 13.5,
     cielo: 0xCFE0F0,
     terreno: 0x8E8A84,
@@ -33,9 +38,10 @@ export const MONDI = [
   },
   {
     nome: 'Federico II · Magistrale',
+    stile: 'magistrale',
     anni: '2023 – 2026',
     luogo: 'Napoli',
-    lunghezza: 500,
+    lunghezza: 600,
     velocita: 15,
     cielo: 0xDDE6EE,
     terreno: 0x5F6B78,
@@ -45,9 +51,10 @@ export const MONDI = [
   },
   {
     nome: 'ElRow Festival',
+    stile: 'festival',
     anni: '2024 – 2025',
     luogo: 'Campovolo, Emilia-Romagna',
-    lunghezza: 450,
+    lunghezza: 550,
     velocita: 16,
     cielo: 0x2A1640,
     terreno: 0x3B2A52,
@@ -57,9 +64,10 @@ export const MONDI = [
   },
   {
     nome: 'Rennes',
+    stile: 'rennes',
     anni: '2026',
     luogo: 'Bretagna, Francia',
-    lunghezza: 500,
+    lunghezza: 650,
     velocita: 17.5,
     cielo: 0xA9B7C6,
     terreno: 0x4E5A52,
@@ -73,6 +81,11 @@ export const TRAGUARDO = {
   nome: 'Laurea',
   data: '28 settembre 2026',
 };
+
+// Velocità: ogni mondo parte da velocita × SPINTA e accelera in modo graduale fino a
+// velocita × SPINTA × (1 + CRESCITA) alla fine del mondo; al mondo successivo riparte.
+export const SPINTA = 1.25;
+export const CRESCITA = 0.25;
 
 // Ogni caffè raccolto toglie questo tempo dal totale (secondi).
 export const BONUS_CAFFE = 0.25;

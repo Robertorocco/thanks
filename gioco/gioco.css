@@ -137,3 +137,4 @@ button { cursor: pointer; }
 .classifica li.tu { background: var(--tuff-soft); }
 .classifica .vuota { display: block; color: var(--muted); text-align: center; }
 .classifica .vuota::before { content: none; }
+.banner.in-basso { top: auto; bottom: max(80px, 14vh); }
