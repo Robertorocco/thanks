@@ -15,13 +15,38 @@ export const MONDI = [
     stile: 'liceo',
     anni: '2015 – 2020',
     luogo: 'Napoli',
-    lunghezza: 550,
+    // Sezioni del percorso (vedi percorso.js). `evento: 'aula'` ferma la corsa per la scena in
+    // classe; `checkpoint` segna un punto da cui ripartire dentro lo stesso mondo.
+    sezioni: [
+      { id: 'salita',        lung: 330, pend: 0.09, amb: 'est' },
+      { id: 'avvicinamento', lung: 310, pend: 0.035, amb: 'est' },
+      { id: 'atrio',         lung: 14,  amb: 'int', checkpoint: 'Ingresso a scuola' },
+      { id: 'hall',          lung: 62,  amb: 'int' },
+      { id: 'scale1',        lung: 34,  pend: 0.30, amb: 'int', piano: '1° piano' },
+      { id: 'curva1',        lung: 26,  curva: Math.PI / 2, amb: 'int' },
+      { id: 'scale2',        lung: 34,  pend: 0.30, amb: 'int', piano: '2° piano' },
+      { id: 'curva2',        lung: 26,  curva: -Math.PI / 2, amb: 'int' },
+      { id: 'corridoio',     lung: 52,  amb: 'int', piano: '3° piano' },
+      { id: 'curva3',        lung: 26,  curva: Math.PI / 2, amb: 'int', verso5H: true },
+      { id: 'corridoio5H',   lung: 44,  amb: 'int', verso5H: true },
+      { id: 'aula',          lung: 6,   amb: 'int', evento: 'aula' },
+      { id: 'uscita',        lung: 30,  amb: 'int', checkpoint: 'Uscita dall\'aula' },
+      { id: 'scale-giu',     lung: 42,  pend: -0.30, amb: 'int' },
+      { id: 'portone',       lung: 12,  amb: 'int' },
+      { id: 'discesa',       lung: 90,  pend: -0.08, amb: 'est' },
+      { id: 'curva4',        lung: 58,  pend: -0.04, curva: Math.PI / 2, amb: 'est' },
+      { id: 'rettilineo',    lung: 44,  amb: 'est' },
+      { id: 'curva5',        lung: 58,  curva: -Math.PI / 2, amb: 'est' },
+      { id: 'fine',          lung: 40,  amb: 'est' },
+    ],
     velocita: 12,
     cielo: 0xBFE3F5,
     terreno: 0xD9C7A3,
     corsie: 0xE8DCC4,
     edifici: [0xF1D9A7, 0xE6B98A, 0xF4EBD9],
     ostacoli: { basso: 0x7A5230, alto: 0x2F5D3A, muro: 0x9A3B2E },
+    // Aspetto degli interni della scuola.
+    interno: { cielo: 0xB9B3A8, terreno: 0xCFC8B8, corsie: 0xD9D2C2 },
   },
   {
     nome: 'Federico II · Triennale',
@@ -89,3 +114,7 @@ export const CRESCITA = 0.25;
 
 // Ogni caffè raccolto toglie questo tempo dal totale (secondi).
 export const BONUS_CAFFE = 0.25;
+
+// Penalità se in aula ci si siede in prima fila (secondi), e tempo per scegliere.
+export const MALUS_PRIMA_FILA = 10;
+export const TEMPO_SCELTA = 6;

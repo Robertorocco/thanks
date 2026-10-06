@@ -17,11 +17,11 @@ export function materiale(colore, extra = {}) {
   return cacheMateriali.get(chiave);
 }
 
-const CUBO = new THREE.BoxGeometry(1, 1, 1);
-const CILINDRO = new THREE.CylinderGeometry(1, 1, 1, 14);
-const SFERA = new THREE.SphereGeometry(1, 14, 10);
+export const CUBO = new THREE.BoxGeometry(1, 1, 1);
+export const CILINDRO = new THREE.CylinderGeometry(1, 1, 1, 14);
+export const SFERA = new THREE.SphereGeometry(1, 14, 10);
 
-function ombre(m) {
+export function ombre(m) {
   m.castShadow = true;
   m.receiveShadow = true;
   return m;
@@ -35,21 +35,21 @@ export function blocco(w, h, p, mat, x = 0, y = 0, z = 0) {
   return ombre(m);
 }
 
-function cilindro(r, h, mat, x = 0, y = 0, z = 0) {
+export function cilindro(r, h, mat, x = 0, y = 0, z = 0) {
   const m = new THREE.Mesh(CILINDRO, typeof mat === 'number' ? materiale(mat) : mat);
   m.scale.set(r, h, r);
   m.position.set(x, y + h / 2, z);
   return ombre(m);
 }
 
-function sfera(r, mat, x = 0, y = 0, z = 0) {
+export function sfera(r, mat, x = 0, y = 0, z = 0) {
   const m = new THREE.Mesh(SFERA, typeof mat === 'number' ? materiale(mat) : mat);
   m.scale.setScalar(r);
   m.position.set(x, y, z);
   return ombre(m);
 }
 
-function tela(w, h, disegna) {
+export function tela(w, h, disegna) {
   const c = document.createElement('canvas');
   c.width = w; c.height = h;
   disegna(c.getContext('2d'), w, h);
@@ -59,8 +59,8 @@ function tela(w, h, disegna) {
   return tex;
 }
 
-const esa = n => '#' + n.toString(16).padStart(6, '0');
-const FONT = '"Bricolage Grotesque", "Avenir Next", system-ui, sans-serif';
+export const esa = n => '#' + n.toString(16).padStart(6, '0');
+export const FONT = '"Bricolage Grotesque", "Avenir Next", system-ui, sans-serif';
 
 const cacheScritte = new Map();
 // Pannello con una scritta, largo w e alto h metri.
@@ -83,7 +83,7 @@ export function scritta(testo, w, h, sfondo, inchiostro = 0x1C1D2B) {
 }
 
 // Il lato visibile degli ostacoli guarda verso la telecamera (+z).
-function fronte(mesh, z) {
+export function fronte(mesh, z) {
   mesh.position.z = z;
   return mesh;
 }
@@ -156,7 +156,7 @@ const facciate = {
 for (const t of Object.values(facciate)) t.wrapS = t.wrapT = THREE.RepeatWrapping;
 
 // Una foto di un luogo vero, se presente in assets/luoghi/, sostituisce la facciata.
-const loader = new THREE.TextureLoader();
+export const loader = new THREE.TextureLoader();
 const fotoLuoghi = new Map();
 export function caricaFotoLuogo(nome) {
   if (fotoLuoghi.has(nome)) return;
@@ -254,7 +254,7 @@ export function creaAlbero(lato, scala = 1) {
 
 const LEGNO = 0xC89B5E, METALLO = 0x3B4A5A;
 
-const OSTACOLI = {
+export const OSTACOLI = {
   liceo: {
     basso: () => {
       // Banco di scuola con pannello frontale e zaino appoggiato.
@@ -474,10 +474,9 @@ function muroLungo(mondo, p) {
 
 export function creaOstacolo(e, mondo) {
   const p = e.profondita;
-  const g = e.tipo === 'muro' && p > 2
-    ? muroLungo(mondo, p)
-    : OSTACOLI[mondo.stile][e.tipo](p);
-  return g;
+  const stile = OSTACOLI[e.stile ?? mondo.stile];
+  if (stile.proprio) return stile[e.tipo](p, e);
+  return e.tipo === 'muro' && p > 2 ? muroLungo(mondo, p) : stile[e.tipo](p, e);
 }
 
 // ---------------------------------------------------------------------------
@@ -541,13 +540,13 @@ export function creaArco(e) {
 // Roberto
 // ---------------------------------------------------------------------------
 
-const PELLE = 0xE0B08A, CAPELLI = 0x2B1D14, MAGLIA = 0x1F5F8B, PANTALONI = 0x2A2D3A, SCARPE = 0xF2F2F2;
+const PELLE_R = 0xE0B08A, CAPELLI_R = 0x2B1D14, MAGLIA_R = 0x1F5F8B, PANTALONI_R = 0x2A2D3A, SCARPE_R = 0xF2F2F2;
 
 // Volto disegnato, usato finché non c'è la foto in assets/volto.jpg.
-function voltoDisegnato() {
+function voltoDisegnato(pelle, capelli) {
   return tela(256, 256, (g) => {
-    g.fillStyle = esa(PELLE); g.fillRect(0, 0, 256, 256);
-    g.fillStyle = esa(CAPELLI); g.fillRect(0, 0, 256, 50);
+    g.fillStyle = esa(pelle); g.fillRect(0, 0, 256, 256);
+    g.fillStyle = esa(capelli); g.fillRect(0, 0, 256, 50);
     g.fillStyle = '#2b1d14';
     g.fillRect(52, 86, 56, 10); g.fillRect(148, 86, 56, 10);
     g.fillStyle = '#ffffff'; g.fillRect(60, 108, 40, 24); g.fillRect(156, 108, 40, 24);
@@ -557,7 +556,10 @@ function voltoDisegnato() {
   });
 }
 
-export function creaRoberto() {
+// Personaggio a blocchi. Senza opzioni è Roberto, con la foto del volto (assets/volto.jpg) se presente.
+export function creaPersona(o = {}) {
+  const PELLE = o.pelle ?? PELLE_R, CAPELLI = o.capelli ?? CAPELLI_R, MAGLIA = o.maglia ?? MAGLIA_R;
+  const PANTALONI = o.pantaloni ?? PANTALONI_R, SCARPE = o.scarpe ?? SCARPE_R;
   const radice = new THREE.Group();
   const corpo = new THREE.Group();
   radice.add(corpo);
@@ -570,7 +572,7 @@ export function creaRoberto() {
 
   const testa = new THREE.Group();
   testa.position.y = 2.02;
-  const voltoMat = new THREE.MeshLambertMaterial({ map: voltoDisegnato() });
+  const voltoMat = new THREE.MeshLambertMaterial({ map: voltoDisegnato(PELLE, CAPELLI) });
   const pelle = materiale(PELLE);
   const capelli = materiale(CAPELLI);
   // Ordine delle facce del cubo: +x, -x, +y, -y, +z, -z. Il volto guarda verso -z (avanti).
@@ -608,20 +610,31 @@ export function creaRoberto() {
     return { spalla, gomito };
   }
 
+  // Zaino sulla schiena (la schiena è verso +z).
+  const zaino = new THREE.Group();
+  zaino.add(blocco(0.5, 0.62, 0.22, o.zaino ?? 0xB03A2E, 0, 1.08, 0.27));
+  zaino.add(blocco(0.4, 0.26, 0.1, 0x8C2D23, 0, 1.12, 0.4));
+  zaino.visible = Boolean(o.conZaino);
+  corpo.add(zaino);
+
   const parti = {
-    radice, corpo, testa, cranio, voltoMat,
+    radice, corpo, testa, cranio, voltoMat, zaino,
     gambe: [gamba(-0.14), gamba(0.14)],
     braccia: [braccio(-0.43), braccio(0.43)],
   };
 
-  loader.load('assets/volto.jpg', tex => {
-    tex.colorSpace = THREE.SRGBColorSpace;
-    voltoMat.map = tex;
-    voltoMat.needsUpdate = true;
-  }, undefined, () => {});
+  if (o.foto) {
+    loader.load('assets/volto.jpg', tex => {
+      tex.colorSpace = THREE.SRGBColorSpace;
+      voltoMat.map = tex;
+      voltoMat.needsUpdate = true;
+    }, undefined, () => {});
+  }
 
   return parti;
 }
+
+export const creaRoberto = () => creaPersona({ foto: true, conZaino: true });
 
 // Posa di corsa: fase in radianti, ampiezza 0..1.
 export function posaCorsa(r, fase, ampiezza) {
@@ -649,4 +662,16 @@ export function posaFerma(r, t, saluto) {
   dx.gomito.rotation.x = 0;
   dx.gomito.rotation.z = saluto * Math.sin(t * 10) * 0.5;
   r.corpo.position.y = Math.sin(t * 2.5) * 0.015;
+}
+
+// Seduto su una sedia: cosce in avanti (verso -z), busto abbassato di `abbassa` metri.
+export function posaSeduto(r, abbassa = 0.5) {
+  for (const { anca, ginocchio } of r.gambe) { anca.rotation.x = -Math.PI / 2; ginocchio.rotation.x = Math.PI / 2; }
+  r.corpo.position.y = -abbassa;
+}
+
+// Ripristina le gambe dopo una posa da seduto.
+export function posaInPiedi(r) {
+  for (const { anca, ginocchio } of r.gambe) { anca.rotation.x = 0; ginocchio.rotation.x = 0; }
+  r.corpo.position.y = 0;
 }

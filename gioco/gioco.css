@@ -139,3 +139,34 @@ button { cursor: pointer; }
 .classifica .vuota::before { content: none; }
 .banner.in-basso { top: auto; bottom: max(80px, 14vh); }
 .versione { justify-self: center; font: 11px var(--mono); color: var(--muted); }
+
+/* Orologio del mondo del liceo */
+.orologio {
+  position: fixed; left: 16px; top: calc(max(12px, env(safe-area-inset-top)) + 96px);
+  font: 500 15px var(--mono); color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,.6);
+  background: rgba(0,0,0,.35); padding: 6px 10px; border-radius: 10px; pointer-events: none;
+}
+.orologio.urgente { background: rgba(200,40,40,.75); animation: lampeggia .5s steps(2) infinite; }
+.orologio[hidden] { display: none; }
+@keyframes lampeggia { 50% { opacity: .55; } }
+
+/* Dissolvenza tra gioco e scena in classe */
+.sipario { position: fixed; inset: 0; background: #000; opacity: 0; pointer-events: none; transition: opacity .35s ease; }
+.sipario.nero { opacity: 1; }
+
+/* Scelta a tempo in classe */
+.scelta {
+  position: fixed; left: 0; right: 0; bottom: 0; padding: 18px 16px max(24px, env(safe-area-inset-bottom));
+  display: grid; gap: 12px; justify-items: center;
+  background: linear-gradient(transparent, rgba(0,0,0,.65) 40%);
+}
+.scelta[hidden] { display: none; }
+.scelta .domanda { margin: 0; font: 800 26px var(--display); color: #fff; text-shadow: 0 2px 6px rgba(0,0,0,.6); }
+.scelta .bottoni { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; width: 100%; max-width: 440px; }
+.scelta button {
+  font: 800 20px var(--display); padding: 18px 8px; border-radius: 16px; border: 0;
+  background: #fff; color: var(--ink);
+}
+.scelta button:active { transform: scale(.97); }
+.tempo-scelta { width: 100%; max-width: 440px; height: 8px; border-radius: 4px; background: rgba(255,255,255,.3); overflow: hidden; }
+#barra-scelta { height: 100%; width: 100%; background: var(--tuff); transform-origin: left; }
