@@ -352,8 +352,9 @@ async function fine() {
     `Corsa ${formattaTempo(G.tempo)} · ☕ ${G.caffe} di ${CAFFE_TOTALI} · ` +
     (G.cadute === 1 ? '1 caduta' : `${G.cadute} cadute`);
   mostraSchermo('fine');
-  await inviaTempo(G.nome, Math.round(totale * 10) / 10);
-  disegnaClassifica(document.getElementById('fine-classifica'), G.nome, totale);
+  const arrotondato = Math.round(totale * 10) / 10;
+  await inviaTempo(G.nome, arrotondato);
+  disegnaClassifica(document.getElementById('fine-classifica'), G.nome, arrotondato);
 }
 
 // ---------------------------------------------------------------------------
@@ -452,17 +453,18 @@ function scappa(testo) {
 }
 
 async function disegnaClassifica(ol, nome, tempo) {
-  const voci = await leggiClassifica(10);
+  const { voci, condivisa } = await leggiClassifica(10);
+  const nota = condivisa ? '' : '<li class="vuota">Classifica salvata solo su questo telefono.</li>';
   if (!voci.length) {
     ol.innerHTML = '<li class="vuota">Nessun tempo ancora. Sii il primo.</li>';
     return;
   }
   let evidenziato = false;
   ol.innerHTML = voci.map(v => {
-    const tu = !evidenziato && v.nome === nome && Math.abs(v.tempo - tempo) < 0.06;
+    const tu = !evidenziato && nome && v.nome.toLowerCase() === nome.toLowerCase() && Math.abs(v.tempo - tempo) < 0.06;
     if (tu) evidenziato = true;
-    return `<li${tu ? ' class="tu"' : ''}><span>${scappa(v.nome)}</span><span class="t">${formattaTempo(v.tempo)}</span></li>`;
-  }).join('');
+    return `<li${tu ? ' class="tu"' : ''}><span>${scappa(v.nome)}</span><span class="t">${formattaTempo(Number(v.tempo))}</span></li>`;
+  }).join('') + nota;
 }
 
 const campoNome = document.getElementById('nome');

@@ -1,7 +1,17 @@
-// Classifica dei tempi. Per ora i tempi restano salvati solo su questo dispositivo:
-// la versione condivisa tra tutti i partecipanti si collega qui, con la stessa interfaccia.
+// Classifica dei tempi. Con Supabase configurato in config.js è condivisa tra tutti
+// i partecipanti; altrimenti, o se la rete non risponde, resta su questo dispositivo.
+
+import { SUPABASE_URL, SUPABASE_CHIAVE } from './config.js';
 
 const CHIAVE = 'gioco-laurea:classifica';
+const condivisa = Boolean(SUPABASE_URL && SUPABASE_CHIAVE);
+
+function intestazioni() {
+  const h = { apikey: SUPABASE_CHIAVE, 'Content-Type': 'application/json' };
+  // Le chiavi "anon" storiche sono JWT e vanno anche in Authorization; le nuove "publishable" no.
+  if (!SUPABASE_CHIAVE.startsWith('sb_')) h.Authorization = `Bearer ${SUPABASE_CHIAVE}`;
+  return h;
+}
 
 function leggiLocale() {
   try {
@@ -12,7 +22,7 @@ function leggiLocale() {
   }
 }
 
-export async function inviaTempo(nome, tempo) {
+function salvaLocale(nome, tempo) {
   const voci = leggiLocale();
   voci.push({ nome, tempo, data: new Date().toISOString() });
   try {
@@ -22,10 +32,45 @@ export async function inviaTempo(nome, tempo) {
   }
 }
 
+function miglioriLocali(limite) {
+  const migliori = new Map();
+  for (const v of leggiLocale()) {
+    const k = v.nome.toLowerCase();
+    if (!migliori.has(k) || v.tempo < migliori.get(k).tempo) migliori.set(k, v);
+  }
+  return [...migliori.values()].sort((a, b) => a.tempo - b.tempo).slice(0, limite);
+}
+
+// Restituisce true se il tempo è finito nella classifica condivisa.
+export async function inviaTempo(nome, tempo) {
+  salvaLocale(nome, tempo);
+  if (!condivisa) return false;
+  try {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/tempi`, {
+      method: 'POST',
+      headers: { ...intestazioni(), Prefer: 'return=minimal' },
+      body: JSON.stringify({ nome, tempo }),
+    });
+    return r.ok;
+  } catch {
+    return false;
+  }
+}
+
+// Migliori tempi, uno per nome. `condivisa` dice da dove arrivano.
 export async function leggiClassifica(limite = 10) {
-  return leggiLocale()
-    .sort((a, b) => a.tempo - b.tempo)
-    .slice(0, limite);
+  if (condivisa) {
+    try {
+      const r = await fetch(
+        `${SUPABASE_URL}/rest/v1/classifica?select=nome,tempo&order=tempo.asc&limit=${limite}`,
+        { headers: intestazioni() },
+      );
+      if (r.ok) return { voci: await r.json(), condivisa: true };
+    } catch {
+      // Rete assente: si mostra la classifica locale.
+    }
+  }
+  return { voci: miglioriLocali(limite), condivisa: false };
 }
 
 export function formattaTempo(secondi) {
