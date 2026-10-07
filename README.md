@@ -38,3 +38,5 @@ v12: casa con i primi passi (niente salto né scivolata, camera che segue meglio
 v13: Roberto torna a fare un saltello anche da piccolissimo.
 
 v14: in casa le prime apparizioni di mamma, papà e nonna camminano più svelte; poi la mamma urla dal lato del corridoio e lancia la sua voce ("METTI IN ORDINE!") nella tua corsia, e il papà dal divano davanti alla TV ti tira il joystick: entrambi vanno schivati.
+
+v15: Istituto Darmon rivisto: Roberto a 8 anni ha l'aspetto di un ragazzino (testa e busto più piccoli, riccioli corti, viso più giovane, grembiule con le maniche lunghe) e in mano una valigetta trasparente con dentro un disegno; la via verso la scuola è una salita verso i Camaldoli, con fosse segnalate dal cono e cartelli con la distanza; la scena del maestro Rodolfo finisce con un'inquadratura dall'alto verso la porta, tutti che escono (o il demonio che insegue) e il cartello dell'esito a classe vuota.

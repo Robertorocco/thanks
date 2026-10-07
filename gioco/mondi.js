@@ -73,7 +73,7 @@ export const MONDI = [
     luogo: 'Napoli',
     ordine: -1,
     sezioni: [
-      { id: 'via',        lung: 170, pend: 0.015, amb: 'est' },
+      { id: 'via',        lung: 170, pend: 0.13, amb: 'est' },     // la salita verso i Camaldoli
       { id: 'cortile',    lung: 80,  amb: 'est' },
       { id: 'atrio-d',    lung: 14,  amb: 'int', checkpoint: 'Ingresso all\'Istituto', sottotitolo: 'Si entra a scuola' },
       { id: 'corridoio-d', lung: 78, amb: 'int' },

@@ -316,7 +316,12 @@ export function generaLivello(TRATTI, perc, velocitaIn) {
         case 'soglia': break;
         // --- Istituto Darmon (bambino) ---
         case 'via':
-          riempi(a + 30, b - 10, { stile: 'darmon', tipi: ['basso', 'alto', 'muro', 'basso'], corridoi: 0.08, spazio: 1.3 });
+          // La salita verso i Camaldoli: cartelli con la distanza, il segnale della pendenza e le fosse.
+          ENTITA.push({ d: a + 30, genere: 'camaldoli', lato: 1, testo: '1,2 km', mondo: t.indice });
+          ENTITA.push({ d: a + 40, genere: 'segnale', lato: -1, testo: '13%', mondo: t.indice });
+          ENTITA.push({ d: a + 82, genere: 'camaldoli', lato: -1, testo: '800 m', mondo: t.indice });
+          ENTITA.push({ d: b - 12, genere: 'camaldoli', lato: 1, testo: '400 m', mondo: t.indice });
+          riempi(a + 30, b - 10, { stile: 'darmon', tipi: ['basso', 'buco', 'alto', 'muro', 'buco'], corridoi: 0.08, spazio: 1.3 });
           // Bambini che vanno a scuola nella tua stessa direzione, più piano.
           dopo.push(() => compagni(a + 24, b - 12, 4, 'darmon', true));
           break;

@@ -18,6 +18,9 @@ const PORTA = new THREE.Vector3(-4.5, 0, 5.1);
 const SOGLIA = new THREE.Vector3(-4.5, 0, 3.7);
 const POS_ROBERTO = new THREE.Vector3(-2.9, 0, 2.5);
 const POS_MAESTRO = new THREE.Vector3(-1.2, 0, 1.1);
+// Inquadratura finale: dall'alto, dal lato opposto della classe, verso la porta, così chi scappa si allontana
+// dalla camera invece di passarle addosso.
+const FINALE = { pos: new THREE.Vector3(5.7, 3.35, 2.6), mira: new THREE.Vector3(-4.0, 0.9, 2.8), fov: 64 };
 const COLORI = [0xE0533F, 0x3A7CC4, 0xF2C14E, 0x4CAF6A, 0xB06AD1, 0xF08A3A, 0x3FC1C9, 0xE86A9A];
 
 // ---------------------------------------------------------------------------
@@ -218,7 +221,7 @@ export function creaAulaDarmon() {
   });
 
   // --- Stato ---------------------------------------------------------------------------------
-  const A = { scena, camera, stato: 'inattiva', esito: null, residuo: TEMPO_SCELTA, t: 0 };
+  const A = { scena, camera, stato: 'inattiva', esito: null, residuo: TEMPO_SCELTA, t: 0, uscito: false };
   const vista = { pos: new THREE.Vector3(), mira: new THREE.Vector3(), fov: 62 };
   const daVista = { pos: new THREE.Vector3(), mira: new THREE.Vector3(), fov: 62 };
   const aVista = { pos: new THREE.Vector3(), mira: new THREE.Vector3(), fov: 62 };
@@ -237,6 +240,7 @@ export function creaAulaDarmon() {
   const base = { pos: new THREE.Vector3(), mira: new THREE.Vector3() };   // inquadratura della scena, con un lento avvicinamento
   let tScena = 0, arrivato = false, tCammino = 0, tVista = 0, durVista = 1;
   let uscite = [];       // chi sta scappando dalla porta
+  let tTaglio = 0, tagliato = false, tUscito = -1;
   const tmp = new THREE.Vector3(), dir = new THREE.Vector3();
   const percMaestro = [PORTA.clone(), SOGLIA.clone(), new THREE.Vector3(-1.2, 0, 3.3), POS_MAESTRO.clone()];
 
@@ -278,8 +282,11 @@ export function creaAulaDarmon() {
   }
 
   A.avvia = function () {
-    A.stato = 'scelta'; A.esito = null; A.residuo = TEMPO_SCELTA; A.t = 0;
-    tScena = 0; arrivato = false; tCammino = 0; uscite = [];
+    A.stato = 'scelta'; A.esito = null; A.residuo = TEMPO_SCELTA; A.t = 0; A.uscito = false;
+    tScena = 0; arrivato = false; tCammino = 0; uscite = []; tagliato = false; tUscito = -1;
+    roberto.radice.visible = true;
+    bimbi.forEach(p => { p.radice.visible = true; });
+    demonio.rotation.set(0, 0, 0);
     scena.background.copy(CIELO); emisfero.intensity = 1.7; sole.intensity = 1.3;
     demonio.visible = false; demonio.userData.luce.intensity = 0;
     maestro.radice.visible = true;
@@ -322,9 +329,11 @@ export function creaAulaDarmon() {
     guarda(roberto, verso(roberto.radice.position, maestro.radice.position), 1);
     // Chi sarà in fuga e quando: dopo il pianto più tardi, dopo il saluto subito.
     const piango = A.esito === 'piango';
-    bimbi.forEach((p, i) => { p.fugaA = (piango ? 3.6 : 2.3) + i * (piango ? 0.22 : 0.12); });
-    roberto.fugaA = piango ? 5.0 : 3.7;
-    maestro.fugaA = 4.4;
+    // Prima scappano i bambini, poi Roberto; dopo il pianto anche il maestro esce, tappandosi le orecchie.
+    bimbi.forEach((p, i) => { p.fugaA = (piango ? 3.9 : 3.1) + i * (piango ? 0.2 : 0.13); });
+    roberto.fugaA = piango ? 5.5 : 4.4;
+    maestro.fugaA = 6.0;
+    tTaglio = (piango ? 3.9 : 3.1) - 0.35;      // un attimo prima della fuga si passa all'inquadratura finale
     uscite = [];
     impostaV(daVista, vista.pos.x, vista.pos.y, vista.pos.z, vista.mira.x, vista.mira.y, vista.mira.z, vista.fov);
     if (piango) impostaV(aVista, 1.5, 1.5, 5.2, -2.5, 1.15, 2.0, 84);
@@ -401,6 +410,7 @@ export function creaAulaDarmon() {
       if (A.esito === 'piango') scenaPianto(tScena, dt); else scenaSaluto(tScena, dt);
       mescola(Math.min(1, tVista / durVista));
       aggiornaFughe(tScena, dt);
+      finale(tScena);
     }
 
     camera.fov = vista.fov;
@@ -470,7 +480,7 @@ export function creaAulaDarmon() {
       sopra(p, f);
     });
     // Camera: un lento avvicinamento al viso di Roberto.
-    if (!roberto.fuga) aVista.pos.lerpVectors(base.pos, base.mira, 0.3 * Math.min(1, t / 4.5));
+    if (!tagliato) aVista.pos.lerpVectors(base.pos, base.mira, 0.3 * Math.min(1, t / 4.5));
   }
 
   // --- Scena: saluto (sbagliato) -----------------------------------------------------------------
@@ -505,8 +515,19 @@ export function creaAulaDarmon() {
     if (trasf) {
       const td = t - 1.9;
       const pop = Math.min(1, td / 0.35);
+      // Ruggisce verso di noi; quando Roberto scappa, gli va dietro verso la porta.
+      const insegue = roberto.fuga && t > roberto.fugaA + 0.4;
+      if (insegue) {
+        verso(maestro.radice.position, SOGLIA);
+        const resta = maestro.radice.position.distanceTo(SOGLIA) - 1.3;
+        if (resta > 0) maestro.radice.position.addScaledVector(dir, Math.min(resta, dt * 1.7));
+      }
       demonio.position.set(maestro.radice.position.x, demonio.position.y, maestro.radice.position.z);
-      demonio.rotation.y = Math.atan2(-(camera.position.x - demonio.position.x), -(camera.position.z - demonio.position.z));   // ruggisce verso di noi
+      const verGuardo = insegue
+        ? Math.atan2(-(SOGLIA.x - demonio.position.x), -(SOGLIA.z - demonio.position.z))
+        : Math.atan2(-(camera.position.x - demonio.position.x), -(camera.position.z - demonio.position.z));
+      let dr = verGuardo - demonio.rotation.y; dr = Math.atan2(Math.sin(dr), Math.cos(dr));
+      demonio.rotation.y += insegue ? dr * Math.min(1, dt * 4) : dr;
       demonio.scale.setScalar(0.9 * (0.2 + 0.8 * (1 + 2.7 * Math.pow(pop - 1, 3) + 1.7 * Math.pow(pop - 1, 2))));
       demonio.userData.anima(t, Math.min(1, 0.4 + td));
       demonio.userData.luce.intensity = 4 * Math.min(1, td * 3) * (0.85 + 0.15 * Math.sin(t * 25));
@@ -516,7 +537,7 @@ export function creaAulaDarmon() {
       scena.fog.color.copy(scena.background);
       emisfero.intensity = 1.7 - 1.0 * rs; sole.intensity = 1.3 - 0.9 * rs;
       lampo.material.opacity = Math.max(0, 1 - td / 0.5);
-      fRaah.visible = td > 0.2 && td < 3.4;
+      fRaah.visible = td > 0.2 && ((td - 0.2) % 2.2) < 1.6;
       sopra(maestro, fRaah, 1.6);
       fRaah.scale.set(2.4 * (1 + Math.sin(t * 20) * 0.07), 1.2 * (1 + Math.sin(t * 20) * 0.07), 1);
     } else {
@@ -532,7 +553,7 @@ export function creaAulaDarmon() {
       f.visible = ks > 0.3 && !p.fuga;
       sopra(p, f);
     });
-    if (!roberto.fuga) aVista.pos.lerpVectors(base.pos, base.mira, 0.12 * Math.min(1, t / 5));
+    if (!tagliato) aVista.pos.lerpVectors(base.pos, base.mira, 0.12 * Math.min(1, t / 5));
   }
 
   // --- Fughe dalla porta ------------------------------------------------------------------------
@@ -563,14 +584,25 @@ export function creaAulaDarmon() {
         if (p !== maestro) { for (const b of p.braccia) { b.spalla.rotation.z = (b === p.braccia[0] ? -1 : 1) * 0.8; } }
       } else { p.radice.visible = false; }
     }
-    // Finita quando tutti sono fuori (o dopo un tempo massimo).
-    const fuori = [...bimbi, roberto].every(p => p.fuga && p.fuga.s >= lunghezza(p.fuga.pt) - 0.01);
-    if ((fuori && t > 3) || t > 9) { A.stato = 'fine'; }
-    if (roberto.fuga) {
-      // Roberto scappa: la camera lo segue dalla porta.
-      aVista.pos.set(-3.2, 1.8, 1.8); aVista.mira.set(-4.5, 0.8, 4.6); aVista.fov = 64;
-      if (tVista > durVista) { tVista = 0; durVista = 0.9; daVista.pos.copy(vista.pos); daVista.mira.copy(vista.mira); daVista.fov = vista.fov; }
+  }
+
+  // Stacco sull'inquadratura finale e lento avvicinamento alla porta. La scena finisce poco dopo che
+  // Roberto è uscito: la classe resta vuota (o con il demonio) mentre compare il cartello dell'esito.
+  function finale(t) {
+    if (!tagliato && t >= tTaglio) {
+      tagliato = true;
+      for (const v of [vista, daVista, aVista]) { v.pos.copy(FINALE.pos); v.mira.copy(FINALE.mira); v.fov = FINALE.fov; }
+      tVista = durVista = 1;
     }
+    if (tagliato) {
+      const k = THREE.MathUtils.smoothstep(t, tTaglio, tTaglio + 5);
+      aVista.pos.lerpVectors(FINALE.pos, FINALE.mira, 0.18 * k);
+      aVista.mira.copy(FINALE.mira); aVista.fov = FINALE.fov;
+      daVista.pos.copy(aVista.pos); daVista.mira.copy(aVista.mira); daVista.fov = aVista.fov;
+    }
+    const L = roberto.fuga ? lunghezza(roberto.fuga.pt) : 1;
+    if (tUscito < 0 && roberto.fuga && roberto.fuga.s >= L - 0.01) { tUscito = t; A.uscito = true; }
+    if ((tUscito >= 0 && t > tUscito + 1.9) || t > 12) A.stato = 'fine';
   }
 
   A.ridimensiona = function (aspect) { camera.aspect = aspect; camera.updateProjectionMatrix(); };

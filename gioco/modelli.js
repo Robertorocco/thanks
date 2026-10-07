@@ -571,10 +571,35 @@ function voltoDisegnato(pelle, capelli, serio = false) {
   });
 }
 
+// Un disegno da bambino: cielo, sole, casa, prato e la famiglia di omini.
+let texDisegno = null;
+function disegnoBambino() {
+  texDisegno ??= tela(256, 192, (g, W, H) => {
+    g.fillStyle = '#FFFDF5'; g.fillRect(0, 0, W, H);
+    g.fillStyle = '#9AD0F5'; g.fillRect(0, 0, W, 34);
+    g.fillStyle = '#6CC46A'; g.fillRect(0, H - 40, W, 40);
+    g.fillStyle = '#FFD23F'; g.beginPath(); g.arc(214, 40, 20, 0, Math.PI * 2); g.fill();
+    g.strokeStyle = '#FFB000'; g.lineWidth = 4;
+    for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4; g.beginPath(); g.moveTo(214 + Math.cos(a) * 26, 40 + Math.sin(a) * 26); g.lineTo(214 + Math.cos(a) * 36, 40 + Math.sin(a) * 36); g.stroke(); }
+    g.fillStyle = '#E0533F'; g.fillRect(30, 86, 80, 66);
+    g.fillStyle = '#8C3B2E'; g.beginPath(); g.moveTo(22, 88); g.lineTo(70, 46); g.lineTo(118, 88); g.fill();
+    g.fillStyle = '#7A4A2A'; g.fillRect(60, 118, 20, 34);
+    g.fillStyle = '#9AD0F5'; g.fillRect(38, 98, 16, 14); g.fillRect(86, 98, 16, 14);
+    g.strokeStyle = '#1C1D2B'; g.lineWidth = 4; g.lineCap = 'round';
+    [[138, 1], [168, 1], [196, 0.75]].forEach(([x, k]) => {
+      const y = H - 46;
+      g.beginPath(); g.arc(x, y - 52 * k, 9 * k, 0, Math.PI * 2); g.stroke();
+      g.beginPath(); g.moveTo(x, y - 43 * k); g.lineTo(x, y - 18 * k); g.moveTo(x - 12 * k, y - 34 * k); g.lineTo(x + 12 * k, y - 34 * k);
+      g.moveTo(x, y - 18 * k); g.lineTo(x - 8 * k, y); g.moveTo(x, y - 18 * k); g.lineTo(x + 8 * k, y); g.stroke();
+    });
+  });
+  return texDisegno;
+}
+
 // Proporzioni e abiti di Roberto nelle varie età: testa (scala), braccia e gambe (scala), colori, zaino, grembiule.
 export const ETA_ROBERTO = {
   neonato: { testa: 1.45, arti: 0.68, gambe: 0.6, maglia: 0xA9D6CC, polsi: 0xA9D6CC, pantaloni: 0xA9D6CC, scarpe: 0xF4F1E8, zaino: false, grembiule: false, anni: '0 anni' },
-  bimbo:   { testa: 1.28, arti: 0.84, gambe: 0.78, maglia: 0x233A73, polsi: null, pantaloni: 0x3A3F52, scarpe: 0xF2F2F2, zaino: true, grembiule: true, cartellina: true, anni: '8 anni' },
+  bimbo:   { testa: 1.14, arti: 0.92, gambe: 0.84, busto: 0.88, maglia: 0x233A73, polsi: 0x233A73, pantaloni: 0x3A3F52, scarpe: 0xF2F2F2, zaino: true, grembiule: true, cartellina: true, anni: '8 anni' },
   liceo:   { testa: 1.0, arti: 1.0, gambe: 1.0, maglia: MAGLIA_R, polsi: null, pantaloni: PANTALONI_R, scarpe: SCARPE_R, zaino: true, grembiule: false, anni: '14 anni' },
 };
 const VOLTO_ETA = { neonato: 'neonato', bimbo: 'bimbo', liceo: 'adulto' };
@@ -731,12 +756,38 @@ export function creaPersona(o = {}) {
   zaino.visible = Boolean(o.conZaino);
   superiore.add(zaino);
 
-  // Cartellina da disegno appesa alla mano sinistra (Roberto alle elementari).
+  // Valigetta trasparente da disegno nella mano sinistra (Roberto alle elementari): guscio di plastica
+  // azzurrina con i bordi blu, maniglia, chiusura gialla e dentro un disegno con matite e pennello.
   const cartellina = new THREE.Group();
   if (rob) {
-    cartellina.add(blocco(0.04, 0.78, 0.58, 0xD9822B, -0.12, -0.9, 0));
-    cartellina.add(blocco(0.045, 0.2, 0.3, 0xFFF3D6, -0.14, -0.78, 0));
-    cartellina.add(blocco(0.05, 0.05, 0.5, 0x3A7CC4, -0.14, -1.2, 0));
+    const BLU = 0x2F6FD6;
+    const guscio = new THREE.MeshPhongMaterial({ color: 0xDDF2FF, transparent: true, opacity: 0.3, shininess: 90, specular: 0xffffff, depthWrite: false });
+    const disegno = new THREE.MeshLambertMaterial({ map: disegnoBambino() });
+    const carta = materiale(0xFFFDF5);
+    const y0 = -0.95, h = 0.46, p = 0.62, sp = 0.11, x = -0.05;
+    const v = new THREE.Mesh(CUBO, guscio);
+    v.scale.set(sp, h, p); v.position.set(x, y0 + h / 2, 0); v.renderOrder = 2;
+    cartellina.add(v);
+    // Bordi blu: sopra, sotto e ai lati.
+    cartellina.add(blocco(sp + 0.02, 0.05, p + 0.02, BLU, x, y0 + h - 0.05, 0));
+    cartellina.add(blocco(sp + 0.02, 0.04, p + 0.02, BLU, x, y0, 0));
+    for (const z of [-1, 1]) cartellina.add(blocco(sp + 0.02, h, 0.03, BLU, x, y0, z * (p / 2 - 0.005)));
+    // Maniglia: due attacchi e l'impugnatura stretta nella mano.
+    for (const z of [-1, 1]) cartellina.add(blocco(0.05, 0.08, 0.04, BLU, x, y0 + h, z * 0.1));
+    cartellina.add(blocco(0.07, 0.05, 0.26, BLU, x, y0 + h + 0.07, 0));
+    // Chiusure gialle.
+    for (const z of [-1, 1]) cartellina.add(blocco(sp + 0.04, 0.07, 0.06, 0xF2C14E, x, y0 + h - 0.09, z * 0.2));
+    // Dentro: il disegno (si vede da entrambi i lati), un foglio colorato, matite e pennello.
+    const foglio = new THREE.Mesh(CUBO, [disegno, disegno, carta, carta, carta, carta]);
+    foglio.scale.set(0.015, h - 0.13, p - 0.1); foglio.position.set(x + 0.02, y0 + 0.05 + (h - 0.13) / 2, 0.01);
+    cartellina.add(foglio);
+    [0xE0533F, 0x4CAF6A, 0xF2C14E].forEach((c, i) => {
+      const m = blocco(0.02, 0.02, 0.3, c, x - 0.035, y0 + 0.06 + i * 0.03, 0.05 - i * 0.05);
+      cartellina.add(m);
+    });
+    cartellina.add(blocco(0.018, 0.018, 0.34, 0xB5835A, x + 0.04, y0 + 0.05, -0.04));
+    // Un po' girata, così si vede anche da dietro mentre corre.
+    cartellina.rotation.y = 0.55;
     cartellina.visible = false;
   }
 
@@ -775,10 +826,12 @@ export function creaPersona(o = {}) {
       grembiule.visible = d.grembiule;
       zaino.visible = d.zaino;
       cartellina.visible = Boolean(d.cartellina);
-      testa.scale.setScalar(d.testa);
-      testa.position.y = 2.02 + (d.testa - 1) * 0.17;
-      const dy = (1 - d.gambe) * 1.0;
-      superiore.position.y = -dy;
+      // Il busto si accorcia con l'età (`busto`); la testa resta della misura `testa`.
+      const busto = d.busto ?? 1;
+      superiore.scale.setScalar(busto);
+      testa.scale.setScalar(d.testa / busto);
+      testa.position.y = 2.02 + (d.testa / busto - 1) * 0.17;
+      superiore.position.y = d.gambe - busto;
       for (const { anca } of parti.gambe) { anca.scale.setScalar(d.gambe); anca.position.y = d.gambe; }
       for (const { spalla } of parti.braccia) spalla.scale.setScalar(d.arti);
       azzeraPosa(parti);
@@ -804,7 +857,7 @@ export function azzeraPosa(r) {
   r.corpo.rotation.set(0, 0, 0);
   r.corpo.position.set(0, 0, 0);
   r.superiore.rotation.set(0, 0, 0);
-  r.superiore.position.set(0, -(1 - r.dim.gambe), 0);
+  r.superiore.position.set(0, r.dim.gambe - (r.dim.busto ?? 1), 0);
 }
 
 // Posa di corsa: fase in radianti, ampiezza 0..1.

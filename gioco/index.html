@@ -11,7 +11,7 @@
 <link rel="stylesheet" href="gioco.css">
 <script>
 // Se questa pagina arriva dalla cache del browser ed è più vecchia dell'ultima versione, si ricarica da sola.
-(()=>{const V=14;try{fetch('../versione.json?t='+Date.now(),{cache:'no-store'}).then(r=>r.json()).then(d=>{if(d.v!==V){const k='ricarica-'+location.pathname+d.v;if(!sessionStorage.getItem(k)){sessionStorage.setItem(k,1);const u=new URL(location.href);u.searchParams.set('v',d.v);location.replace(u)}}}).catch(()=>{})}catch(e){}})();
+(()=>{const V=15;try{fetch('../versione.json?t='+Date.now(),{cache:'no-store'}).then(r=>r.json()).then(d=>{if(d.v!==V){const k='ricarica-'+location.pathname+d.v;if(!sessionStorage.getItem(k)){sessionStorage.setItem(k,1);const u=new URL(location.href);u.searchParams.set('v',d.v);location.replace(u)}}}).catch(()=>{})}catch(e){}})();
 </script>
 </head>
 <body>
@@ -60,7 +60,7 @@
       <label for="nome">Il tuo nome, per la classifica</label>
       <input id="nome" name="nome" maxlength="24" autocomplete="given-name" required placeholder="Es. Zia Anna">
       <button type="submit" class="primario">Inizia</button>
-      <span class="versione">v14</span>
+      <span class="versione">v15</span>
     </form>
     <button type="button" class="link" data-apri="classifica">Guarda la classifica</button>
   </div>
@@ -101,7 +101,7 @@
 </section>
 
 <!-- Il numero di versione in fondo ai file (?v=) evita che il telefono usi codice vecchio in cache: va cambiato a ogni versione, insieme all'etichetta. -->
-<script type="importmap">{"imports":{"./aula.js":"./aula.js?v=14","./aula-darmon.js":"./aula-darmon.js?v=14","./classifica.js":"./classifica.js?v=14","./config.js":"./config.js?v=14","./livello.js":"./livello.js?v=14","./modelli-liceo.js":"./modelli-liceo.js?v=14","./modelli.js":"./modelli.js?v=14","./mondi.js":"./mondi.js?v=14","./modelli-infanzia.js":"./modelli-infanzia.js?v=14","./volto.js":"./volto.js?v=14","./percorso.js":"./percorso.js?v=14","./lib/three.module.min.js":"./lib/three.module.min.js?v=14"}}</script>
-<script type="module" src="main.js?v=14"></script>
+<script type="importmap">{"imports":{"./aula.js":"./aula.js?v=15","./aula-darmon.js":"./aula-darmon.js?v=15","./classifica.js":"./classifica.js?v=15","./config.js":"./config.js?v=15","./livello.js":"./livello.js?v=15","./modelli-liceo.js":"./modelli-liceo.js?v=15","./modelli.js":"./modelli.js?v=15","./mondi.js":"./mondi.js?v=15","./modelli-infanzia.js":"./modelli-infanzia.js?v=15","./volto.js":"./volto.js?v=15","./percorso.js":"./percorso.js?v=15","./lib/three.module.min.js":"./lib/three.module.min.js?v=15"}}</script>
+<script type="module" src="main.js?v=15"></script>
 </body>
 </html>

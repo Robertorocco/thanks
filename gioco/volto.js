@@ -13,7 +13,7 @@ const esa = n => '#' + n.toString(16).padStart(6, '0');
 
 export const ETA_VOLTO = {
   neonato: { pelle: 0xD9A27C, guance: 'rgba(235,110,100,.35)', barba: 0, occhi: 1.28, sopracciglia: 0.55, naso: 0.7, riccioli: 9, ricciolo: 0.06, capelli: 0x2A1A10 },
-  bimbo:   { pelle: 0xD29468, guance: 'rgba(225,105,90,.28)', barba: 0, occhi: 1.12, sopracciglia: 0.85, naso: 0.9, riccioli: 26, ricciolo: 0.085, capelli: 0x1B1009 },
+  bimbo:   { pelle: 0xD29468, guance: 'rgba(225,105,90,.3)', barba: 0, occhi: 1.2, sopracciglia: 0.6, naso: 0.62, riccioli: 46, ricciolo: 0.066, capelli: 0x1B1009, cranio: [0.47, 0.46, 0.45], frangia: 0.8 },
   adulto:  { pelle: 0xC48A62, guance: 'rgba(205,95,80,.18)', barba: 1, occhi: 1.0, sopracciglia: 1.0, naso: 1.0, riccioli: 46, ricciolo: 0.105, capelli: 0x17100A },
 };
 const BARBA = '#2E1D13';
@@ -308,7 +308,7 @@ export function creaTestaRoberto(eta = 'adulto') {
   const viso = new THREE.MeshLambertMaterial({ color: 0xffffff });
   // Ordine delle facce: +x, -x, +y, -y, +z, -z. Il viso guarda verso -z.
   const cranio = new THREE.Mesh(GEO_TESTA, [lato(1), lato(-1), capelli, P.barba ? barba : pelle, capelli, viso]);
-  cranio.scale.set(0.47, 0.5, 0.45);
+  cranio.scale.set(...(P.cranio ?? [0.47, 0.5, 0.45]));
   cranio.castShadow = true;
   gruppo.add(cranio);
 
@@ -338,9 +338,9 @@ export function creaTestaRoberto(eta = 'adulto') {
   if (P.barba || eta === 'bimbo') {
     for (let i = 0; i < 6; i++) {
       const m = new THREE.Mesh(GEO_RICCIOLO, capelli);
-      const k = P.ricciolo * (0.85 + r() * 0.3);
+      const k = P.ricciolo * (0.85 + r() * 0.3) * (P.frangia ?? 1);
       m.scale.set(k, k * 0.95, k);
-      m.position.set(-0.19 + i * 0.076, 0.205 + r() * 0.03, -0.205 - r() * 0.02);
+      m.position.set(-0.19 + i * 0.076, 0.205 + r() * 0.03 - (P.frangia ? 0.02 : 0), -0.205 - r() * 0.02);
       riccioli.add(m);
     }
   }

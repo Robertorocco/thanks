@@ -693,11 +693,75 @@ function bambino(e) {
   return g;
 }
 
+// Fossa nell'asfalto della salita: buca irregolare con il bordo sbriciolato e un cono grande accanto.
+function fossa(var_ = 0) {
+  const g = new THREE.Group();
+  const forma = (r, n, seme) => {
+    const sh = new THREE.Shape();
+    for (let i = 0; i <= n; i++) {
+      const a = (i / n) * Math.PI * 2, k = r * (0.82 + 0.22 * Math.abs(Math.sin(i * 2.3 + seme)));
+      const x = Math.cos(a) * k * 1.15, y = Math.sin(a) * k * 1.3;
+      if (i === 0) sh.moveTo(x, y); else sh.lineTo(x, y);
+    }
+    return new THREE.ShapeGeometry(sh);
+  };
+  const strato = (r, colore, y) => {
+    const m = new THREE.Mesh(forma(r, 14, var_), BASIC(colore));
+    m.rotation.x = -Math.PI / 2; m.position.y = y; g.add(m);
+  };
+  strato(1.15, 0x6B665E, 0.07);     // asfalto rotto attorno
+  strato(0.95, 0x3B342C, 0.08);     // terra
+  strato(0.7, 0x0E0C0A, 0.09);      // il fondo buio
+  // Pezzi di asfalto sul bordo.
+  for (let i = 0; i < 5; i++) {
+    const a = i * 1.3 + var_;
+    g.add(blocco(0.2, 0.1, 0.16, 0x55514B, Math.cos(a) * 1.2, 0, Math.sin(a) * 1.3));
+  }
+  // Cono grande che segnala la fossa, sul bordo verso chi arriva.
+  const cono = new THREE.Group();
+  cono.add(blocco(0.5, 0.06, 0.5, 0x1C1D2B, 0, 0));
+  const c = new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.75, 12), S(0xFF6A13));
+  c.position.y = 0.43; cono.add(c);
+  for (const [y, r] of [[0.36, 0.15], [0.56, 0.1]]) {
+    const b = new THREE.Mesh(new THREE.CylinderGeometry(r, r + 0.02, 0.08, 12), S(0xFFFFFF));
+    b.position.y = y; cono.add(b);
+  }
+  cono.position.set((var_ % 2 ? 0.95 : -0.95), 0, -1.25);
+  g.add(cono);
+  return g;
+}
+
+// Cartello stradale bianco che dice quanto manca ai Camaldoli.
+export function creaCartelloCamaldoli(lato, testo) {
+  const g = new THREE.Group();
+  g.position.x = lato * 4.4;
+  for (const x of [-1.0, 1.0]) g.add(blocco(0.1, 3.0, 0.1, 0x8C9198, x, 0, 0.05));
+  const tex = tela(512, 256, (c, W, H) => {
+    c.fillStyle = '#1C1D2B'; c.fillRect(0, 0, W, H);
+    c.fillStyle = '#FFFFFF'; c.fillRect(10, 10, W - 20, H - 20);
+    c.fillStyle = '#1C1D2B'; c.fillRect(22, 22, W - 44, H - 44);
+    c.fillStyle = '#FFFFFF'; c.fillRect(30, 30, W - 60, H - 60);
+    c.fillStyle = '#1C1D2B';
+    // Freccia in su: si va dritti (e in salita).
+    c.beginPath(); c.moveTo(78, 52); c.lineTo(118, 108); c.lineTo(92, 108); c.lineTo(92, 200); c.lineTo(64, 200); c.lineTo(64, 108); c.lineTo(38, 108); c.closePath(); c.fill();
+    c.textAlign = 'center';
+    c.font = '800 66px Arial, sans-serif'; c.fillText('CAMALDOLI', 300, 118);
+    c.font = '700 60px Arial, sans-serif'; c.fillText(testo, 300, 196);
+  });
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(2.8, 1.4), new THREE.MeshBasicMaterial({ map: tex }));
+  m.position.set(0, 3.1, 0.1);
+  g.add(m);
+  const retro = blocco(2.8, 1.4, 0.04, 0x9AA0A8, 0, 2.4, 0.06);
+  g.add(retro);
+  return g;
+}
+
 OSTACOLI.darmon = {
   proprio: true,
   basso: (p, e) => ((e.var ?? 0) % 2 ? pallone(e.var) : zainoATerra(e.var ?? 0)),
   alto: (p, e) => arcoPalloncini(e.var ?? 0),
   muro: (p, e) => (e.var % 2 ? fioriera() : creaAuto(e)),
+  buco: (p, e) => fossa(e.var ?? 0),
   persona: (p, e) => bambino(e),
 };
 

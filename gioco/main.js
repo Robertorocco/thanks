@@ -14,6 +14,7 @@ import {
 } from './modelli-liceo.js';
 import {
   creaPareteStile, creaSoffittoStile, creaArredo, creaPortaCasa, creaLanciatore, creaBonus, creaScuolaDarmon, ICONA_BONUS,
+  creaCartelloCamaldoli,
 } from './modelli-infanzia.js';
 import { costruisciPercorso } from './percorso.js';
 import { CORSIE, PENDENZA_CROCIERA, generaLivello, distanzaPersona, distanzaLancio } from './livello.js';
@@ -152,10 +153,12 @@ const EVENTO = {
     domanda: 'Arriva il maestro Rodolfo. Cosa fai?',
     opzioni: [{ id: 'piango', etichetta: 'Piango' }, { id: 'saluto', etichetta: 'Saluto il maestro' }],
     esiti: {
-      piango: { titolo: 'Che pianto!', sotto: 'Tutti fuori dalla classe', malus: 0, durata: 2.2 },
-      saluto: { titolo: 'Il maestro si è trasformato!', sotto: `+${MALUS_PRIMA_FILA} secondi di penalità`, malus: MALUS_PRIMA_FILA, durata: 2.6 },
+      piango: { titolo: 'Che pianto!', sotto: 'Tutti fuori dalla classe', malus: 0, durata: 3.0 },
+      saluto: { titolo: 'Il maestro è diventato un demonio!', sotto: `+${MALUS_PRIMA_FILA} secondi di penalità`, malus: MALUS_PRIMA_FILA, durata: 3.2 },
     },
-    fuori: ['Fuori dalla classe', 'Via di corsa da scuola!'],
+    // Il cartello dell'esito arriva alla fine della scena, quando la classe è vuota (non subito alla scelta).
+    esitoAllaFine: true,
+    fuori: null,
   },
 };
 
@@ -428,6 +431,7 @@ function creaMesh(e) {
   else if (e.genere === 'semaforo') m = creaSemaforo(e);
   else if (e.genere === 'metro') m = creaMetro(e.lato);
   else if (e.genere === 'segnale') m = creaSegnaleSalita(e.lato, e.testo);
+  else if (e.genere === 'camaldoli') m = creaCartelloCamaldoli(e.lato, e.testo);
   else if (e.genere === 'parete') m = creaPareteStile(e);
   else if (e.genere === 'soffitto') m = creaSoffittoStile(e);
   else if (e.genere === 'arredo') m = creaArredo(e);
@@ -696,6 +700,7 @@ function avviaAula() {
   G.stato = 'aulaIn';
   G.timer = 0;
   G.esitoAula = null;
+  G.esitoMostrato = false;
   elSipario.classList.add('nero');
 }
 
@@ -710,6 +715,11 @@ function applicaEsito(esito) {
   elScelta.hidden = true;
   const r = EVENTO[G.mondo].esiti[esito];
   G.malus += r.malus;
+  if (!EVENTO[G.mondo].esitoAllaFine) mostraEsito();
+}
+function mostraEsito() {
+  const r = EVENTO[G.mondo].esiti[G.esitoAula];
+  G.esitoMostrato = true;
   banner(`${r.titolo}<small>${r.sotto}</small>`, r.durata, 'in-basso');
 }
 for (const b of bottoniScelta) {
@@ -733,6 +743,7 @@ function aggiornaAula(dt) {
     if (inScelta && elScelta.hidden) elScelta.hidden = false;
     if (!inScelta && !elScelta.hidden) elScelta.hidden = true;
     if (inScelta) elBarraScelta.style.transform = `scaleX(${aulaAttiva.residuo / TEMPO_SCELTA})`;
+    if (ev.esitoAllaFine && aulaAttiva.uscito && G.esitoAula && !G.esitoMostrato) mostraEsito();
     if (aulaAttiva.stato === 'fine') {
       G.stato = 'aulaOut';
       G.timer = 0;
@@ -748,7 +759,7 @@ function aggiornaAula(dt) {
       G.stato = 'aulaRientro';
       G.timer = 0;
       elSipario.classList.remove('nero');
-      banner(`${ev.fuori[0]}<small>${ev.fuori[1]}</small>`, 2.2);
+      if (ev.fuori) banner(`${ev.fuori[0]}<small>${ev.fuori[1]}</small>`, 2.2);
     }
   } else if (G.stato === 'aulaRientro') {
     G.timer += dt;
