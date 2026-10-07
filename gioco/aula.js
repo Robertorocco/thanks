@@ -19,7 +19,7 @@ const COL_Z = [-2.5, 0.0, 2.5];
 const ULTIMA_Z = [-0.95, 0.0, 0.95];   // l'ultimo banco è unico, da tre posti
 const sedia = (f, c) => new THREE.Vector3(FILE_X[f] - 0.7, 0, f === 3 ? ULTIMA_Z[c] : COL_Z[c]);
 
-function fumetto(testo, colore = '#ffffff', inchiostro = '#1C1D2B', larghezza = 1.1) {
+export function fumetto(testo, colore = '#ffffff', inchiostro = '#1C1D2B', larghezza = 1.1) {
   const tex = tela(256, 128, (g, W, H) => {
     g.fillStyle = colore;
     g.beginPath(); if (g.roundRect) g.roundRect(8, 8, W - 16, H - 36, 26); else g.rect(8, 8, W - 16, H - 36); g.fill();

@@ -358,7 +358,7 @@ export function creaCartelloAppeso(testo, w = 3.4, colore = 0x2D7D4F, inchiostro
 
 // Parete di fondo con la porta dell'aula: l'anta si apre verso l'interno quando ci si avvicina.
 // Sparisce dopo la scena in classe.
-export function creaPortaAula() {
+export function creaPortaAula(testo = '5ª H', colore = 0x1F58B8) {
   const g = new THREE.Group();
   const H = ALTEZZA_INTERNO;
   g.add(blocco(3.15, H, 0.4, matParete, -2.875, 0));
@@ -374,7 +374,7 @@ export function creaPortaAula() {
   perno.add(blocco(2.2, 3.0, 0.1, 0x8A5A34, 1.1, 0, 0));
   perno.add(blocco(0.12, 0.3, 0.12, 0xD8B85A, 1.9, 1.4, 0.1));
   g.add(perno);
-  const cartello = scritta('5ª H', 2.2, 0.8, 0xFFFFFF, 0x1F58B8);
+  const cartello = scritta(testo, 2.2, 0.8, 0xFFFFFF, colore);
   cartello.position.set(0, 3.9, 0.22);
   g.add(cartello);
   g.userData.apri = k => { perno.rotation.y = k * 1.45; };
@@ -505,4 +505,64 @@ export function creaMuroLungo(e) {
     g.add(a);
   }
   return g;
+}
+
+// ---------------------------------------------------------------------------
+// Metro, segnale di salita e l'amico biondo
+// ---------------------------------------------------------------------------
+
+// Ingresso della Metro: scala che scende sotto il marciapiede, tettoia e un'alta insegna rossa con la M.
+export function creaMetro(lato) {
+  const g = new THREE.Group();
+  g.position.x = lato * 6.2;
+  g.add(blocco(3.0, 0.05, 2.6, 0x16181c, 0, 0.02, 0));                    // la scala che scende
+  for (let i = 0; i < 5; i++) g.add(blocco(2.7, 0.04, 0.18, 0x3A3F48, 0, 0.04, -0.9 + i * 0.4));
+  for (const x of [-1.5, 1.5]) g.add(blocco(0.08, 1.0, 2.7, 0xF2C14E, x, 0, 0));
+  g.add(blocco(3.0, 0.08, 0.08, 0xF2C14E, 0, 1.0, 1.35));
+  for (const x of [-1.3, 1.3]) g.add(blocco(0.12, 2.8, 0.12, 0x4A4F57, x, 0, -1.2));
+  g.add(blocco(3.4, 0.16, 2.2, 0x4A4F57, 0, 2.8, -0.2));                   // tettoia
+  const rossa = new THREE.MeshBasicMaterial({ color: 0xD9262C });
+  g.add(blocco(0.2, 7.2, 0.2, 0x2B2F36, 0, 0, 1.6));                       // palo
+  g.add(blocco(2.4, 2.4, 0.18, rossa, 0, 5.2, 1.6));                       // insegna rossa
+  const emme = scritta('M', 2.0, 2.0, 0xD9262C, 0xFFFFFF);
+  emme.position.set(0, 5.2, 1.7);
+  g.add(emme);
+  const nome = scritta('Metro', 2.4, 0.7, 0x16181c, 0xFFFFFF);
+  nome.position.set(0, 3.7, 1.7);
+  g.add(nome);
+  return g;
+}
+
+// Segnale triangolare di salita con la pendenza.
+export function creaSegnaleSalita(lato, testo = '15%') {
+  const g = new THREE.Group();
+  g.position.x = lato * 4.8;
+  g.add(blocco(0.1, 2.9, 0.1, 0x2B2F36, 0, 0, 0));
+  const tex = tela(256, 256, (c, W, H) => {
+    c.clearRect(0, 0, W, H);
+    const tri = (inset, colore) => {
+      c.fillStyle = colore; c.beginPath();
+      c.moveTo(W / 2, inset); c.lineTo(W - inset * 0.55, H - inset * 0.7); c.lineTo(inset * 0.55, H - inset * 0.7); c.closePath(); c.fill();
+    };
+    tri(10, '#D9262C'); tri(46, '#FFFFFF');
+    c.fillStyle = '#1C1D2B';
+    c.beginPath(); c.moveTo(70, 190); c.lineTo(180, 190); c.lineTo(180, 120); c.closePath(); c.fill();   // la salita
+    c.fillRect(150, 150, 38, 18);
+    c.font = '800 46px Arial, sans-serif'; c.textAlign = 'center'; c.fillStyle = '#1C1D2B';
+    c.fillText(testo, W / 2 - 4, 112);
+  });
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 1.5), new THREE.MeshBasicMaterial({ map: tex, transparent: true }));
+  m.position.set(0, 3.0, 0.08);
+  g.add(m);
+  return g;
+}
+
+// L'amico biondo riccio che esce da scuola insieme a Roberto.
+export function creaAmico() {
+  const p = creaPersona({
+    pelle: 0xEBC4A0, capelli: 0xD9B55A, acconciatura: 'ricci', maglia: 0xE8D9B0, pantaloni: 0x34495E,
+    conZaino: true, zaino: 0x2C3E50,
+  });
+  p.radice.scale.setScalar(0.8 * 1.06);
+  return p;
 }

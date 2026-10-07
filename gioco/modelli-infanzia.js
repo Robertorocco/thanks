@@ -1,4 +1,4 @@
-// Modelli dell'infanzia di Roberto: la casa (neonato, a gattoni) e l'Istituto Darmon (elementari).
+// Modelli dell'infanzia di Roberto: la casa (primi passi) e l'Istituto Darmon (elementari).
 // Tutti guardano verso -z (avanti); chi arriva incontro al giocatore è ruotato di 180°.
 // Le misure degli ostacoli seguono la fisica dell'età (FISICA in mondi.js): per il neonato "basso" è
 // sotto ~0,32 m e "alto" parte da ~0,45 m; per il bambino 0,6 m e 0,84 m.
@@ -504,27 +504,27 @@ function mobileCasa(p, e) {
   return g;
 }
 
-function gatto(e) {
-  const v = e.var ?? 0;
-  const pelo = [0xE59A4F, 0x6C6C74, 0x2A2A30, 0xEFE6D5][v % 4];
-  const g = new THREE.Group();
-  g.add(blocco(0.3, 0.28, 0.65, pelo, 0, 0.22));
-  for (const [x, z] of [[-0.1, -0.22], [0.1, -0.22], [-0.1, 0.22], [0.1, 0.22]]) g.add(blocco(0.08, 0.22, 0.1, pelo, x, 0, z));
-  g.add(blocco(0.28, 0.26, 0.26, pelo, 0, 0.36, -0.38));
-  for (const x of [-0.09, 0.09]) { g.add(blocco(0.07, 0.1, 0.05, pelo, x, 0.6, -0.4)); g.add(blocco(0.05, 0.05, 0.02, BASIC(0xAEE08A), x * 0.9, 0.46, -0.52)); }
-  g.add(blocco(0.05, 0.03, 0.02, BASIC(0xE98A8A), 0, 0.42, -0.52));
-  const coda = blocco(0.07, 0.07, 0.55, pelo, 0, 0.4, 0.5);
-  coda.rotation.x = -0.6; g.add(coda);
-  return g;
-}
+// La famiglia di Roberto: mamma, papà e nonna vengono incontro in giro per casa.
+const FAMIGLIA = {
+  mamma: { pelle: 0xEBBF9C, capelli: 0x15110E, acconciatura: 'caschetto', maglia: 0xC95F7A, gonna: 0x5B4A72, pantaloni: 0x3A3F52, corpulenza: 1.18, scala: 0.9 },
+  papa:  { pelle: 0xD9A67C, capelli: 0x15110E, acconciatura: 'ricci', maglia: 0x1F2A44, pantaloni: 0x1F2A44, abito: 'elegante', corpulenza: 1.18, scala: 1.0, scarpe: 0x1A1512 },
+  nonna: { pelle: 0xEFC9A6, capelli: 0xC9BFA4, acconciatura: 'nonna', occhiali: true, maglia: 0x8C6BB0, gonna: 0x6B5B4A, pantaloni: 0x3A3F52, corpulenza: 1.1, scala: 0.86 },
+};
 
-function creaGattoCompagno(e) {
+export function creaFamigliare(nome, via = false, seme = 0) {
+  const d = FAMIGLIA[nome] ?? FAMIGLIA.mamma;
+  const { scala, ...opzioni } = d;
+  const p = creaPersona(opzioni);
   const g = new THREE.Group();
-  const gt = gatto(e);
-  gt.scale.setScalar(1.15);
-  gt.rotation.y = e.via ? 0 : Math.PI;
-  g.add(gt);
-  g.userData.anima = t => { gt.position.y = Math.abs(Math.sin(t * 7 + (e.var ?? 0))) * 0.03; gt.rotation.z = Math.sin(t * 7) * 0.05; };
+  p.radice.scale.setScalar(scala);
+  p.radice.rotation.y = via ? 0 : Math.PI;
+  g.add(p.radice);
+  g.userData.anima = t => {
+    posaCorsa(p, t * 5 + seme, 0.45);
+    // Si chinano un po' verso di te e agitano una mano.
+    p.superiore.rotation.x = -0.12;
+    p.braccia[1].spalla.rotation.z = 0.25 + Math.max(0, Math.sin(t * 6 + seme)) * 0.5;
+  };
   return g;
 }
 
@@ -533,7 +533,7 @@ OSTACOLI.casa = {
   basso: (p, e) => giocattolo(e.var ?? 0),
   alto: (p, e) => tavolino(e.var ?? 0),
   muro: (p, e) => mobileCasa(p, e),
-  persona: (p, e) => creaGattoCompagno(e),
+  persona: (p, e) => creaFamigliare(e.membro ?? 'mamma', e.via, e.var ?? 0),
 };
 
 // --- Darmon: all'aperto -----------------------------------------------------

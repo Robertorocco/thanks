@@ -544,10 +544,24 @@ export function creaArco(e) {
 const PELLE_R = 0xE0B08A, CAPELLI_R = 0x2B1D14, MAGLIA_R = 0x1F5F8B, PANTALONI_R = 0x2A2D3A, SCARPE_R = 0xF2F2F2;
 
 // Volto disegnato per i personaggi generici (Roberto ha la testa di volto.js).
-function voltoDisegnato(pelle, capelli) {
+function voltoDisegnato(pelle, capelli, serio = false) {
   return tela(256, 256, (g) => {
     g.fillStyle = esa(pelle); g.fillRect(0, 0, 256, 256);
-    g.fillStyle = esa(capelli); g.fillRect(0, 0, 256, 50);
+    g.fillStyle = esa(capelli); g.fillRect(0, 0, 256, serio ? 18 : 50);
+    if (serio) {
+      // Volto severo: sopracciglia grigie folte e inclinate, occhi stretti, borse, rughe, bocca dritta.
+      g.fillStyle = '#8C8F96';
+      g.save(); g.translate(80, 88); g.rotate(0.28); g.fillRect(-34, -8, 68, 16); g.restore();
+      g.save(); g.translate(176, 88); g.rotate(-0.28); g.fillRect(-34, -8, 68, 16); g.restore();
+      g.fillStyle = '#ffffff'; g.fillRect(58, 112, 44, 14); g.fillRect(154, 112, 44, 14);
+      g.fillStyle = '#2b2118'; g.fillRect(72, 112, 18, 14); g.fillRect(168, 112, 18, 14);
+      g.fillStyle = 'rgba(0,0,0,.18)'; g.fillRect(58, 130, 44, 6); g.fillRect(154, 130, 44, 6);
+      g.fillStyle = 'rgba(0,0,0,.10)'; for (const y of [34, 50, 66]) g.fillRect(70, y, 116, 4);
+      g.fillStyle = 'rgba(0,0,0,.12)'; g.fillRect(116, 120, 24, 52);
+      g.fillStyle = '#C9CCD2'; g.fillRect(84, 172, 88, 14);               // baffi grigi
+      g.fillStyle = '#6a3b33'; g.fillRect(96, 196, 64, 8);
+      return;
+    }
     g.fillStyle = '#2b1d14';
     g.fillRect(52, 86, 56, 10); g.fillRect(148, 86, 56, 10);
     g.fillStyle = '#ffffff'; g.fillRect(60, 108, 40, 24); g.fillRect(156, 108, 40, 24);
@@ -560,7 +574,7 @@ function voltoDisegnato(pelle, capelli) {
 // Proporzioni e abiti di Roberto nelle varie età: testa (scala), braccia e gambe (scala), colori, zaino, grembiule.
 export const ETA_ROBERTO = {
   neonato: { testa: 1.45, arti: 0.68, gambe: 0.6, maglia: 0xA9D6CC, polsi: 0xA9D6CC, pantaloni: 0xA9D6CC, scarpe: 0xF4F1E8, zaino: false, grembiule: false, anni: '0 anni' },
-  bimbo:   { testa: 1.28, arti: 0.84, gambe: 0.78, maglia: 0x233A73, polsi: null, pantaloni: 0x3A3F52, scarpe: 0xF2F2F2, zaino: true, grembiule: true, anni: '6 anni' },
+  bimbo:   { testa: 1.28, arti: 0.84, gambe: 0.78, maglia: 0x233A73, polsi: null, pantaloni: 0x3A3F52, scarpe: 0xF2F2F2, zaino: true, grembiule: true, cartellina: true, anni: '8 anni' },
   liceo:   { testa: 1.0, arti: 1.0, gambe: 1.0, maglia: MAGLIA_R, polsi: null, pantaloni: PANTALONI_R, scarpe: SCARPE_R, zaino: true, grembiule: false, anni: '14 anni' },
 };
 const VOLTO_ETA = { neonato: 'neonato', bimbo: 'bimbo', liceo: 'adulto' };
@@ -607,14 +621,53 @@ export function creaPersona(o = {}) {
   const pelle = materiale(PELLE);
   const capelli = materiale(CAPELLI);
   if (!rob) {
-    voltoMat = new THREE.MeshLambertMaterial({ map: voltoDisegnato(PELLE, CAPELLI) });
+    voltoMat = new THREE.MeshLambertMaterial({ map: voltoDisegnato(PELLE, CAPELLI, o.serio) });
     // Ordine delle facce del cubo: +x, -x, +y, -y, +z, -z. Il volto guarda verso -z (avanti).
     cranio = new THREE.Mesh(CUBO, [pelle, pelle, capelli, pelle, capelli, voltoMat]);
     cranio.scale.set(0.42, 0.48, 0.42);
     cranio.castShadow = true;
     testa.add(cranio);
-    testa.add(blocco(0.46, 0.12, 0.46, CAPELLI, 0, 0.2));
-    testa.add(blocco(0.46, 0.34, 0.12, CAPELLI, 0, -0.02, 0.18));
+    if (o.acconciatura === 'calvo') {
+      // Testa pelata con i capelli solo ai lati e dietro (il maestro).
+      cranio.material = [pelle, pelle, pelle, pelle, pelle, voltoMat];
+      testa.add(blocco(0.06, 0.2, 0.34, CAPELLI, -0.235, 0.0, 0.04));
+      testa.add(blocco(0.06, 0.2, 0.34, CAPELLI, 0.235, 0.0, 0.04));
+      testa.add(blocco(0.4, 0.14, 0.05, CAPELLI, 0, 0.0, 0.225));
+    } else {
+      testa.add(blocco(0.46, 0.12, 0.46, CAPELLI, 0, 0.2));
+      testa.add(blocco(0.46, 0.34, 0.12, CAPELLI, 0, -0.02, 0.18));
+    }
+    if (o.acconciatura === 'caschetto' || o.acconciatura === 'nonna') {
+      // Capelli ai lati e dietro: alle spalle (caschetto) o fino alla nuca (nonna), con frangia di lato.
+      const giu = o.acconciatura === 'caschetto' ? 0.52 : 0.3;
+      testa.add(blocco(0.1, giu, 0.46, CAPELLI, -0.25, 0.2 - giu / 2 - 0.02, 0.0));
+      testa.add(blocco(0.1, giu, 0.46, CAPELLI, 0.25, 0.2 - giu / 2 - 0.02, 0.0));
+      testa.add(blocco(0.52, giu + 0.1, 0.12, CAPELLI, 0, 0.2 - (giu + 0.1) / 2 - 0.0, 0.2));
+      testa.add(blocco(0.4, 0.1, 0.07, CAPELLI, 0.04, 0.12, -0.225));
+    }
+    if (o.acconciatura === 'ricci') {
+      // Riccioli corti: tante palline di capelli sulla testa.
+      const N = 26;
+      for (let i = 0; i < N; i++) {
+        const t = (i + 0.5) / N, ang = i * 2.399963;
+        const y = 1 - t * 1.25, r = Math.sqrt(Math.max(0, 1 - y * y));
+        const px = Math.cos(ang) * r * 0.27, py = 0.06 + y * 0.3, pz = Math.sin(ang) * r * 0.27 + 0.01;
+        if (pz < -0.1 && py < 0.16) continue;
+        const b = new THREE.Mesh(new THREE.IcosahedronGeometry(0.1, 0), capelli);
+        b.position.set(px, py, pz); b.castShadow = true;
+        testa.add(b);
+      }
+    }
+    if (o.occhiali) {
+      // Occhiali sottili sul volto.
+      for (const x of [-0.1, 0.1]) {
+        testa.add(blocco(0.15, 0.015, 0.02, 0x1C1D2B, x, 0.0, -0.226));
+        testa.add(blocco(0.15, 0.015, 0.02, 0x1C1D2B, x, -0.1, -0.226));
+        testa.add(blocco(0.015, 0.1, 0.02, 0x1C1D2B, x - 0.075, -0.05, -0.226));
+        testa.add(blocco(0.015, 0.1, 0.02, 0x1C1D2B, x + 0.075, -0.05, -0.226));
+      }
+      testa.add(blocco(0.05, 0.015, 0.02, 0x1C1D2B, 0, -0.03, -0.226));
+    }
     if (o.acconciatura === 'ciuffo') {
       // Ciuffo che cade sulla fronte, più lungo da un lato.
       testa.add(blocco(0.44, 0.13, 0.07, CAPELLI, 0, 0.09, -0.225));
@@ -654,6 +707,23 @@ export function creaPersona(o = {}) {
     return { spalla, gomito };
   }
 
+  // Corporatura robusta: busto più largo e profondo (la testa resta com'è).
+  if (o.corpulenza && o.corpulenza !== 1) {
+    const c = o.corpulenza, cz = 1 + (c - 1) * 0.8;
+    superiore.scale.set(c, 1, cz);
+    testa.scale.set(1 / c, 1, 1 / cz);
+  }
+  // Abito elegante: camicia bianca e cravatta sul davanti.
+  if (o.abito === 'elegante') {
+    superiore.add(blocco(0.2, 0.6, 0.02, 0xFFFFFF, 0, 1.3, -0.172));
+    superiore.add(blocco(0.075, 0.42, 0.02, 0xB3202A, 0, 1.3, -0.186));
+    for (const x of [-0.14, 0.14]) superiore.add(blocco(0.1, 0.6, 0.02, 0x14182A, x, 1.3, -0.182));
+  }
+  // Gonna lunga fino al ginocchio (donne della famiglia).
+  if (o.gonna != null) {
+    corpo.add(blocco(0.64 * (o.corpulenza ?? 1), 0.62, 0.4 * (1 + ((o.corpulenza ?? 1) - 1) * 0.8), o.gonna, 0, 0.5));
+  }
+
   // Zaino sulla schiena (la schiena è verso +z).
   const zaino = new THREE.Group();
   zaino.add(blocco(0.5, 0.62, 0.22, o.zaino ?? 0xB03A2E, 0, 1.08, 0.27));
@@ -661,8 +731,17 @@ export function creaPersona(o = {}) {
   zaino.visible = Boolean(o.conZaino);
   superiore.add(zaino);
 
+  // Cartellina da disegno appesa alla mano sinistra (Roberto alle elementari).
+  const cartellina = new THREE.Group();
+  if (rob) {
+    cartellina.add(blocco(0.04, 0.78, 0.58, 0xD9822B, -0.12, -0.9, 0));
+    cartellina.add(blocco(0.045, 0.2, 0.3, 0xFFF3D6, -0.14, -0.78, 0));
+    cartellina.add(blocco(0.05, 0.05, 0.5, 0x3A7CC4, -0.14, -1.2, 0));
+    cartellina.visible = false;
+  }
+
   const parti = {
-    radice, corpo, superiore, testa, cranio, voltoMat, zaino, grembiule,
+    radice, corpo, superiore, testa, cranio, voltoMat, zaino, grembiule, cartellina,
     gambe: [gamba(-0.14), gamba(0.14)],
     braccia: [braccio(-0.43), braccio(0.43)],
     eta: null,
@@ -695,6 +774,7 @@ export function creaPersona(o = {}) {
       matPolsi.color.set(d.polsi ?? ETA_PELLE[eta]);
       grembiule.visible = d.grembiule;
       zaino.visible = d.zaino;
+      cartellina.visible = Boolean(d.cartellina);
       testa.scale.setScalar(d.testa);
       testa.position.y = 2.02 + (d.testa - 1) * 0.17;
       const dy = (1 - d.gambe) * 1.0;
@@ -703,6 +783,7 @@ export function creaPersona(o = {}) {
       for (const { spalla } of parti.braccia) spalla.scale.setScalar(d.arti);
       azzeraPosa(parti);
     };
+    parti.braccia[0].gomito.add(cartellina);
     parti.vesti('liceo');
   }
   return parti;
@@ -750,6 +831,35 @@ export function posaFerma(r, t, saluto) {
   dx.spalla.rotation.set(0, 0, 0.08 + saluto * 2.6);
   dx.gomito.rotation.set(0, 0, saluto * Math.sin(t * 10) * 0.5);
   r.corpo.position.y = Math.sin(t * 2.5) * 0.015;
+}
+
+// Primi passi del neonato: in piedi, passetti corti e barcollanti, braccia alzate per l'equilibrio,
+// il corpo che dondola da un lato all'altro. `fase` in radianti, `ampiezza` 0..1.
+export function posaPrimiPassi(r, fase, ampiezza) {
+  const s = Math.sin(fase), c = Math.cos(fase);
+  for (const [i, { anca, ginocchio }] of r.gambe.entries()) {
+    const v = i === 0 ? s : -s;
+    anca.rotation.set(v * 0.5 * ampiezza, 0, (i === 0 ? -1 : 1) * 0.09 * ampiezza);
+    ginocchio.rotation.set(Math.max(0, -Math.cos(fase + (i === 0 ? 0 : Math.PI))) * 0.7 * ampiezza, 0, 0);
+  }
+  // Braccia sollevate ai lati, gomiti piegati, che ballonzolano a turno.
+  for (const [i, { spalla, gomito }] of r.braccia.entries()) {
+    const lato = i === 0 ? -1 : 1, v = i === 0 ? s : -s;
+    spalla.rotation.set(0, 0, lato * (1.85 + v * 0.22 * ampiezza));
+    gomito.rotation.set(-0.35 + v * 0.2 * ampiezza, 0, lato * 0.5);
+  }
+  // Dondolo: il busto pende dalla parte del piede che si appoggia, la testa contro-ruota un po'.
+  r.corpo.rotation.set(-0.08 * ampiezza, 0, s * 0.16 * ampiezza);
+  r.corpo.position.set(0, Math.abs(c) * 0.035 * ampiezza, 0);
+  r.testa.rotation.set(0.05, s * 0.12 * ampiezza, -s * 0.12 * ampiezza);
+}
+
+// Seduto per terra, a gambe in avanti (il neonato che è caduto): `abbassa` = altezza dell'anca.
+export function posaPerTerra(r) {
+  const d = r.dim;
+  for (const { anca, ginocchio } of r.gambe) { anca.rotation.set(-Math.PI / 2 + 0.15, 0, 0); ginocchio.rotation.set(0.1, 0, 0); }
+  r.corpo.position.set(0, -d.gambe + 0.14, 0);
+  r.corpo.rotation.set(-0.12, 0, 0);
 }
 
 // A gattoni: busto quasi orizzontale, mani a terra, ginocchia a terra. `fase` in radianti, `ampiezza` 0..1,

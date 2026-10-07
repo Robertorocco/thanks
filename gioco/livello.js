@@ -95,7 +95,7 @@ export function generaLivello(TRATTI, perc, velocitaIn) {
         const lungo = v * (0.8 + r() * 0.4);
         const centro = d + lungo / 2;
         for (const c of [0, 1, 2]) if (c !== libera) ostacolo(centro, c, 'muro', o.stile, { prof: lungo, var: 0, lungo: true });
-        if (lungo > 10 && r() < 0.3 + 0.4 * diff) ostacolo(centro, libera, azione(o.tipi), o.stile);
+        if (lungo > 10 && o.tipi.some(x => x !== 'muro') && r() < 0.3 + 0.4 * diff) ostacolo(centro, libera, azione(o.tipi), o.stile);
         else if (r() < 0.6) caffe(centro, libera);
         d += lungo + v * 0.55;
         const mosse = [libera - 1, libera + 1].filter(c => c >= 0 && c <= 2);
@@ -111,6 +111,8 @@ export function generaLivello(TRATTI, perc, velocitaIn) {
       let d = a;
       while (d < b) {
         const v = velocitaIn(d);
+        // Con `evita`, niente ostacoli dove sta per passare una persona (la famiglia in casa).
+        if (o.evita && ENTITA.some(e => e.tipo === 'persona' && e.mondo === t.indice && Math.abs(incontroPersona(e) - d) < 9)) { d += v * (o.spazio ?? 1) * 1.1; continue; }
         const corsie = mescola([0, 1, 2], r);
         const x = r();
         const pCorr = o.corridoi === true ? 0.12 + 0.12 * diff : (o.corridoi || 0);
@@ -143,7 +145,7 @@ export function generaLivello(TRATTI, perc, velocitaIn) {
 
     // Compagni che vengono incontro: `n` persone sparse in [a, b), sempre con una corsia libera.
     // Con via = true sono ragazzi che escono da scuola e camminano davanti a te, più piano.
-    function compagni(a, b, n, stile = 'liceoInt', via = false) {
+    function compagni(a, b, n, stile = 'liceoInt', via = false, membri = null) {
       for (let i = 0; i < n; i++) {
         const d0 = a + (b - a) * ((i + 0.3 + r() * 0.5) / n);
         const dMeet = incontroPersona({ d0, via });
@@ -152,7 +154,7 @@ export function generaLivello(TRATTI, perc, velocitaIn) {
         const libere = [0, 1, 2].filter(c => !bl.has(c));
         if (libere.length < 2) continue;
         const corsia = libere[Math.floor(r() * libere.length)];
-        ostacolo(d0, corsia, 'persona', stile, { d0, via });
+        ostacolo(d0, corsia, 'persona', stile, { d0, via, membro: membri ? membri[i % membri.length] : undefined });
       }
     }
 
@@ -194,11 +196,6 @@ export function generaLivello(TRATTI, perc, velocitaIn) {
           for (let q = a + 6, i = 0; q < b - 8; q += 11, i++) metti(i % 3 === 0 ? 'appendiabiti' : i % 3 === 1 ? 'armadietto' : 'pianta', i % 2 ? -1 : 1, q);
           ENTITA.push({ d: a + 4, genere: 'cartello', testo: '3ª B', mondo: t.indice, w: 2.6, colore: 0xE0533F, stile: 'darmon' });
           break;
-        case 'sala-evento':
-          metti('palloncini', -1, a + 8); metti('palloncini', 1, a + 12); metti('palloncini', -1, a + 30); metti('palloncini', 1, a + 34);
-          metti('tavolo', -1, a + 20); metti('tavolo', 1, a + 24);
-          ENTITA.push({ d: a + 4, genere: 'cartello', testo: 'Evento', mondo: t.indice, w: 3.2, colore: 0xE0533F, stile: 'darmon' });
-          break;
         default: break;
       }
     }
@@ -227,6 +224,10 @@ export function generaLivello(TRATTI, perc, velocitaIn) {
               ostacolo(inc.d, dir > 0 ? 0 : 2, 'crociera', 'liceo', { dir, var: Math.floor(r() * 8) });
             }
           }
+          // Segnali di salita lungo la strada e, a un certo punto, l'ingresso della Metro.
+          ENTITA.push({ d: a + 20, genere: 'segnale', lato: 1, testo: '15%', mondo: t.indice });
+          ENTITA.push({ d: o0 + 160, genere: 'metro', lato: -1, mondo: t.indice });
+          ENTITA.push({ d: o0 + 245, genere: 'segnale', lato: 1, testo: '15%', mondo: t.indice });
           const liberi = [[a + 45, o0 + 100], [o0 + 138, o0 + 190], [o0 + 222, o0 + 272], [o0 + 306, b]];
           for (const [x0, x1] of liberi) riempi(x0, x1, { stile: 'liceo', tipi: ['muro', 'muro', 'basso', 'alto', 'buco'], corridoi: 0.2 });
           break;
@@ -253,8 +254,7 @@ export function generaLivello(TRATTI, perc, velocitaIn) {
           // Dopo la scena in aula la corsa riparte in un tratto libero: nessun ostacolo per i primi ~45 m.
           break;
         case 'scale-giu':
-          compagni(a + 20, b - 2, 3);
-          dopo.push(() => compagni(a + 14, b - 6, 3, 'liceoInt', true));
+          // Qui Roberto scende insieme all'amico (vedi main.js): nessun altro in mezzo.
           break;
         case 'discesa': case 'curva4': case 'rettilineo': case 'curva5':
           // Ragazzi che escono da scuola davanti a te, sulla discesa e nelle curve.
@@ -264,22 +264,23 @@ export function generaLivello(TRATTI, perc, velocitaIn) {
         case 'fine':
           riempi(a + 4, b - 18, { stile: 'liceo', tipi: ['muro', 'basso', 'buco'], corridoi: false, spazio: 1.2 });
           break;
-        // --- Casa (neonato) ---
+        // --- Casa (neonato): niente salto né scivolata, gli ostacoli si schivano e basta ---
         case 'culla': break;
         case 'salotto':
-          riempi(a + 8, b - 6, { stile: 'casa', tipi: ['basso', 'basso', 'alto', 'muro'], corridoi: 0, spazio: 1.5 });
-          compagni(a + 22, b - 10, 1, 'casa');
+          compagni(a + 6, b - 4, 2, 'casa', false, ['mamma', 'papa']);
+          riempi(a + 8, b - 6, { stile: 'casa', tipi: ['muro'], corridoi: 0, spazio: 1.5, evita: true });
           break;
         case 'curva-c1': case 'curva-c2':
-          riempi(a + 2, b - 2, { stile: 'casa', tipi: ['basso', 'alto'], barriere: false, corridoi: false, spazio: 1.9 });
+          compagni(a + 2, b + 8, 1, 'casa', false, [sz.id === 'curva-c1' ? 'nonna' : 'mamma']);
+          riempi(a + 2, b - 2, { stile: 'casa', tipi: ['muro'], barriere: false, corridoi: false, spazio: 1.9, evita: true });
           break;
         case 'corridoio-c':
-          riempi(a + 4, b - 4, { stile: 'casa', tipi: ['basso', 'alto', 'muro'], corridoi: 0.1, spazio: 1.35 });
-          compagni(a + 12, b - 10, 1, 'casa');
+          compagni(a + 4, b + 8, 2, 'casa', false, ['papa', 'nonna']);
+          riempi(a + 4, b - 4, { stile: 'casa', tipi: ['muro'], corridoi: 0.1, spazio: 1.35, evita: true });
           break;
         case 'cucina':
-          riempi(a + 6, b - 8, { stile: 'casa', tipi: ['basso', 'alto', 'alto', 'muro'], corridoi: 0.1, spazio: 1.35 });
-          compagni(a + 14, b - 14, 2, 'casa');
+          compagni(a + 2, b + 6, 3, 'casa', false, ['mamma', 'nonna', 'papa']);
+          riempi(a + 6, b - 8, { stile: 'casa', tipi: ['muro'], corridoi: 0.1, spazio: 1.35, evita: true });
           break;
         case 'soglia': break;
         // --- Istituto Darmon (bambino) ---
@@ -297,7 +298,7 @@ export function generaLivello(TRATTI, perc, velocitaIn) {
           riempi(a + 6, b - 8, { stile: 'darmonInt', tipi: ['basso', 'alto', 'muro'], corridoi: 0.1, spazio: 1.15 });
           compagni(a + 8, b - 14, 3, 'darmonInt');
           break;
-        case 'sala-evento': break;           // tratto libero: qui ci sarà l'evento
+        case 'aula-d': break;                // la porta della 3ª B: qui c'è l'evento
         case 'uscita-d': break;
         case 'piazzale':
           riempi(a + 10, b - 30, { stile: 'darmon', tipi: ['basso', 'alto', 'muro'], corridoi: 0.1, spazio: 1.2 });
@@ -322,6 +323,8 @@ export function generaLivello(TRATTI, perc, velocitaIn) {
         if (sz.id === 'corridoio5H') ENTITA.push({ d: a + 22, genere: 'cartello', testo: '5ª H', mondo: t.indice, w: 2.6, colore: 0x1F58B8 });
         if (t.stile === 'casa' || t.stile === 'darmon') arreda(sz, a, b);
         if (sz.id === 'aula') ENTITA.push({ d: b, genere: 'portaAula', mondo: t.indice });
+        if (sz.id === 'aula-d') ENTITA.push({ d: b, genere: 'portaAula', mondo: t.indice, stile: 'darmon' });
+        if (sz.id === 'corridoio-d') ENTITA.push({ d: b - 12, genere: 'cartello', testo: '3ª B', mondo: t.indice, w: 2.6, colore: 0xE0533F, stile: 'darmon' });
         if (sz.id === 'portone') ENTITA.push({ d: b - 1.2, genere: 'portone', mondo: t.indice });
         if (sz.id === 'soglia') ENTITA.push({ d: b - 1.2, genere: 'portone', mondo: t.indice, stile: 'casa' });
         if (sz.id === 'uscita-d') ENTITA.push({ d: b - 1.2, genere: 'portone', mondo: t.indice, stile: 'darmon' });
@@ -359,6 +362,13 @@ export function generaLivello(TRATTI, perc, velocitaIn) {
     }
 
     for (const f of dopo) f();
+    // Sul lato della Metro niente edifici, alberi o lampioni troppo vicini all'ingresso.
+    for (const m of ENTITA) {
+      if (m.genere !== 'metro' || m.mondo !== t.indice) continue;
+      for (const e of ENTITA) {
+        if (e.mondo === t.indice && e.lato === m.lato && ['edificio', 'albero', 'lampione'].includes(e.genere) && Math.abs(e.d - m.d) < 10) e.nascosto = true;
+      }
+    }
     // Edifici, lampioni e alberi generati prima dell'inizio del mondo sono quelli del mondo precedente.
     for (let i = primaDelMondo; i < ENTITA.length; i++) {
       const e = ENTITA[i];

@@ -5,11 +5,11 @@ import {
 } from './mondi.js';
 import { inviaTempo, leggiClassifica, formattaTempo } from './classifica.js';
 import {
-  creaRoberto, posaCorsa, posaFerma, posaGattona, azzeraPosa, creaOstacolo, creaArco,
+  creaRoberto, posaCorsa, posaFerma, posaPrimiPassi, posaPerTerra, azzeraPosa, creaOstacolo, creaArco,
   creaEdificio, creaMonumento, creaLampione, creaAlbero, caricaFotoLuogo,
 } from './modelli.js';
 import {
-  creaSemaforo, creaScuola, creaParete, creaSoffitto, creaCartelloAppeso, creaPortaAula,
+  creaSemaforo, creaMetro, creaSegnaleSalita, creaAmico, creaScuola, creaParete, creaSoffitto, creaCartelloAppeso, creaPortaAula,
   creaPortone, creaMuroLungo,
 } from './modelli-liceo.js';
 import {
@@ -17,7 +17,8 @@ import {
 } from './modelli-infanzia.js';
 import { costruisciPercorso } from './percorso.js';
 import { CORSIE, PENDENZA_CROCIERA, generaLivello, distanzaPersona } from './livello.js';
-import { creaAula } from './aula.js';
+import { creaAula, fumetto } from './aula.js';
+import { creaAulaDarmon } from './aula-darmon.js';
 
 // L'etichetta mostra la versione del codice che sta davvero girando (dal ?v= con cui è caricato).
 {
@@ -93,9 +94,9 @@ CHECKPOINT.sort((a, b) => a.pos - b.pos);
 const LICEO = TRATTI.findIndex(t => t.stile === 'liceo');
 const DARMON = TRATTI.findIndex(t => t.stile === 'darmon');
 const SEZ_AULA = TRATTI[LICEO].sezioni.find(s => s.evento === 'aula');
+const SEZ_AULA_D = TRATTI[DARMON].sezioni.find(s => s.evento === 'darmon');
 const SEZ_INGRESSO = TRATTI[LICEO].sezioni.find(s => s.id === 'atrio');
 const SEZ_INGRESSO_D = TRATTI[DARMON].sezioni.find(s => s.id === 'atrio-d');
-const PORTA_AULA = SEZ_AULA.fine;           // la parete con la porta della 5ª H
 const AVVICINAMENTO_AULA = 30;              // metri di rallentamento prima di entrare
 const ORA_PARTENZA = 8 * 60 + 5, ORA_CAMPANELLA = 8 * 60 + 30;
 
@@ -130,6 +131,33 @@ sole.shadow.bias = -0.0008;
 scena.add(sole, sole.target);
 
 const aula = creaAula();
+const aulaD = creaAulaDarmon();
+let aulaAttiva = aula;                      // la scena in classe in uso
+
+// Le due scene in classe: la 5ª H al liceo e la 3ª B all'Istituto Darmon. `esiti` dice cosa succede
+// con ogni scelta: penalità in secondi e testo del cartello.
+const EVENTO = {
+  [LICEO]: {
+    sez: SEZ_AULA, porta: SEZ_AULA.fine, scena: aula,
+    domanda: '5ª H. Dove ti siedi?',
+    opzioni: [{ id: 'prima', etichetta: 'Prima fila' }, { id: 'ultima', etichetta: 'Ultima fila' }],
+    esiti: {
+      prima: { titolo: 'Prima fila', sotto: `+${MALUS_PRIMA_FILA} secondi di penalità`, malus: MALUS_PRIMA_FILA, durata: 2.4 },
+      ultima: { titolo: 'Ultima fila', sotto: 'Con i tuoi amici', malus: 0, durata: 2.0 },
+    },
+    fuori: ['Fuori dall\'aula', 'La campanella è suonata, si scende'],
+  },
+  [DARMON]: {
+    sez: SEZ_AULA_D, porta: SEZ_AULA_D.fine, scena: aulaD,
+    domanda: 'Arriva il maestro Rodolfo. Cosa fai?',
+    opzioni: [{ id: 'piango', etichetta: 'Piango' }, { id: 'saluto', etichetta: 'Saluto il maestro' }],
+    esiti: {
+      piango: { titolo: 'Che pianto!', sotto: 'Tutti fuori dalla classe', malus: 0, durata: 2.2 },
+      saluto: { titolo: 'Il maestro si è trasformato!', sotto: `+${MALUS_PRIMA_FILA} secondi di penalità`, malus: MALUS_PRIMA_FILA, durata: 2.6 },
+    },
+    fuori: ['Fuori dalla classe', 'Via di corsa da scuola!'],
+  },
+};
 
 function ridimensiona() {
   const w = window.innerWidth, h = window.innerHeight;
@@ -138,7 +166,7 @@ function ridimensiona() {
   fovBase = w < h ? 72 : 60;
   camera.fov = fovBase;
   camera.updateProjectionMatrix();
-  aula.ridimensiona(w / h);
+  aula.ridimensiona(w / h); aulaD.ridimensiona(w / h);
 }
 window.addEventListener('resize', ridimensiona);
 ridimensiona();
@@ -398,11 +426,13 @@ function creaMesh(e) {
   else if (e.genere === 'albero') m = creaAlbero(e.lato, e.scala);
   else if (e.genere === 'arco') m = creaArco(e);
   else if (e.genere === 'semaforo') m = creaSemaforo(e);
+  else if (e.genere === 'metro') m = creaMetro(e.lato);
+  else if (e.genere === 'segnale') m = creaSegnaleSalita(e.lato, e.testo);
   else if (e.genere === 'parete') m = creaPareteStile(e);
   else if (e.genere === 'soffitto') m = creaSoffittoStile(e);
   else if (e.genere === 'arredo') m = creaArredo(e);
   else if (e.genere === 'cartello') m = creaCartelloAppeso(e.testo, e.w, e.colore);
-  else if (e.genere === 'portaAula') m = creaPortaAula();
+  else if (e.genere === 'portaAula') m = e.stile === 'darmon' ? creaPortaAula('3ª B', 0xE0533F) : creaPortaAula();
   else if (e.genere === 'portone') m = e.stile === 'casa' ? creaPortaCasa() : creaPortone();
   const involucro = new THREE.Group();
   involucro.add(m);
@@ -455,7 +485,7 @@ const G = {
   mondo: 0,
   cp: 0,
   checkpoint: null,
-  aulaFatta: false,
+  fatti: new Set(),    // mondi in cui la scena in classe è già stata fatta
   esitoAula: null,
   corsia: 1,
   x: 0,
@@ -498,7 +528,7 @@ function nuovaPartita() {
   const m0 = MODALITA_SVILUPPO ? mondoDiPartenza() : 0;
   try { localStorage.setItem('gioco-laurea:dev-mondo', String(m0)); } catch {}
   G.pos = TRATTI[m0].inizio; G.tempo = 0; G.malus = 0; G.caffe = 0; G.raccolti = new Set(); G.mondo = m0; G.cadute = 0;
-  G.aulaFatta = false; G.esitoAula = null; G.invul = 0; G.posCaduta = null; G.bassa = 0; G.exprTemp = 0;
+  G.fatti = new Set(); G.esitoAula = null; G.invul = 0; G.posCaduta = null; G.bassa = 0; G.exprTemp = 0;
   impostaEta(TRATTI[m0].eta);
   salvaCheckpoint(CHECKPOINT.findIndex(c => c.mondo === m0 && c.nuovoMondo));
   azzeraGiocatore();
@@ -570,7 +600,7 @@ function entraNelMondo(i) {
 // ---------------------------------------------------------------------------
 
 const DURATA_CRESCITA = 5.4;
-const ANNI = { neonato: 0, bimbo: 6, liceo: 14 };
+const ANNI = { neonato: 0, bimbo: 8, liceo: 14 };
 const elEta = document.getElementById('eta-conto');
 const elLampo = document.getElementById('lampo');
 const SCINTILLE = Array.from({ length: 36 }, (_, i) => {
@@ -649,7 +679,18 @@ const elScelta = document.getElementById('scelta');
 const elBarraScelta = document.getElementById('barra-scelta');
 const elOrologio = document.getElementById('orologio');
 
+const elDomanda = document.getElementById('domanda-scelta');
+const bottoniScelta = [...document.querySelectorAll('[data-scelta]')];
+
+function configuraScelta(ev) {
+  aulaAttiva = ev.scena;
+  elDomanda.textContent = ev.domanda;
+  ev.opzioni.forEach((o, i) => { bottoniScelta[i].dataset.scelta = o.id; bottoniScelta[i].textContent = o.etichetta; });
+}
+
 function avviaAula() {
+  const ev = EVENTO[G.mondo];
+  configuraScelta(ev);
   G.stato = 'aulaIn';
   G.timer = 0;
   G.esitoAula = null;
@@ -657,42 +698,40 @@ function avviaAula() {
 }
 
 function scegliInAula(esito) {
-  if (G.stato !== 'aula' || aula.stato !== 'scelta') return;
-  aula.scegli(esito);
+  if (G.stato !== 'aula' || aulaAttiva.stato !== 'scelta') return;
+  aulaAttiva.scegli(esito);
   applicaEsito(esito);
 }
 
 function applicaEsito(esito) {
   G.esitoAula = esito;
   elScelta.hidden = true;
-  if (esito === 'prima') {
-    G.malus += MALUS_PRIMA_FILA;
-    banner(`Prima fila<small>+${MALUS_PRIMA_FILA} secondi di penalità</small>`, 2.4, 'in-basso');
-  } else {
-    banner('Ultima fila<small>Con i tuoi amici</small>', 2.0, 'in-basso');
-  }
+  const r = EVENTO[G.mondo].esiti[esito];
+  G.malus += r.malus;
+  banner(`${r.titolo}<small>${r.sotto}</small>`, r.durata, 'in-basso');
 }
-for (const b of document.querySelectorAll('[data-scelta]')) {
+for (const b of bottoniScelta) {
   b.addEventListener('click', () => scegliInAula(b.dataset.scelta));
 }
 
 function aggiornaAula(dt) {
+  const ev = EVENTO[G.mondo];
   if (G.stato === 'aulaIn') {
     G.timer += dt;
     if (G.timer >= DURATA_SIPARIO) {
       G.stato = 'aula';
-      aula.avvia();
+      aulaAttiva.avvia();
       elBanner.hidden = true;
       elSipario.classList.remove('nero');
     }
   } else if (G.stato === 'aula') {
-    aula.aggiorna(G.congela ? 0 : dt);
-    if (aula.esito && !G.esitoAula) applicaEsito(aula.esito);   // tempo scaduto: prima fila
-    const inScelta = aula.stato === 'scelta';
+    aulaAttiva.aggiorna(G.congela ? 0 : dt);
+    if (aulaAttiva.esito && !G.esitoAula) applicaEsito(aulaAttiva.esito);   // tempo scaduto: scelta sbagliata
+    const inScelta = aulaAttiva.stato === 'scelta';
     if (inScelta && elScelta.hidden) elScelta.hidden = false;
     if (!inScelta && !elScelta.hidden) elScelta.hidden = true;
-    if (inScelta) elBarraScelta.style.transform = `scaleX(${aula.residuo / TEMPO_SCELTA})`;
-    if (aula.stato === 'fine') {
+    if (inScelta) elBarraScelta.style.transform = `scaleX(${aulaAttiva.residuo / TEMPO_SCELTA})`;
+    if (aulaAttiva.stato === 'fine') {
       G.stato = 'aulaOut';
       G.timer = 0;
       elSipario.classList.add('nero');
@@ -700,14 +739,14 @@ function aggiornaAula(dt) {
   } else if (G.stato === 'aulaOut') {
     G.timer += dt;
     if (G.timer >= DURATA_SIPARIO) {
-      G.aulaFatta = true;
-      G.pos = PORTA_AULA + 0.6;
+      G.fatti.add(G.mondo);
+      G.pos = ev.porta + 0.6;
       G.corsia = 1; G.x = 0; G.y = 0; G.vy = 0;
       riposiziona(G.pos);
       G.stato = 'aulaRientro';
       G.timer = 0;
       elSipario.classList.remove('nero');
-      banner('Fuori dall\'aula<small>La campanella è suonata, si scende</small>', 2.2);
+      banner(`${ev.fuori[0]}<small>${ev.fuori[1]}</small>`, 2.2);
     }
   } else if (G.stato === 'aulaRientro') {
     G.timer += dt;
@@ -723,6 +762,7 @@ function comando(azione) {
   if (G.stato !== 'gioco') return;
   if (azione === 'sinistra') G.corsia = Math.max(0, G.corsia - 1);
   if (azione === 'destra') G.corsia = Math.min(2, G.corsia + 1);
+  if (fisica().senzaSalto && (azione === 'su' || azione === 'giu')) return;   // primi passi: solo cambio corsia
   if (azione === 'su' && G.y <= 0.001) { G.vy = Math.sqrt(2 * GRAVITA * fisica().salto); G.scivola = 0; }
   if (azione === 'giu') {
     if (G.y > 0.001) G.vy = -Math.sqrt(2 * GRAVITA * fisica().salto) * 1.6;
@@ -748,8 +788,8 @@ window.addEventListener('keydown', ev => {
   if (G.stato === 'intro') saltaIntro();
   saltaCrescita();
   if (G.stato === 'aula') {
-    if (ev.code === 'ArrowUp' || ev.code === 'Digit1') scegliInAula('prima');
-    if (ev.code === 'ArrowDown' || ev.code === 'Digit2') scegliInAula('ultima');
+    if (ev.code === 'ArrowUp' || ev.code === 'Digit1') scegliInAula(EVENTO[G.mondo].opzioni[0].id);
+    if (ev.code === 'ArrowDown' || ev.code === 'Digit2') scegliInAula(EVENTO[G.mondo].opzioni[1].id);
   }
   if (tasti[ev.code] && G.stato === 'gioco') { ev.preventDefault(); comando(tasti[ev.code]); }
   if (ev.code === 'Escape' || ev.code === 'KeyP') metti_in_pausa();
@@ -915,7 +955,7 @@ function aggiornaEntita(ora) {
     const e = ENTITA[prossima++];
     if (distanza(e, pos) + mezzaLunghezza(e) < pos - DIETRO) continue;
     if (e.genere === 'caffe' && G.raccolti.has(e)) continue;
-    if (e.genere === 'portaAula' && G.aulaFatta) continue;
+    if (e.genere === 'portaAula' && G.fatti.has(e.mondo)) continue;
     e.mesh = creaMesh(e);
     scena.add(e.mesh);
     if (!dinamico(e)) mettiSulPercorso(e.mesh, e.d, INCLINATI.has(e.genere));
@@ -924,7 +964,7 @@ function aggiornaEntita(ora) {
   for (let i = attive.length - 1; i >= 0; i--) {
     const e = attive[i];
     const d = distanza(e, pos);
-    if (d + mezzaLunghezza(e) < pos - DIETRO || (e.genere === 'portaAula' && G.aulaFatta)) {
+    if (d + mezzaLunghezza(e) < pos - DIETRO || (e.genere === 'portaAula' && G.fatti.has(e.mondo))) {
       rimuovi(e); attive.splice(i, 1);
       continue;
     }
@@ -977,15 +1017,96 @@ function controllaUrti() {
     }
     // Intervallo di quota occupato dall'ostacolo. La buca si supera saltando.
     const [oBasso, oAlto] = e.tipo === 'basso' ? [0, f.bassoMax] : e.tipo === 'alto' ? [f.altoDa, 3]
-      : e.tipo === 'buco' ? [-1, f.bucoMax] : e.tipo === 'persona' && e.stile === 'casa' ? [0, FISICA.neonato.persona] : [0, 3];
+      : e.tipo === 'buco' ? [-1, f.bucoMax] : [0, 3];
     if (alto > oBasso && basso < oAlto) { caduta(); return; }
   }
 }
 
 // Quanto ci si sta avvicinando alla porta dell'aula: 0 lontano, 1 davanti alla porta.
 function avvicinamentoAula() {
-  if (G.aulaFatta || G.mondo !== LICEO) return 0;
-  return THREE.MathUtils.smoothstep(G.pos, SEZ_AULA.inizio - AVVICINAMENTO_AULA, SEZ_AULA.inizio + 2);
+  const ev = EVENTO[G.mondo];
+  if (!ev || G.fatti.has(G.mondo)) return 0;
+  return THREE.MathUtils.smoothstep(G.pos, ev.sez.inizio - AVVICINAMENTO_AULA, ev.sez.inizio + 2);
+}
+
+// ---------------------------------------------------------------------------
+// L'amico biondo: esce da scuola insieme a Roberto, chiacchierando, poi viene seminato.
+// ---------------------------------------------------------------------------
+
+const amico = creaAmico();
+amico.radice.visible = false;
+amico.radice.rotation.order = 'YXZ';
+scena.add(amico.radice);
+const SEZ_PORTONE = TRATTI[LICEO].sezioni.find(s => s.id === 'portone');
+const AMICO_INIZIO = EVENTO[LICEO].porta + 0.6;    // esce dall'aula con Roberto
+const AMICO_SEMINA = SEZ_PORTONE.fine + 4;         // da qui in poi Roberto accelera e lo lascia indietro
+const AMICO_SPARITO = 11;                          // metri di distacco oltre i quali non si vede più
+const DIALOGO = [
+  ['amico', 'Che giornata!'], ['roberto', 'Lascia stare!'],
+  ['amico', 'Hai visto la prof?'], ['roberto', 'Ahah, dopo ti dico!'],
+];
+const bolleAmico = DIALOGO.map(([chi, testo]) => {
+  const f = fumetto(testo, chi === 'amico' ? '#FFE27A' : '#ffffff', '#1C1D2B', 1.7);
+  scena.add(f);
+  return f;
+});
+const bollaAspetta = fumetto('Ehi, aspettami!', '#FFFFFF', '#1C1D2B', 2.1);
+scena.add(bollaAspetta);
+const amicoStato = { x: 0, parla: 0, ritardo: 0, lato: 1 };
+const posAmico = new THREE.Vector3();
+
+function aggiornaAmico(dt) {
+  const ritardo = Math.max(0, G.pos - AMICO_SEMINA) * 0.6;
+  const attivo = G.mondo === LICEO && G.fatti.has(LICEO) && G.pos >= AMICO_INIZIO && ritardo < AMICO_SPARITO
+    && (G.stato === 'gioco' || G.stato === 'caduto' || G.stato === 'aulaRientro' || G.stato === 'pausa');
+  amico.radice.visible = attivo;
+  for (const b of [...bolleAmico, bollaAspetta]) b.visible = false;
+  G.parlaAmico = 0;
+  if (!attivo) { amicoStato.parla = 0; amicoStato.avviato = false; return; }
+
+  // Resta accanto a Roberto, sempre alla sua sinistra (a destra se Roberto è nella corsia di sinistra).
+  const bersaglio = G.x > -1 ? G.x - 1.25 : G.x + 1.25;
+  if (!amicoStato.avviato) { amicoStato.x = bersaglio; amicoStato.avviato = true; }
+  amicoStato.x += (bersaglio - amicoStato.x) * Math.min(1, dt * 6);
+  const cambia = Math.min(1, Math.abs(bersaglio - amicoStato.x) / 1.2);
+  const d = G.pos - ritardo - 0.15 - cambia * 1.2;
+  perc.punto(d, tmp);
+  const c = Math.cos(tmp.psi), s = Math.sin(tmp.psi);
+  amico.radice.position.set(tmp.x + c * amicoStato.x, tmp.h, tmp.z + s * amicoStato.x);
+  amico.radice.rotation.set(Math.atan(tmp.pend) * 0.5, -tmp.psi, 0);
+
+  const lato = Math.sign(amicoStato.x - G.x) || 1;    // +1 = amico alla destra di Roberto
+  amicoStato.lato = lato;
+  const parlano = ritardo === 0 && G.stato === 'gioco';
+  if (parlano) amicoStato.parla += dt;
+  const riga = Math.min(DIALOGO.length - 1, Math.floor(amicoStato.parla / 1.25));
+  azzeraPosa(amico);
+  const rallenta = 1 - Math.min(1, ritardo / 4) * 0.6;
+  posaCorsa(amico, G.passo * rallenta + 0.9, 0.85);
+  // Si guardano mentre parlano; chi parla gesticola con una mano.
+  const voltato = ritardo === 0 ? 0.55 : 0.2;
+  amico.testa.rotation.y = lato * voltato;
+  if (parlano && DIALOGO[riga][0] === 'amico') {
+    amico.braccia[0].spalla.rotation.set(-1.1 + Math.sin(G.tempo * 14) * 0.25, 0, -0.25);
+    amico.braccia[0].gomito.rotation.set(-1.0, 0, 0);
+  }
+  // Fumetti sopra la testa di chi parla.
+  if (parlano) {
+    const bolla = bolleAmico[riga];
+    const parlaRoberto = DIALOGO[riga][0] === 'roberto';
+    // Il fumetto sta a metà tra i due, così non esce dallo schermo.
+    roberto.getWorldPosition(posAmico);
+    amico.radice.getWorldPosition(bolla.position);
+    bolla.position.add(posAmico).multiplyScalar(0.5);
+    bolla.position.y += 2.5;
+    bolla.visible = true;
+    G.parlaAmico = parlaRoberto ? 2 : 1;
+  }
+  if (ritardo > 0.8) {
+    amico.radice.getWorldPosition(bollaAspetta.position);
+    bollaAspetta.position.y += 2.5;
+    bollaAspetta.visible = true;
+  }
 }
 
 function animaRoberto(dt) {
@@ -1002,20 +1123,11 @@ function animaRoberto(dt) {
     const corre = G.timer > DURATA_INTRO - 1.2;
     const saluto = THREE.MathUtils.smoothstep(G.timer, 0.3, 0.7) * (1 - THREE.MathUtils.smoothstep(G.timer, 1.6, 2.0));
     R.espressione(saluto > 0.5 ? 'gioia' : 'sorriso');
-    if (f.posa === 'gattona') {
-      // Il neonato saluta a gattoni, alzando una manina.
-      G.passo += dt * 14 * (corre ? 1 : 0);
-      posaGattona(R, G.passo, corre ? Math.min(1, (G.timer - (DURATA_INTRO - 1.2)) * 2) : 0.0);
-      if (!corre && saluto > 0) {
-        const m = R.braccia[1];
-        m.spalla.rotation.x = -Math.PI * 0.62 * saluto + (1 - saluto) * m.spalla.rotation.x;
-        m.spalla.rotation.z = 0.35 * saluto;
-        m.gomito.rotation.x = -0.3 + Math.sin(G.timer * 12) * 0.5 * saluto;
-      }
-      R.corpo.rotation.x = 0;
-      return;
+    if (corre) {
+      const k = Math.min(1, (G.timer - (DURATA_INTRO - 1.2)) * 2);
+      if (f.posa === 'primipassi') { G.passo += dt * 9; posaPrimiPassi(R, G.passo, k); }
+      else { G.passo += dt * 14; posaCorsa(R, G.passo, k); }
     }
-    if (corre) { G.passo += dt * 14; posaCorsa(R, G.passo, Math.min(1, (G.timer - (DURATA_INTRO - 1.2)) * 2)); }
     else posaFerma(R, G.timer, saluto);
     R.corpo.rotation.x = 0;
     return;
@@ -1034,25 +1146,36 @@ function animaRoberto(dt) {
   if (G.stato === 'caduto') nome = G.eta === 'neonato' ? 'piange' : 'dolore';
   else if (G.exprTemp > 0) nome = G.exprNome;
   else if (G.stato === 'conto') nome = 'sorriso';
-  else if (inAria) nome = f.posa === 'gattona' ? 'gioia' : 'sorpresa';
+  else if (G.parlaAmico) nome = G.parlaAmico === 2 ? 'gioia' : 'sorriso';
+  else if (inAria) nome = f.posa === 'primipassi' ? 'gioia' : 'sorpresa';
   else if (G.scivola > 0) nome = 'sforzo';
-  else nome = f.posa === 'gattona' ? 'sorriso' : 'sforzo';
+  else nome = f.posa === 'primipassi' ? 'sorriso' : 'sforzo';
   R.espressione(nome);
 
-  if (f.posa === 'gattona') {
-    // A gattoni: ritmo lento e dondolante; pancia a terra quando ci si abbassa.
-    if (inCorsa) G.passo += dt * velocitaIn(G.pos) * 1.45;
-    G.bassa += ((G.scivola > 0 ? 1 : 0) - G.bassa) * Math.min(1, dt * 14);
-    posaGattona(R, G.passo, inAria ? 0.25 : 1, G.bassa);
-    R.corpo.rotation.set(0, 0, 0);
-    if (G.stato === 'caduto') { R.corpo.rotation.z = 1.25; R.corpo.position.y = 0.12; }
-    roberto.rotation.z = (G.x - CORSIE[G.corsia]) * 0.12 + Math.sin(G.passo * 0.5) * 0.05;
+  if (f.posa === 'primipassi') {
+    if (G.stato === 'caduto') {
+      // Seduto per terra, si stropiccia gli occhi e piange.
+      const t = performance.now() / 1000;
+      posaPerTerra(R);
+      for (const [i, { spalla, gomito }] of R.braccia.entries()) {
+        spalla.rotation.set(-2.35 + Math.sin(t * 9 + i * 2) * 0.12, 0, (i ? 1 : -1) * 0.25);
+        gomito.rotation.set(-1.9, 0, 0);
+      }
+      R.testa.rotation.set(-0.15, 0, Math.sin(t * 22) * 0.09);
+      R.corpo.rotation.x += Math.sin(t * 22) * 0.02;
+    } else {
+      // Passetti corti e barcollanti: ritmo lento, dondola da un lato all'altro.
+      if (inCorsa) G.passo += dt * velocitaIn(G.pos) * 2.1;
+      posaPrimiPassi(R, G.passo, 1);
+    }
+    roberto.rotation.z = (G.x - CORSIE[G.corsia]) * 0.12;
     return;
   }
 
   if (inCorsa) G.passo += dt * velocitaIn(G.pos) * 0.75 * (1 - 0.65 * avvicinamentoAula());
   R.testa.rotation.set(0, 0, 0);
   posaCorsa(R, G.passo, inAria ? 0.35 : 1);
+  if (G.parlaAmico || amico.radice.visible) R.testa.rotation.y = -amicoStato.lato * (amico.radice.visible && !G.parlaAmico ? 0.2 : 0.5);
   if (inAria) for (const { ginocchio } of R.gambe) ginocchio.rotation.x = 1.1;
 
   const piegato = G.scivola > 0 ? -1.15 : 0;
@@ -1118,13 +1241,11 @@ function aggiornaCamera(dt) {
     const k = THREE.MathUtils.smootherstep(G.timer, 1.6, DURATA_INTRO - 0.2);
     const ang = k * Math.PI;
     const sc = f.scala / 0.8;
-    const gattona = f.posa === 'gattona';
-    // A gattoni la testa è un po' avanti rispetto al centro del personaggio.
-    const faccia = gattona ? 0.5 : 1.5 * sc, cz = gattona ? -0.3 : 0;
-    const raggio = THREE.MathUtils.lerp(gattona ? 2.2 : 1.5 * sc, cam.indietro, k);
+    const faccia = 1.5 * sc, cz = 0;
+    const raggio = THREE.MathUtils.lerp(1.5 * sc, cam.indietro, k);
     const avvicina = 1 - THREE.MathUtils.smootherstep(G.timer, 0, 1.2);
     daLocale(G.pos, Math.sin(ang) * raggio * 0.6, THREE.MathUtils.lerp(faccia + 0.05, cam.alto, k), cz - Math.cos(ang) * raggio - avvicina * 0.8 * sc, camera.position);
-    daLocale(G.pos, 0, faccia, gattona ? -0.55 : 0, guarda);
+    daLocale(G.pos, 0, faccia, 0, guarda);
     daLocale(G.pos, 0, cam.guarda, -10, daIntro);
     guarda.lerp(daIntro, k * k);
     camera.lookAt(guarda);
@@ -1146,21 +1267,22 @@ function aggiornaCamera(dt) {
   }
   // Valori della camera dell'età: si adattano piano quando Roberto cambia età.
   const dolce = 1 - Math.exp(-dt * 3);
-  for (const k of ['indietro', 'alto', 'guarda', 'fov']) camP[k] += (cam[k] - camP[k]) * dolce;
+  for (const k of ['indietro', 'alto', 'guarda', 'fov', 'segue']) camP[k] += (cam[k] - camP[k]) * dolce;
   const kAula = avvicinamentoAula();
   const kInt = perc.quantoInterno(G.pos, 6);
   const indietro = camP.indietro * THREE.MathUtils.lerp(1, 0.84, kInt) - 2.4 * kAula;
   const alto = camP.alto * THREE.MathUtils.lerp(1, 0.88, kInt) - 1.2 * kAula;
-  // Il neonato dondola un po' mentre gattona.
-  const dondolo = G.eta === 'neonato' && G.stato === 'gioco' ? Math.sin(G.passo * 0.5) : 0;
-  const lat = G.x * 0.45 + dondolo * 0.1;
+  const lat = G.x * camP.segue;
 
   perc.punto(G.pos - indietro, tmp);
   camera.position.set(tmp.x + Math.cos(tmp.psi) * lat, tmp.h + alto + G.y * 0.25, tmp.z + Math.sin(tmp.psi) * lat);
+  perc.punto(G.pos, tmp);
+  const hQui = tmp.h;
   perc.punto(G.pos + 10, tmp);
-  guarda.set(tmp.x + Math.cos(tmp.psi) * lat, tmp.h + camP.guarda + 0.25 * kAula, tmp.z + Math.sin(tmp.psi) * lat);
+  // La visuale segue solo in parte la pendenza: in salita la strada si vede salire verso l'alto.
+  const hMira = hQui + (tmp.h - hQui) * THREE.MathUtils.lerp(0.2, 0.85, kInt);
+  guarda.set(tmp.x + Math.cos(tmp.psi) * lat, hMira + camP.guarda + 0.25 * kAula, tmp.z + Math.sin(tmp.psi) * lat);
   camera.lookAt(guarda);
-  if (dondolo) camera.rotateZ(dondolo * 0.025);
 
   const fov = fovBase * camP.fov * (1 - 0.22 * kAula);
   if (Math.abs(camera.fov - fov) > 0.01) { camera.fov = fov; camera.updateProjectionMatrix(); }
@@ -1230,7 +1352,7 @@ function ciclo(ora) {
       }
       controllaCheckpoint();
       if (G.pos >= LUNGHEZZA) { G.pos = LUNGHEZZA; fine(); }
-      else if (!G.aulaFatta && G.mondo === LICEO && G.pos >= SEZ_AULA.inizio + 3) avviaAula();
+      else if (EVENTO[G.mondo] && !G.fatti.has(G.mondo) && G.pos >= EVENTO[G.mondo].sez.inizio + 3) avviaAula();
       else controllaUrti();
     }
   } else if (G.stato === 'crescita') {
@@ -1251,6 +1373,7 @@ function ciclo(ora) {
   if (!inAula) {
     aggiornaEntita(ora);
     aggiornaColori();
+    aggiornaAmico(dt);
     animaRoberto(dt);
     aggiornaCamera(dt);
     aggiornaScintille(dt);
@@ -1273,7 +1396,7 @@ function ciclo(ora) {
   }
   aggiornaOrologio();
 
-  if (inAula) renderer.render(aula.scena, aula.camera);
+  if (inAula) renderer.render(aulaAttiva.scena, aulaAttiva.camera);
   else renderer.render(scena, camera);
   requestAnimationFrame(ciclo);
 }
@@ -1284,14 +1407,15 @@ requestAnimationFrame(ciclo);
 // Aiuto per i test automatici.
 window.__gioco = {
   G, R, ENTITA, TRATTI, SEZIONI, CHECKPOINT, LUNGHEZZA, perc, aula, comando, velocitaIn, FISICA, impostaEta, avviaCrescita, camera, scena,
-  mostraAula(esito, secondi = 0) {
+  mostraAula(esito, secondi = 0, mondo = LICEO) {
+    G.mondo = mondo; configuraScelta(EVENTO[mondo]);
     G.stato = 'aula'; G.esitoAula = esito; G.congela = true; G.immune = true; elSipario.classList.remove('nero');
-    aula.avvia();
-    if (esito) aula.scegli(esito);
-    for (let t = 0; t < secondi; t += 0.05) aula.aggiorna(0.05);
+    aulaAttiva.avvia();
+    if (esito) aulaAttiva.scegli(esito);
+    for (let t = 0; t < secondi; t += 0.05) aulaAttiva.aggiorna(0.05);
   },
   teletrasporta(pos) {
-    G.pos = pos; G.mondo = mondoDi(pos); G.aulaFatta = pos > PORTA_AULA; impostaEta(TRATTI[G.mondo].eta);
+    G.pos = pos; G.mondo = mondoDi(pos); G.fatti = new Set(Object.entries(EVENTO).filter(([, ev]) => pos > ev.porta).map(([m]) => Number(m))); impostaEta(TRATTI[G.mondo].eta);
     G.cp = 0; while (G.cp + 1 < CHECKPOINT.length && pos >= CHECKPOINT[G.cp + 1].pos) G.cp++;
     G.checkpoint = { pos: CHECKPOINT[G.cp].pos, mondo: CHECKPOINT[G.cp].mondo, caffe: 0, raccolti: new Set() };
     azzeraGiocatore(); riposiziona(pos);

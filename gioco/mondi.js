@@ -14,19 +14,20 @@
 // `posa` è il modo di muoversi. `camera`: distanza dietro, altezza e quota guardata.
 export const FISICA = {
   neonato: {
-    nome: 'Neonato', posa: 'gattona', scala: 0.5, salto: 0.5, altezza: 0.55, altezzaBassa: 0.3,
-    bassoMax: 0.32, altoDa: 0.45, bucoMax: 0.1, persona: 0.4, cambioCorsia: 9,
-    camera: { indietro: 3.3, alto: 2.25, guarda: 0.3, fov: 0.95 },
+    // Primi passi: niente salto né scivolata. Gli ostacoli o si schivano o si urtano.
+    nome: 'Neonato', posa: 'primipassi', senzaSalto: true, scala: 0.5, salto: 0, altezza: 1.1, altezzaBassa: 1.1,
+    bassoMax: 0, altoDa: 9, bucoMax: 0, persona: 3, cambioCorsia: 9,
+    camera: { indietro: 4.4, alto: 2.4, guarda: 0.6, fov: 1.0, segue: 0.95 },
   },
   bimbo: {
     nome: 'Bambino', posa: 'corsa', scala: 0.6, salto: 1.25, altezza: 1.3, altezzaBassa: 0.62,
     bassoMax: 0.6, altoDa: 0.84, bucoMax: 0.22, persona: 3, cambioCorsia: 13,
-    camera: { indietro: 5.0, alto: 2.7, guarda: 1.0, fov: 1.0 },
+    camera: { indietro: 5.0, alto: 2.7, guarda: 1.0, fov: 1.0, segue: 0.8 },
   },
   liceo: {
     nome: 'Ragazzo', posa: 'corsa', scala: 0.8, salto: 1.79, altezza: 1.8, altezzaBassa: 0.85,
     bassoMax: 0.85, altoDa: 1.2, bucoMax: 0.3, persona: 3, cambioCorsia: 15,
-    camera: { indietro: 6.2, alto: 3.3, guarda: 1.3, fov: 1.0 },
+    camera: { indietro: 6.2, alto: 3.3, guarda: 1.3, fov: 1.0, segue: 0.45 },
   },
 };
 
@@ -47,7 +48,7 @@ export const MONDI = [
     ordine: -2,
     sezioni: [
       { id: 'culla',      lung: 20, amb: 'int' },
-      { id: 'salotto',    lung: 64, amb: 'int', checkpoint: 'Salotto', sottotitolo: 'Si gattona verso la cucina' },
+      { id: 'salotto',    lung: 64, amb: 'int', checkpoint: 'Salotto', sottotitolo: 'Primi passi verso la cucina' },
       { id: 'curva-c1',   lung: 26, curva: Math.PI / 2, amb: 'int' },
       { id: 'corridoio-c', lung: 50, amb: 'int' },
       { id: 'curva-c2',   lung: 26, curva: -Math.PI / 2, amb: 'int' },
@@ -67,7 +68,7 @@ export const MONDI = [
     stile: 'darmon',
     arco: 'infanzia',
     eta: 'bimbo',
-    anni: '6 – 10 anni',
+    anni: '8 anni',
     luogo: 'Napoli',
     ordine: -1,
     sezioni: [
@@ -75,7 +76,7 @@ export const MONDI = [
       { id: 'cortile',    lung: 80,  amb: 'est' },
       { id: 'atrio-d',    lung: 14,  amb: 'int', checkpoint: 'Ingresso all\'Istituto', sottotitolo: 'Si entra a scuola' },
       { id: 'corridoio-d', lung: 78, amb: 'int' },
-      { id: 'sala-evento', lung: 56, amb: 'int', evento: 'darmon', checkpoint: 'Sala dell\'evento', sottotitolo: 'Qui succederà qualcosa' },
+      { id: 'aula-d',     lung: 6,  amb: 'int', evento: 'darmon', checkpoint: 'La 3ª B', sottotitolo: 'Sta per arrivare il maestro' },
       { id: 'uscita-d',   lung: 20,  amb: 'int' },
       { id: 'piazzale',   lung: 110, pend: -0.02, amb: 'est' },
     ],
@@ -98,8 +99,8 @@ export const MONDI = [
     // Sezioni del percorso (vedi percorso.js). `evento: 'aula'` ferma la corsa per la scena in
     // classe; `checkpoint` segna un punto da cui ripartire dentro lo stesso mondo.
     sezioni: [
-      { id: 'salita',        lung: 330, pend: 0.09, amb: 'est' },
-      { id: 'avvicinamento', lung: 310, pend: 0.035, amb: 'est' },
+      { id: 'salita',        lung: 330, pend: 0.15, amb: 'est' },
+      { id: 'avvicinamento', lung: 310, pend: 0.06, amb: 'est' },
       { id: 'atrio',         lung: 14,  amb: 'int', checkpoint: 'Ingresso a scuola', sottotitolo: 'Sono le 8:30, corri verso la 5ª H' },
       { id: 'hall',          lung: 62,  amb: 'int' },
       { id: 'scale1',        lung: 34,  pend: 0.30, amb: 'int', piano: '1° piano' },
