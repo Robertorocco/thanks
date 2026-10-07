@@ -16,6 +16,13 @@ import { costruisciPercorso } from './percorso.js';
 import { CORSIE, VELOCITA_COMPAGNI, ANTICIPO_COMPAGNI, PENDENZA_CROCIERA, generaLivello } from './livello.js';
 import { creaAula } from './aula.js';
 
+// L'etichetta mostra la versione del codice che sta davvero girando (dal ?v= con cui è caricato).
+{
+  const v = new URL(import.meta.url).searchParams.get('v');
+  const el = document.querySelector('.versione');
+  if (el && v) el.textContent = `v${v}`;
+}
+
 // ---------------------------------------------------------------------------
 // Percorso: mondi, sezioni e tracciato
 // ---------------------------------------------------------------------------

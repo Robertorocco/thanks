@@ -22,3 +22,7 @@ A ogni nuova versione si aumenta il numero `vN` mostrato vicino al tasto Gioca (
 ## Modalità sviluppo
 
 In `gioco/mondi.js` la costante `MODALITA_SVILUPPO` (ora `true`) fa ripartire da poco prima del punto della caduta invece che dall'ultimo checkpoint; nel menù di gioco compare "DEV". I checkpoint restano calcolati: per riattivarli, come nel gioco finale, basta metterla a `false`.
+
+## Cache del telefono
+
+I moduli JavaScript vengono caricati con `?v=N` (import map in `gioco/index.html`) e l'etichetta di versione del gioco si legge dal codice che gira davvero. A ogni versione cambia `N` nell'import map, nello `<script src="main.js?v=N">` e nell'etichetta di `index.html`.
