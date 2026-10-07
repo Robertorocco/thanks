@@ -113,8 +113,15 @@ export const SPINTA = 1.25;
 export const CRESCITA = 0.25;
 
 // Ogni caffè raccolto toglie questo tempo dal totale (secondi).
-export const BONUS_CAFFE = 0.25;
+export const BONUS_CAFFE = 2;
 
 // Penalità se in aula ci si siede in prima fila (secondi), e tempo per scegliere.
 export const MALUS_PRIMA_FILA = 10;
 export const TEMPO_SCELTA = 6;
+
+// Modalità sviluppo: se si muore si riparte da dove si è morti (un po' prima dell'ostacolo),
+// invece che dall'ultimo checkpoint. I checkpoint restano calcolati ma non vengono usati.
+// Metti false per usare i checkpoint, come nel gioco finale.
+export const MODALITA_SVILUPPO = true;
+export const RESPAWN_INDIETRO = 16;     // metri prima del punto della caduta
+export const RESPAWN_INVULNERABILE = 0.35;// secondi senza urti dopo la ripartenza

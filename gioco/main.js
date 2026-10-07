@@ -1,5 +1,8 @@
 import * as THREE from './lib/three.module.min.js';
-import { MONDI, TRAGUARDO, BONUS_CAFFE, SPINTA, CRESCITA, MALUS_PRIMA_FILA, TEMPO_SCELTA } from './mondi.js';
+import {
+  MONDI, TRAGUARDO, BONUS_CAFFE, SPINTA, CRESCITA, MALUS_PRIMA_FILA, TEMPO_SCELTA,
+  MODALITA_SVILUPPO, RESPAWN_INDIETRO, RESPAWN_INVULNERABILE,
+} from './mondi.js';
 import { inviaTempo, leggiClassifica, formattaTempo } from './classifica.js';
 import {
   creaRoberto, posaCorsa, posaFerma, creaOstacolo, creaCaffe, creaArco,
@@ -7,7 +10,7 @@ import {
 } from './modelli.js';
 import {
   creaSemaforo, creaScuola, creaParete, creaSoffitto, creaCartelloAppeso, creaPortaAula,
-  creaPortone, creaMuroLungo, creaAvviso,
+  creaPortone, creaMuroLungo,
 } from './modelli-liceo.js';
 import { costruisciPercorso } from './percorso.js';
 import { CORSIE, VELOCITA_COMPAGNI, ANTICIPO_COMPAGNI, PENDENZA_CROCIERA, generaLivello } from './livello.js';
@@ -58,7 +61,9 @@ function velocitaIn(pos) {
 
 const ENTITA = generaLivello(TRATTI, perc, velocitaIn);
 for (const t of TRATTI) if (!t.sezioni) caricaFotoLuogo(t.stile);
-const CAFFE_TOTALI = ENTITA.filter(e => e.genere === 'caffe').length;
+let numeroCaffe = 0;
+for (const e of ENTITA) if (e.genere === 'caffe') e.num = ++numeroCaffe;   // numerati nell'ordine del percorso
+const CAFFE_TOTALI = numeroCaffe;
 const mezzaLunghezza = e => (e.profondita ?? 0) / 2;
 
 // Punti di ripartenza: l'inizio di ogni mondo e le tappe dentro il mondo 1.
@@ -309,6 +314,23 @@ function aggiornaSudore(dt, attivo, intensita) {
 
 const INCLINATI = new Set(['ostacolo', 'semaforo', 'parete', 'soffitto', 'cartello']);
 
+const texNumeri = new Map();
+function texNumero(n) {
+  if (!texNumeri.has(n)) {
+    const c = document.createElement('canvas');
+    c.width = c.height = 96;
+    const g = c.getContext('2d');
+    g.fillStyle = '#1C1D2B'; g.beginPath(); g.arc(48, 48, 44, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#FFD23F'; g.beginPath(); g.arc(48, 48, 38, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#1C1D2B'; g.font = '800 44px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(String(n), 48, 52, 70);
+    const t = new THREE.CanvasTexture(c);
+    t.colorSpace = THREE.SRGBColorSpace;
+    texNumeri.set(n, t);
+  }
+  return texNumeri.get(n);
+}
+
 function creaMesh(e) {
   const t = TRATTI[e.mondo ?? 0];
   let m;
@@ -317,7 +339,12 @@ function creaMesh(e) {
     else m = creaOstacolo(e, t);
     if (e.tipo !== 'crociera') m.position.x = CORSIE[e.corsia];
   }
-  else if (e.genere === 'caffe') { m = creaCaffe(); m.position.set(CORSIE[e.corsia], 0.85, 0); }
+  else if (e.genere === 'caffe') {
+    m = creaCaffe(); m.position.set(CORSIE[e.corsia], 0.85, 0);
+    const n = new THREE.Sprite(new THREE.SpriteMaterial({ map: texNumero(e.num), transparent: true, depthWrite: false }));
+    n.scale.set(0.7, 0.7, 1); n.position.y = 0.75;
+    m.add(n);
+  }
   else if (e.genere === 'edificio') m = creaEdificio(e, t);
   else if (e.genere === 'monumento') m = creaMonumento(e, t);
   else if (e.genere === 'lampione') m = creaLampione(e.lato);
@@ -329,7 +356,6 @@ function creaMesh(e) {
   else if (e.genere === 'cartello') m = creaCartelloAppeso(e.testo, e.w, e.colore);
   else if (e.genere === 'portaAula') m = creaPortaAula();
   else if (e.genere === 'portone') m = creaPortone();
-  else if (e.genere === 'avviso') { m = creaAvviso(); m.position.x = e.corsia === 1 ? 1.25 : CORSIE[e.corsia] + (e.corsia === 0 ? -0.95 : 0.95); }
   const involucro = new THREE.Group();
   involucro.add(m);
   if (e.genere === 'soffitto' || e.genere === 'parete') m.traverse(o => { o.castShadow = false; });
@@ -338,7 +364,8 @@ function creaMesh(e) {
   return involucro;
 }
 
-const dinamico = e => e.genere === 'caffe' || e.genere === 'avviso' || (e.genere === 'ostacolo' && (e.tipo === 'persona' || e.tipo === 'crociera'));
+const bucoInStrada = e => e.genere === 'ostacolo' && e.tipo === 'buco' && e.stile === 'liceo';
+const dinamico = e => e.genere === 'caffe' || bucoInStrada(e) || (e.genere === 'ostacolo' && (e.tipo === 'persona' || e.tipo === 'crociera'));
 
 // Distanza effettiva lungo il percorso: i compagni ti vengono incontro.
 function distanza(e, pos) {
@@ -408,7 +435,7 @@ function salvaCheckpoint(i) {
 
 function nuovaPartita() {
   G.pos = 0; G.tempo = 0; G.malus = 0; G.caffe = 0; G.raccolti = new Set(); G.mondo = 0; G.cadute = 0;
-  G.aulaFatta = false; G.esitoAula = null;
+  G.aulaFatta = false; G.esitoAula = null; G.invul = 0; G.posCaduta = null;
   salvaCheckpoint(0);
   azzeraGiocatore();
   riposiziona(0);
@@ -439,11 +466,23 @@ function caduta() {
   G.stato = 'caduto';
   G.timer = 1.2;
   G.cadute++;
-  banner('Ahi!<small>Si riparte dall\'ultimo checkpoint</small>', 1.2);
+  G.posCaduta = G.pos;
+  banner(`Ahi!<small>${MODALITA_SVILUPPO ? 'Si riparte da qui (modalità sviluppo)' : 'Si riparte dall\'ultimo checkpoint'}</small>`, 1.2);
   if (navigator.vibrate) navigator.vibrate(120);
 }
 
 function ripartiDalCheckpoint() {
+  if (MODALITA_SVILUPPO) {
+    // Si riparte poco prima del punto della caduta, tenendo caffè e tempo; i checkpoint restano
+    // calcolati ma non si usano.
+    G.pos = Math.max(0, (G.posCaduta ?? G.pos) - RESPAWN_INDIETRO);
+    G.mondo = mondoDi(G.pos);
+    G.invul = RESPAWN_INVULNERABILE;
+    azzeraGiocatore();
+    riposiziona(G.pos);
+    G.stato = 'gioco';
+    return;
+  }
   const c = G.checkpoint;
   G.mondo = c.mondo;
   G.pos = c.pos;
@@ -756,12 +795,12 @@ function aggiornaEntita(ora) {
       mettiSulPercorso(e.mesh, e.d, false);
       e.interno.rotation.y += 0.05;
       e.interno.position.y = 0.85 + Math.sin(ora / 250 + e.d) * 0.08;
-    } else if (e.genere === 'avviso') {
-      // Il cartello spunta con un rimbalzo a ~40 m, lampeggia e resta fino alla buca.
-      mettiSulPercorso(e.mesh, e.d, false);
-      const p = THREE.MathUtils.clamp((42 - (e.d - pos)) / 10, 0, 1), x = p - 1;
-      e.interno.userData.sagoma.scale.setScalar(Math.max(0.001, p === 0 ? 0.001 : 1 + 2.70158 * x * x * x + 1.70158 * x * x));
-      e.interno.userData.lampada.visible = Math.floor(ora / 220) % 2 === 0;
+    } else if (bucoInStrada(e)) {
+      // La buca spunta con un rimbalzo circa 1 s prima di arrivarci.
+      mettiSulPercorso(e.mesh, e.d, true);
+      const v = velocitaIn(pos);
+      const p = THREE.MathUtils.clamp((v * 1.15 - (e.d - pos)) / (v * 0.3), 0, 1), x = p - 1;
+      e.interno.scale.setScalar(p === 0 ? 0.001 : Math.max(0.001, 1 + 2.70158 * x * x * x + 1.70158 * x * x));
     } else if (e.tipo === 'persona') {
       mettiSulPercorso(e.mesh, d, true);
       e.anima?.(ora / 1000);
@@ -775,7 +814,7 @@ function aggiornaEntita(ora) {
 }
 
 function controllaUrti() {
-  if (G.immune) return;
+  if (G.immune || G.invul > 0) return;
   const altezza = G.scivola > 0 ? 0.85 : 1.8;
   const basso = G.y, alto = G.y + altezza;
   for (let i = attive.length - 1; i >= 0; i--) {
@@ -814,6 +853,7 @@ function animaRoberto(dt) {
   roberto.position.set(tmp.x + c * G.x, tmp.h + G.y, tmp.z + s * G.x);
   roberto.rotation.set(Math.atan(tmp.pend) * 0.5, -tmp.psi, 0);
   R.zaino.visible = G.mondo === 0;
+  roberto.visible = !(G.invul > 0) || Math.floor(G.invul * 12) % 2 === 0;   // lampeggia dopo la ripartenza
 
   if (G.stato === 'intro') {
     const corre = G.timer > DURATA_INTRO - 1.2;
@@ -922,6 +962,7 @@ function ciclo(ora) {
     G.y = Math.max(0, G.y + G.vy * dt);
     if (G.y === 0) G.vy = 0;
     G.scivola = Math.max(0, G.scivola - dt);
+    G.invul = Math.max(0, (G.invul ?? 0) - dt);
 
     if (G.stato === 'gioco') {
       const m = mondoDi(G.pos);
@@ -962,7 +1003,7 @@ function ciclo(ora) {
   if (G.stato !== 'inizio' && G.stato !== 'fine' && G.stato !== 'pausa' && G.stato !== 'intro') {
     hud.tempo.textContent = formattaTempo(G.tempo + G.malus);
     hud.caffe.textContent = `☕ ${G.caffe}`;
-    hud.mondo.textContent = `${G.mondo + 1}/${TRATTI.length} · ${TRATTI[G.mondo].nome}`;
+    hud.mondo.textContent = `${G.mondo + 1}/${TRATTI.length} · ${TRATTI[G.mondo].nome}${MODALITA_SVILUPPO ? ' · DEV' : ''}`;
     hud.barra.style.width = `${(G.pos / LUNGHEZZA) * 100}%`;
   }
   aggiornaOrologio();

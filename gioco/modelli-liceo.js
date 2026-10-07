@@ -80,12 +80,12 @@ function tombino() {
   filo.position.y = 0.04;
   g.add(filo);
   for (const [x, z] of [[1.25, 0.9], [-1.25, 0.9], [0, 1.2]]) {
-    const cono = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.7, 12), materiale(0xFF7A1A));
-    cono.position.set(x, 0.35, z);
+    const cono = new THREE.Mesh(new THREE.ConeGeometry(0.32, 1.0, 12), materiale(0xFF7A1A));
+    cono.position.set(x, 0.5, z);
     cono.castShadow = true;
     g.add(cono);
-    g.add(blocco(0.6, 0.05, 0.6, 0xFF7A1A, x, 0.0, z));
-    g.add(blocco(0.32, 0.12, 0.32, 0xFFFFFF, x, 0.28, z));
+    g.add(blocco(0.85, 0.06, 0.85, 0xFF7A1A, x, 0.0, z));
+    g.add(blocco(0.46, 0.17, 0.46, 0xFFFFFF, x, 0.4, z));
   }
   g.add(blocco(2.4, 0.3, 0.06, matStrisceAvviso, 0, 0.45, 1.5));
   return g;
@@ -468,34 +468,5 @@ export function creaMuroLungo(e) {
     a.position.z = -p / 2 + passo * (i + 0.5);
     g.add(a);
   }
-  return g;
-}
-
-// Cartello di pericolo "strada dissestata" che spunta con un rimbalzo quando ci si avvicina a una buca.
-const texPericolo = tela(256, 256, (g, W, H) => {
-  g.clearRect(0, 0, W, H);
-  g.fillStyle = '#d62d20';
-  g.beginPath(); g.moveTo(W / 2, 8); g.lineTo(W - 8, H - 28); g.lineTo(8, H - 28); g.closePath(); g.fill();
-  g.fillStyle = '#ffffff';
-  g.beginPath(); g.moveTo(W / 2, 48); g.lineTo(W - 46, H - 48); g.lineTo(46, H - 48); g.closePath(); g.fill();
-  g.fillStyle = '#15181d';
-  g.fillRect(W / 2 - 9, 88, 18, 70);
-  g.beginPath(); g.arc(W / 2, 182, 11, 0, Math.PI * 2); g.fill();
-});
-
-export function creaAvviso() {
-  const g = new THREE.Group();
-  const sagoma = new THREE.Group();
-  g.add(sagoma);
-  sagoma.add(blocco(0.1, 2.4, 0.1, 0x30343b, 0, 0));
-  sagoma.add(blocco(0.7, 0.1, 0.5, 0x30343b, 0, 0));
-  const pannello = new THREE.Mesh(new THREE.PlaneGeometry(1.9, 1.9), new THREE.MeshBasicMaterial({ map: texPericolo, transparent: true, alphaTest: 0.4, side: THREE.DoubleSide }));
-  pannello.position.set(0, 2.9, 0);
-  sagoma.add(pannello);
-  const lampada = sfera(0.18, new THREE.MeshBasicMaterial({ color: 0xffb020 }), 0, 3.95, 0);
-  sagoma.add(lampada);
-  g.userData.sagoma = sagoma;
-  g.userData.lampada = lampada;
-  sagoma.scale.setScalar(0.001);
   return g;
 }

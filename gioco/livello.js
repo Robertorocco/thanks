@@ -46,8 +46,6 @@ export function generaLivello(TRATTI, perc, velocitaIn) {
     const ostacolo = (d, corsia, tipo, stile, extra = {}) => {
       const prof = extra.prof ?? profondita(stile, tipo);
       ENTITA.push({ d, genere: 'ostacolo', tipo, corsia, profondita: prof, stile, mondo: t.indice, var: Math.floor(r() * 16), ...extra });
-      // Ogni buca in strada è preceduta da un cartello di pericolo che spunta all'avvicinarsi.
-      if (tipo === 'buco' && stile === 'liceo') ENTITA.push({ d: d - 30, genere: 'avviso', corsia, mondo: t.indice, buco: d });
     };
     const caffe = (d, corsia) => ENTITA.push({ d, genere: 'caffe', corsia, mondo: t.indice });
     const azione = permessi => {
