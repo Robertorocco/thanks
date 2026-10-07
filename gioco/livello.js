@@ -7,7 +7,20 @@ export const CORSIE = [-2.2, 0, 2.2];
 // Un compagno ti viene incontro: la sua distanza dal giocatore si accorcia del 30% in più.
 export const VELOCITA_COMPAGNI = 0.3;
 export const ANTICIPO_COMPAGNI = 70;
+// Chi esce da scuola cammina nella tua stessa direzione, più lentamente: la distanza si allunga del 30%
+// del tuo avanzamento, quindi lo raggiungi con una velocità relativa del 70%.
+export const VELOCITA_CAMMINATORI = 0.3;
 export const PENDENZA_CROCIERA = 0.4;   // metri di spostamento laterale per metro di avvicinamento
+
+// Posizione lungo il percorso di una persona quando il giocatore è in `pos`.
+export function distanzaPersona(e, pos) {
+  const k = Math.max(0, pos - (e.d0 - ANTICIPO_COMPAGNI));
+  return e.via ? e.d0 + VELOCITA_CAMMINATORI * k : e.d0 - VELOCITA_COMPAGNI * k;
+}
+// Posizione del giocatore in cui incrocia la persona.
+export const incontroPersona = e => (e.via
+  ? e.d0 + VELOCITA_CAMMINATORI * ANTICIPO_COMPAGNI / (1 - VELOCITA_CAMMINATORI)
+  : e.d0 - VELOCITA_COMPAGNI * ANTICIPO_COMPAGNI / (1 + VELOCITA_COMPAGNI));
 
 export function rng(seme) {
   return () => {
@@ -28,7 +41,7 @@ function mescola(lista, r) {
 
 // Lunghezza di ogni ostacolo lungo la corsa, per stile.
 const PROF = {
-  liceo:      { basso: 0.7, alto: 0.6, muro: 4.2, buco: 1.8, crociera: 2.0 },
+  liceo:      { basso: 0.7, alto: 0.6, muro: 4.2, buco: 1.8, crociera: 2.0, persona: 0.7 },
   liceoInt:   { basso: 0.8, alto: 0.5, muro: 1.6, buco: 1.6, persona: 0.7 },
   _:          { basso: 0.8, alto: 0.4, muro: 0.9 },
 };
@@ -58,7 +71,7 @@ export function generaLivello(TRATTI, perc, velocitaIn) {
       const set = new Set();
       for (const e of ENTITA) {
         if (e.genere !== 'ostacolo') continue;
-        const dd = e.tipo === 'persona' ? e.d - VELOCITA_COMPAGNI / (1 + VELOCITA_COMPAGNI) * ANTICIPO_COMPAGNI : e.d;
+        const dd = e.tipo === 'persona' ? incontroPersona(e) : e.d;
         if (Math.abs(dd - d) > finestra + e.profondita / 2) continue;
         if (e.tipo === 'muro' || e.tipo === 'persona') set.add(e.corsia);
         if (e.tipo === 'crociera') (e.dir > 0 ? [0, 1] : [1, 2]).forEach(c => set.add(c));
@@ -122,20 +135,22 @@ export function generaLivello(TRATTI, perc, velocitaIn) {
     }
 
     // Compagni che vengono incontro: `n` persone sparse in [a, b), sempre con una corsia libera.
-    function compagni(a, b, n, stile = 'liceoInt') {
+    // Con via = true sono ragazzi che escono da scuola e camminano davanti a te, più piano.
+    function compagni(a, b, n, stile = 'liceoInt', via = false) {
       for (let i = 0; i < n; i++) {
         const d0 = a + (b - a) * ((i + 0.3 + r() * 0.5) / n);
-        const dMeet = d0 - VELOCITA_COMPAGNI / (1 + VELOCITA_COMPAGNI) * ANTICIPO_COMPAGNI;
+        const dMeet = incontroPersona({ d0, via });
         if (dMeet < a - 4) continue;
         const bl = bloccate(dMeet, 10);
         const libere = [0, 1, 2].filter(c => !bl.has(c));
         if (libere.length < 2) continue;
         const corsia = libere[Math.floor(r() * libere.length)];
-        ostacolo(d0, corsia, 'persona', stile, { d0 });
+        ostacolo(d0, corsia, 'persona', stile, { d0, via });
       }
     }
 
     // --- Sezioni -----------------------------------------------------------
+    const dopo = [];     // generati a fine mondo, quando tutti gli ostacoli fissi sono già al loro posto
     for (const sz of sezioni) {
       const a = sz.inizio, b = sz.fine;
       const int = sz.amb === 'int';
@@ -185,8 +200,11 @@ export function generaLivello(TRATTI, perc, velocitaIn) {
           break;
         case 'scale-giu':
           compagni(a + 20, b - 2, 3);
+          dopo.push(() => compagni(a + 14, b - 6, 3, 'liceoInt', true));
           break;
         case 'discesa': case 'curva4': case 'rettilineo': case 'curva5':
+          // Ragazzi che escono da scuola davanti a te, sulla discesa e nelle curve.
+          if (sz.id !== 'curva5') dopo.push(() => compagni(a + 2, b - 4, sz.id === 'discesa' ? 4 : 2, 'liceo', true));
           riempi(a + (sz.id === 'discesa' ? 14 : 4), b - 4, { stile: 'liceo', tipi: ['muro', 'basso', 'alto', 'buco'], corridoi: 0.16, spazio: 1.1 });
           break;
         case 'fine':
@@ -243,6 +261,8 @@ export function generaLivello(TRATTI, perc, velocitaIn) {
       }
     }
 
+    for (const f of dopo) f();
+
     // Scenografia per i mondi senza sezioni: monumento con foto del luogo.
     if (!t.sezioni) {
       const latoMonumento = t.indice % 2 ? 1 : -1;
@@ -253,8 +273,30 @@ export function generaLivello(TRATTI, perc, velocitaIn) {
     if (t.indice > 0) ENTITA.push({ d: t.inizio, genere: 'arco', testo: t.nome, colore: 0xC9962E });
   }
 
+  // Nessun caffè deve restare dentro un ostacolo: se la sua corsia è chiusa (muri, auto, persone che
+  // passano) lo si sposta in una corsia libera, altrimenti si toglie.
+  const chiusa = (corsia, d) => ENTITA.some(o => {
+    if (o.genere !== 'ostacolo') return false;
+    const m = o.profondita / 2 + 1.4;
+    if (o.tipo === 'muro') return o.corsia === corsia && Math.abs(o.d - d) <= m;
+    if (o.tipo === 'crociera') return (o.dir > 0 ? [0, 1] : [1, 2]).includes(corsia) && Math.abs(o.d - d) <= m;
+    if (o.tipo === 'persona') {
+      if (o.corsia !== corsia) return false;
+      for (let pos = d - 1.2; pos <= d + 1.2; pos += 0.4) if (Math.abs(distanzaPersona(o, pos) - pos) <= m) return true;
+    }
+    return false;
+  });
+  ENTITA.spostati = [];
+  for (const e of ENTITA) {
+    if (e.genere !== 'caffe' || !chiusa(e.corsia, e.d)) continue;
+    const libera = [1, 0, 2].find(c => c !== e.corsia && !chiusa(c, e.d));
+    ENTITA.spostati.push({ d: Math.round(e.d), da: e.corsia, a: libera ?? null });
+    if (libera === undefined) e.nascosto = true; else e.corsia = libera;
+  }
+
   ENTITA.push({ d: TRATTI[TRATTI.length - 1].fine, genere: 'arco', testo: `${TRAGUARDO.nome} · ${TRAGUARDO.data}`, colore: 0xD4AF37, traguardo: true });
   const lista = ENTITA.filter(e => !e.nascosto);
   lista.sort((a, b) => a.d - b.d);
+  lista.spostati = ENTITA.spostati;
   return lista;
 }

@@ -158,7 +158,7 @@ export function creaAula() {
   // Fumetti e palline di carta.
   const fRisata = [], fAmici = [];
   const nuovoFumetto = (lista, testo, colore, ink, w) => { const f = fumetto(testo, colore, ink, w); scena.add(f); lista.push(f); return f; };
-  for (const p of compagni) nuovoFumetto(fRisata, 'AHAHAH', '#ffffff', '#1C1D2B', 1.25);
+  for (const p of compagni) nuovoFumetto(fRisata, 'O\'Cià', '#ffffff', '#1C1D2B', 1.25);
   const fAmico1 = nuovoFumetto(fAmici, 'WOOO!', '#FFE27A', '#1C1D2B', 1.1);
   const fAmico2 = nuovoFumetto(fAmici, 'AHAHAH', '#ffffff', '#1C1D2B', 1.25);
   const fRoberto = fumetto('...', '#E8E8E8', '#5B5E72', 0.8); scena.add(fRoberto);
@@ -210,6 +210,7 @@ export function creaAula() {
       for (const b of p.braccia) { b.spalla.rotation.set(0, 0, 0); b.gomito.rotation.set(0, 0, 0); }
       p.testa.rotation.set(0, 0, 0); p.corpo.rotation.set(0, 0, 0);
     }
+    for (const p of compagni) { p.parla = 0; p.lancio = 0; }
     for (const p of [...compagni, ...amici]) { siediti(p, sedia(...(p.casella ?? (amici.indexOf(p) === 0 ? [3, 0] : [3, 2])))); }
     for (const f of [...fRisata, ...fAmici, fRoberto, fCampana]) f.visible = false;
     for (const p of palline) { p.t = -1; p.m.visible = false; }
@@ -348,6 +349,7 @@ export function creaAula() {
           pallina.a.z += (Math.random() - 0.5) * 0.3;
           pallina.m.visible = true;
           l.da.lancio = 0.5;
+          l.da.parla = 1.0;         // mentre tira dice "O'Cià"
         }
       }
       if (l.fatto && t - l.t0 > 0.5 && t - l.t0 < 0.7) colpo = 1;
@@ -367,7 +369,8 @@ export function creaAula() {
     // Fumetti di risata e pensiero.
     compagni.forEach((p, i) => {
       const f = fRisata[i];
-      const attivo = p.casella[0] >= 1 && ((t * 1.3 + i * 0.37) % 1.2) < 0.7 && t > 0.6;
+      if (p.parla > 0) p.parla -= dt;
+      const attivo = p.parla > 0 || (p.casella[0] >= 1 && ((t * 1.3 + i * 0.37) % 1.2) < 0.7 && t > 0.6);
       f.visible = attivo;
       if (attivo) { p.radice.getWorldPosition(f.position); f.position.y += 1.7; }
     });

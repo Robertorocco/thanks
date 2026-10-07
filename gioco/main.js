@@ -5,7 +5,7 @@ import {
 } from './mondi.js';
 import { inviaTempo, leggiClassifica, formattaTempo } from './classifica.js';
 import {
-  creaRoberto, posaCorsa, posaFerma, creaOstacolo, creaCaffe, creaArco,
+  creaRoberto, posaCorsa, posaFerma, azzeraPosa, creaOstacolo, creaCaffe, creaArco,
   creaEdificio, creaMonumento, creaLampione, creaAlbero, caricaFotoLuogo,
 } from './modelli.js';
 import {
@@ -13,7 +13,7 @@ import {
   creaPortone, creaMuroLungo,
 } from './modelli-liceo.js';
 import { costruisciPercorso } from './percorso.js';
-import { CORSIE, VELOCITA_COMPAGNI, ANTICIPO_COMPAGNI, PENDENZA_CROCIERA, generaLivello } from './livello.js';
+import { CORSIE, PENDENZA_CROCIERA, generaLivello, distanzaPersona } from './livello.js';
 import { creaAula } from './aula.js';
 
 // L'etichetta mostra la versione del codice che sta davvero girando (dal ?v= con cui è caricato).
@@ -376,7 +376,7 @@ const dinamico = e => e.genere === 'caffe' || bucoInStrada(e) || (e.genere === '
 
 // Distanza effettiva lungo il percorso: i compagni ti vengono incontro.
 function distanza(e, pos) {
-  if (e.tipo === 'persona') return e.d0 - VELOCITA_COMPAGNI * Math.max(0, pos - (e.d0 - ANTICIPO_COMPAGNI));
+  if (e.tipo === 'persona') return distanzaPersona(e, pos);
   return e.d;
 }
 const latoCrociera = (e, pos) => CORSIE[e.corsia] - e.dir * PENDENZA_CROCIERA * (e.d - pos);
@@ -774,10 +774,14 @@ function aggiornaColori() {
   // La scuola in lontananza si schiarisce con la distanza (velo d'aria).
   scuola.visible = G.pos < SEZ_INGRESSO.inizio + 4;
   if (scuola.visible) {
+    scuola.userData.apri(aperturaPorta(SEZ_INGRESSO.inizio - G.pos));
     const f = THREE.MathUtils.smoothstep(SEZ_INGRESSO.inizio - G.pos, 90, 650) * 0.72;
     for (const { m, base } of scuola.userData.materiali) m.color.copy(base).lerp(cA, f);
   }
 }
+
+// Le porte si aprono quando ci si avvicina: chiuse oltre 18 m, aperte a 8 m.
+const aperturaPorta = distanza => THREE.MathUtils.smoothstep(18 - distanza, 0, 10);
 
 function aggiornaEntita(ora) {
   const pos = G.pos;
@@ -816,6 +820,8 @@ function aggiornaEntita(ora) {
       const lat = latoCrociera(e, pos);
       e.mesh.position.x += Math.cos(tmp.psi) * lat;
       e.mesh.position.z += Math.sin(tmp.psi) * lat;
+    } else if (e.interno.userData.apri) {
+      e.interno.userData.apri(aperturaPorta(e.d - pos));
     }
   }
 }
@@ -871,9 +877,13 @@ function animaRoberto(dt) {
     return;
   }
 
+  // Se lo stato precedente ha lasciato qualcosa di storto (intro saltata, caduta, ritorno dall'aula),
+  // si riparte da una posa pulita.
+  if (G.statoPosa !== G.stato) { azzeraPosa(R); G.statoPosa = G.stato; }
   const inCorsa = G.stato === 'gioco' || G.stato === 'aulaIn';
   if (inCorsa) G.passo += dt * velocitaIn(G.pos) * 0.75 * (1 - 0.65 * avvicinamentoAula());
   const inAria = G.y > 0.001;
+  R.testa.rotation.set(0, 0, 0);
   posaCorsa(R, G.passo, inAria ? 0.35 : 1);
   if (inAria) for (const { ginocchio } of R.gambe) ginocchio.rotation.x = 1.1;
 
@@ -1025,7 +1035,7 @@ requestAnimationFrame(ciclo);
 
 // Aiuto per i test automatici.
 window.__gioco = {
-  G, ENTITA, TRATTI, SEZIONI, CHECKPOINT, LUNGHEZZA, perc, aula, comando, velocitaIn,
+  G, R, ENTITA, TRATTI, SEZIONI, CHECKPOINT, LUNGHEZZA, perc, aula, comando, velocitaIn,
   mostraAula(esito, secondi = 0) {
     G.stato = 'aula'; G.esitoAula = esito; G.congela = true; G.immune = true; elSipario.classList.remove('nero');
     aula.avvia();

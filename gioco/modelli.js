@@ -646,31 +646,39 @@ export function creaPersona(o = {}) {
 
 export const creaRoberto = () => creaPersona({ foto: true, conZaino: true });
 
+// Riporta ogni articolazione alla posa neutra. Le pose qui sotto impostano comunque tutti gli assi
+// di ogni giunto a ogni chiamata, così nessun valore residuo di una posa precedente può restare.
+export function azzeraPosa(r) {
+  for (const { anca, ginocchio } of r.gambe) { anca.rotation.set(0, 0, 0); ginocchio.rotation.set(0, 0, 0); }
+  for (const { spalla, gomito } of r.braccia) { spalla.rotation.set(0, 0, 0); gomito.rotation.set(0, 0, 0); }
+  r.testa.rotation.set(0, 0, 0);
+  r.corpo.rotation.set(0, 0, 0);
+  r.corpo.position.y = 0;
+}
+
 // Posa di corsa: fase in radianti, ampiezza 0..1.
 export function posaCorsa(r, fase, ampiezza) {
   const s = Math.sin(fase);
   for (const [i, { anca, ginocchio }] of r.gambe.entries()) {
     const v = i === 0 ? s : -s;
-    anca.rotation.x = v * 0.85 * ampiezza;
-    ginocchio.rotation.x = Math.max(0, -Math.cos(fase + (i === 0 ? 0 : Math.PI))) * 1.3 * ampiezza;
+    anca.rotation.set(v * 0.85 * ampiezza, 0, 0);
+    ginocchio.rotation.set(Math.max(0, -Math.cos(fase + (i === 0 ? 0 : Math.PI))) * 1.3 * ampiezza, 0, 0);
   }
   for (const [i, { spalla, gomito }] of r.braccia.entries()) {
     const v = i === 0 ? -s : s;
-    spalla.rotation.x = v * 0.7 * ampiezza;
-    spalla.rotation.z = 0;
-    gomito.rotation.x = -0.9 * ampiezza;
+    spalla.rotation.set(v * 0.7 * ampiezza, 0, 0);
+    gomito.rotation.set(-0.9 * ampiezza, 0, 0);
   }
 }
 
 // Posa ferma, con saluto della mano destra se `saluto` > 0.
 export function posaFerma(r, t, saluto) {
-  for (const { anca, ginocchio } of r.gambe) { anca.rotation.x = 0; ginocchio.rotation.x = 0; }
+  for (const { anca, ginocchio } of r.gambe) { anca.rotation.set(0, 0, 0); ginocchio.rotation.set(0, 0, 0); }
   const [sx, dx] = r.braccia;
   sx.spalla.rotation.set(0, 0, -0.08);
-  sx.gomito.rotation.x = -0.15;
+  sx.gomito.rotation.set(-0.15, 0, 0);
   dx.spalla.rotation.set(0, 0, 0.08 + saluto * 2.6);
-  dx.gomito.rotation.x = 0;
-  dx.gomito.rotation.z = saluto * Math.sin(t * 10) * 0.5;
+  dx.gomito.rotation.set(0, 0, saluto * Math.sin(t * 10) * 0.5);
   r.corpo.position.y = Math.sin(t * 2.5) * 0.015;
 }
 

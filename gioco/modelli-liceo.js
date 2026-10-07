@@ -141,6 +141,7 @@ OSTACOLI.liceo = {
   muro: (p, e) => creaAuto(e),
   buco: () => tombino(),
   crociera: (p, e) => creaAutoCrociera(e),
+  persona: (p, e) => creaCompagno(e),
 };
 
 // Zebre e semaforo agli incroci.
@@ -219,8 +220,21 @@ export function creaScuola() {
   slab.position.set(0, 4.8 + 14.5 / 2, -1.7);
   slab.castShadow = true;
   g.add(slab);
-  // Corpo retrostante, per non vedere il vuoto dai lati.
-  g.add(M(14, 10, 14, muro, 0, 0, -9.5));
+  // Porta d'ingresso a vetri: due ante che scorrono dentro lo zoccolo quando ci si avvicina.
+  const vetro = new THREE.MeshLambertMaterial({ color: 0x9CC8E0, fog: false });
+  const telaio = new THREE.MeshLambertMaterial({ color: 0x2B58B8, fog: false });
+  const ante = [-1, 1].map(lato => {
+    const anta = new THREE.Group();
+    anta.add(M(3.1, 3.9, 0.12, vetro, 0, 0, 0));
+    anta.add(M(3.1, 0.18, 0.2, telaio, 0, 0, 0));
+    anta.add(M(3.1, 0.18, 0.2, telaio, 0, 3.72, 0));
+    anta.add(M(0.18, 3.9, 0.2, telaio, -lato * 1.46, 0, 0));
+    anta.add(M(0.18, 3.9, 0.2, telaio, lato * 1.46, 0, 0));
+    anta.position.set(lato * 1.6, 0, -0.2);
+    g.add(anta);
+    return { anta, lato };
+  });
+  g.userData.apri = k => { for (const { anta, lato } of ante) anta.position.x = lato * (1.6 + 3.3 * k); };
 
   // Edificio giallo e scale arancioni a destra.
   const giallo = new THREE.MeshLambertMaterial({ color: 0xF2C230, fog: false });
@@ -342,16 +356,28 @@ export function creaCartelloAppeso(testo, w = 3.4, colore = 0x2D7D4F, inchiostro
   return g;
 }
 
-// Parete di fondo con la porta dell'aula. Sparisce dopo la scena in classe.
+// Parete di fondo con la porta dell'aula: l'anta si apre verso l'interno quando ci si avvicina.
+// Sparisce dopo la scena in classe.
 export function creaPortaAula() {
   const g = new THREE.Group();
-  g.add(blocco(8.9, ALTEZZA_INTERNO, 0.4, matParete, 0, 0));
-  g.add(blocco(2.6, 3.3, 0.5, 0x6E4524, 0, 0));
-  g.add(blocco(2.2, 2.9, 0.54, 0x8A5A34, 0, 0));
-  g.add(blocco(0.12, 0.3, 0.12, 0xD8B85A, 0.8, 1.4, 0.32));
+  const H = ALTEZZA_INTERNO;
+  g.add(blocco(3.15, H, 0.4, matParete, -2.875, 0));
+  g.add(blocco(3.15, H, 0.4, matParete, 2.875, 0));
+  g.add(blocco(2.6, H - 3.3, 0.4, matParete, 0, 3.3));
+  for (const x of [-1.2, 1.2]) g.add(blocco(0.2, 3.3, 0.5, 0x6E4524, x, 0));
+  g.add(blocco(2.6, 0.2, 0.5, 0x6E4524, 0, 3.2));
+  // Si intravede l'aula oltre la porta.
+  g.add(blocco(2.4, 3.2, 0.05, new THREE.MeshBasicMaterial({ color: 0xE9E3D4 }), 0, 0, -0.7));
+  g.add(blocco(1.0, 1.4, 0.06, new THREE.MeshBasicMaterial({ color: 0xDDF1FF }), -0.5, 1.2, -0.66));
+  const perno = new THREE.Group();
+  perno.position.set(-1.1, 0, 0.05);
+  perno.add(blocco(2.2, 3.0, 0.1, 0x8A5A34, 1.1, 0, 0));
+  perno.add(blocco(0.12, 0.3, 0.12, 0xD8B85A, 1.9, 1.4, 0.1));
+  g.add(perno);
   const cartello = scritta('5ª H', 2.2, 0.8, 0xFFFFFF, 0x1F58B8);
   cartello.position.set(0, 3.9, 0.22);
   g.add(cartello);
+  g.userData.apri = k => { perno.rotation.y = k * 1.45; };
   return g;
 }
 
@@ -363,6 +389,16 @@ export function creaPortone() {
   const cartello = scritta('Uscita', 2.2, 0.6, 0x2D7D4F, 0xffffff);
   cartello.position.set(0, 4.8, 0.32);
   g.add(cartello);
+  // Porta a due ante che scorrono dentro i pilastri.
+  const ante = [-1, 1].map(lato => {
+    const anta = new THREE.Group();
+    anta.add(blocco(3.1, 4.2, 0.1, 0x8A5A34, 0, 0, 0));
+    anta.add(blocco(2.4, 1.6, 0.14, 0x9CC8E0, 0, 1.9, 0));
+    anta.position.x = lato * 1.55;
+    g.add(anta);
+    return { anta, lato };
+  });
+  g.userData.apri = k => { for (const { anta, lato } of ante) anta.position.x = lato * (1.55 + 2.3 * k); };
   return g;
 }
 
@@ -412,9 +448,9 @@ export function creaCompagno(e) {
   });
   const g = new THREE.Group();
   p.radice.scale.setScalar(0.8);
-  p.radice.rotation.y = Math.PI;
+  p.radice.rotation.y = e.via ? 0 : Math.PI;      // chi esce da scuola cammina nella tua direzione
   g.add(p.radice);
-  g.userData.anima = t => posaCorsa(p, t * 9 + v, 0.8);
+  g.userData.anima = e.via ? (t => posaCorsa(p, t * 6 + v, 0.55)) : (t => posaCorsa(p, t * 9 + v, 0.8));
   return g;
 }
 
