@@ -7,7 +7,7 @@ import {
 } from './modelli.js';
 import {
   creaSemaforo, creaScuola, creaParete, creaSoffitto, creaCartelloAppeso, creaPortaAula,
-  creaPortone, creaMuroLungo,
+  creaPortone, creaMuroLungo, creaAvviso,
 } from './modelli-liceo.js';
 import { costruisciPercorso } from './percorso.js';
 import { CORSIE, VELOCITA_COMPAGNI, ANTICIPO_COMPAGNI, PENDENZA_CROCIERA, generaLivello } from './livello.js';
@@ -271,8 +271,9 @@ scena.add(roberto);
 
 // Gocce di sudore: nascono vicino alla fronte e restano indietro.
 const GOCCE = Array.from({ length: 12 }, () => {
-  const m = new THREE.Mesh(new THREE.SphereGeometry(0.045, 6, 5), new THREE.MeshBasicMaterial({ color: 0xA9DCFF }));
+  const m = new THREE.Mesh(new THREE.SphereGeometry(0.06, 6, 5), new THREE.MeshBasicMaterial({ color: 0x8FD0FF }));
   m.visible = false;
+  m.scale.set(0.9, 1.4, 0.9);
   scena.add(m);
   return { m, vita: 0, x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0 };
 });
@@ -283,16 +284,18 @@ function aggiornaSudore(dt, attivo, intensita) {
   if (attivo && prossimaGoccia <= 0) {
     const g = GOCCE.find(x => x.vita <= 0);
     if (g) {
-      g.vita = 0.55 + Math.random() * 0.25;
-      g.x = (Math.random() - 0.5) * 0.35; g.y = 1.5 + Math.random() * 0.15; g.z = -0.1;
-      g.vx = (Math.random() - 0.5) * 1.6; g.vy = 0.9 + Math.random() * 0.8; g.vz = 2.5 + Math.random() * 2;
+      // Gocce che schizzano dalle tempie verso l'alto e indietro, come nei fumetti (non sotto gli occhi).
+      const lato = Math.random() < 0.5 ? -1 : 1;
+      g.vita = 0.7 + Math.random() * 0.2;
+      g.x = lato * (0.2 + Math.random() * 0.1); g.y = 1.85 + Math.random() * 0.1; g.z = 0.05;
+      g.vx = lato * (0.9 + Math.random() * 1.1); g.vy = 2.0 + Math.random() * 1.2; g.vz = 1.5 + Math.random() * 2;
     }
-    prossimaGoccia = 0.28 - 0.2 * intensita;
+    prossimaGoccia = 0.22 - 0.12 * intensita;
   }
   for (const g of GOCCE) {
     if (g.vita <= 0) { g.m.visible = false; continue; }
     g.vita -= dt;
-    g.x += g.vx * dt; g.y += g.vy * dt; g.z += g.vz * dt; g.vy -= 7 * dt;
+    g.x += g.vx * dt; g.y += g.vy * dt; g.z += g.vz * dt; g.vy -= 9 * dt;
     daLocale(G.pos, G.x + g.x, G.y + g.y, g.z, g.m.position);
     g.m.visible = g.vita > 0;
   }
@@ -324,6 +327,7 @@ function creaMesh(e) {
   else if (e.genere === 'cartello') m = creaCartelloAppeso(e.testo, e.w, e.colore);
   else if (e.genere === 'portaAula') m = creaPortaAula();
   else if (e.genere === 'portone') m = creaPortone();
+  else if (e.genere === 'avviso') { m = creaAvviso(); m.position.x = e.corsia === 1 ? 1.25 : CORSIE[e.corsia] + (e.corsia === 0 ? -0.95 : 0.95); }
   const involucro = new THREE.Group();
   involucro.add(m);
   e.interno = m;
@@ -331,7 +335,7 @@ function creaMesh(e) {
   return involucro;
 }
 
-const dinamico = e => e.genere === 'caffe' || (e.genere === 'ostacolo' && (e.tipo === 'persona' || e.tipo === 'crociera'));
+const dinamico = e => e.genere === 'caffe' || e.genere === 'avviso' || (e.genere === 'ostacolo' && (e.tipo === 'persona' || e.tipo === 'crociera'));
 
 // Distanza effettiva lungo il percorso: i compagni ti vengono incontro.
 function distanza(e, pos) {
@@ -749,6 +753,12 @@ function aggiornaEntita(ora) {
       mettiSulPercorso(e.mesh, e.d, false);
       e.interno.rotation.y += 0.05;
       e.interno.position.y = 0.85 + Math.sin(ora / 250 + e.d) * 0.08;
+    } else if (e.genere === 'avviso') {
+      // Il cartello spunta con un rimbalzo a ~40 m, lampeggia e resta fino alla buca.
+      mettiSulPercorso(e.mesh, e.d, false);
+      const p = THREE.MathUtils.clamp((42 - (e.d - pos)) / 10, 0, 1), x = p - 1;
+      e.interno.userData.sagoma.scale.setScalar(Math.max(0.001, p === 0 ? 0.001 : 1 + 2.70158 * x * x * x + 1.70158 * x * x));
+      e.interno.userData.lampada.visible = Math.floor(ora / 220) % 2 === 0;
     } else if (e.tipo === 'persona') {
       mettiSulPercorso(e.mesh, d, true);
       e.anima?.(ora / 1000);

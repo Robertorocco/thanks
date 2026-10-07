@@ -52,6 +52,15 @@ export function creaAuto(e) {
   return g;
 }
 
+const stripesAvviso = tela(128, 32, (g, W, H) => {
+  g.fillStyle = '#ffffff'; g.fillRect(0, 0, W, H);
+  g.fillStyle = '#e02d2d';
+  for (let x = -H; x < W; x += 32) {
+    g.beginPath(); g.moveTo(x, H); g.lineTo(x + 16, H); g.lineTo(x + 16 + H, 0); g.lineTo(x + H, 0); g.fill();
+  }
+});
+const matStrisceAvviso = new THREE.MeshLambertMaterial({ map: stripesAvviso, emissive: 0x333333 });
+
 function tombino() {
   const g = new THREE.Group();
   const buco = new THREE.Mesh(new THREE.CircleGeometry(0.85, 20), BASIC(0x0e0f12));
@@ -59,16 +68,26 @@ function tombino() {
   buco.scale.set(1.15, 1.0, 1);
   buco.position.y = 0.035;
   g.add(buco);
-  const bordo = new THREE.Mesh(new THREE.RingGeometry(0.85, 1.05, 20), BASIC(0x6f6a62));
+  // Bordo giallo e nero ben visibile, due coni arancioni e una fascia a righe davanti alla buca.
+  const bordo = new THREE.Mesh(new THREE.RingGeometry(0.85, 1.2, 24), BASIC(0xFFD400));
   bordo.rotation.x = -Math.PI / 2;
   bordo.scale.set(1.15, 1.0, 1);
-  bordo.position.y = 0.03;
+  bordo.position.y = 0.045;
   g.add(bordo);
-  const cono = new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.55, 12), materiale(0xFF7A1A));
-  cono.position.set(0.95, 0.28, 0.3);
-  cono.castShadow = true;
-  g.add(cono);
-  g.add(blocco(0.5, 0.05, 0.5, 0xFF7A1A, 0.95, 0.0, 0.3));
+  const filo = new THREE.Mesh(new THREE.RingGeometry(1.2, 1.3, 24), BASIC(0x15181d));
+  filo.rotation.x = -Math.PI / 2;
+  filo.scale.set(1.15, 1.0, 1);
+  filo.position.y = 0.04;
+  g.add(filo);
+  for (const [x, z] of [[1.25, 0.9], [-1.25, 0.9], [0, 1.2]]) {
+    const cono = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.7, 12), materiale(0xFF7A1A));
+    cono.position.set(x, 0.35, z);
+    cono.castShadow = true;
+    g.add(cono);
+    g.add(blocco(0.6, 0.05, 0.6, 0xFF7A1A, x, 0.0, z));
+    g.add(blocco(0.32, 0.12, 0.32, 0xFFFFFF, x, 0.28, z));
+  }
+  g.add(blocco(2.4, 0.3, 0.06, matStrisceAvviso, 0, 0.45, 1.5));
   return g;
 }
 
@@ -349,12 +368,15 @@ export function creaPortone() {
 
 // Ostacoli interni -----------------------------------------------------------
 
+// Materiali un po' autoilluminati: i pilastri restano chiari anche nei corridoi in ombra.
+const matColonna = new THREE.MeshLambertMaterial({ color: 0xFBF8F1, emissive: 0x4A463E });
+const matBase = new THREE.MeshLambertMaterial({ color: 0xE9E3D6, emissive: 0x3A372F });
 function colonna() {
   const g = new THREE.Group();
-  g.add(blocco(1.6, 4.6, 1.6, 0xE4DDD0, 0, 0));
-  g.add(blocco(1.9, 0.3, 1.9, 0xCFC6B4, 0, 0));
-  g.add(blocco(1.9, 0.3, 1.9, 0xCFC6B4, 0, 4.3));
-  g.add(blocco(1.65, 0.08, 1.65, 0xB8AE9A, 0, 1.2));
+  g.add(blocco(1.6, 4.6, 1.6, matColonna, 0, 0));
+  g.add(blocco(1.9, 0.3, 1.9, matBase, 0, 0));
+  g.add(blocco(1.9, 0.3, 1.9, matBase, 0, 4.3));
+  g.add(blocco(1.65, 0.08, 1.65, matBase, 0, 1.2));
   return g;
 }
 
@@ -446,5 +468,34 @@ export function creaMuroLungo(e) {
     a.position.z = -p / 2 + passo * (i + 0.5);
     g.add(a);
   }
+  return g;
+}
+
+// Cartello di pericolo "strada dissestata" che spunta con un rimbalzo quando ci si avvicina a una buca.
+const texPericolo = tela(256, 256, (g, W, H) => {
+  g.clearRect(0, 0, W, H);
+  g.fillStyle = '#d62d20';
+  g.beginPath(); g.moveTo(W / 2, 8); g.lineTo(W - 8, H - 28); g.lineTo(8, H - 28); g.closePath(); g.fill();
+  g.fillStyle = '#ffffff';
+  g.beginPath(); g.moveTo(W / 2, 48); g.lineTo(W - 46, H - 48); g.lineTo(46, H - 48); g.closePath(); g.fill();
+  g.fillStyle = '#15181d';
+  g.fillRect(W / 2 - 9, 88, 18, 70);
+  g.beginPath(); g.arc(W / 2, 182, 11, 0, Math.PI * 2); g.fill();
+});
+
+export function creaAvviso() {
+  const g = new THREE.Group();
+  const sagoma = new THREE.Group();
+  g.add(sagoma);
+  sagoma.add(blocco(0.1, 2.4, 0.1, 0x30343b, 0, 0));
+  sagoma.add(blocco(0.7, 0.1, 0.5, 0x30343b, 0, 0));
+  const pannello = new THREE.Mesh(new THREE.PlaneGeometry(1.9, 1.9), new THREE.MeshBasicMaterial({ map: texPericolo, transparent: true, alphaTest: 0.4, side: THREE.DoubleSide }));
+  pannello.position.set(0, 2.9, 0);
+  sagoma.add(pannello);
+  const lampada = sfera(0.18, new THREE.MeshBasicMaterial({ color: 0xffb020 }), 0, 3.95, 0);
+  sagoma.add(lampada);
+  g.userData.sagoma = sagoma;
+  g.userData.lampada = lampada;
+  sagoma.scale.setScalar(0.001);
   return g;
 }

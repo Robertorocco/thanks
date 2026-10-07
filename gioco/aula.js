@@ -16,7 +16,8 @@ const PORTA = new THREE.Vector3(-4.5, 0, 5.1);
 // File (x) e colonne (z) dei banchi. Prima fila = più vicina alla lavagna.
 const FILE_X = [2.6, 0.7, -1.2, -3.1];
 const COL_Z = [-2.5, 0.0, 2.5];
-const sedia = (f, c) => new THREE.Vector3(FILE_X[f] - 0.7, 0, COL_Z[c]);
+const ULTIMA_Z = [-0.95, 0.0, 0.95];   // l'ultimo banco è unico, da tre posti
+const sedia = (f, c) => new THREE.Vector3(FILE_X[f] - 0.7, 0, f === 3 ? ULTIMA_Z[c] : COL_Z[c]);
 
 function fumetto(testo, colore = '#ffffff', inchiostro = '#1C1D2B', larghezza = 1.1) {
   const tex = tela(256, 128, (g, W, H) => {
@@ -31,6 +32,24 @@ function fumetto(testo, colore = '#ffffff', inchiostro = '#1C1D2B', larghezza = 
   s.scale.set(larghezza, larghezza / 2, 1);
   s.visible = false;
   return s;
+}
+
+// Banco lungo da tre posti, con tre sedie vicine.
+function banco3() {
+  const tutto = new THREE.Group();
+  const f = 3;
+  tutto.add(blocco(0.62, 0.05, 3.2, LEGNO, FILE_X[f], 0.7, 0));
+  for (const z of [-1.5, 0, 1.5]) for (const x of [-0.24, 0.24]) tutto.add(blocco(0.05, 0.7, 0.05, METALLO, FILE_X[f] + x, 0, z));
+  for (let c = 0; c < 3; c++) {
+    const s = sedia(f, c);
+    const seduta = new THREE.Group();
+    seduta.add(blocco(0.46, 0.05, 0.46, 0x4B6A99, 0, 0.42));
+    seduta.add(blocco(0.05, 0.5, 0.46, 0x4B6A99, -0.2, 0.42));
+    for (const x of [-0.18, 0.18]) for (const z of [-0.18, 0.18]) seduta.add(blocco(0.04, 0.42, 0.04, METALLO, x, 0, z));
+    seduta.position.set(s.x, 0, s.z);
+    tutto.add(seduta);
+  }
+  return tutto;
 }
 
 function banco(f, c) {
@@ -95,14 +114,15 @@ export function creaAula() {
   scena.add(blocco(0.16, 0.03, 0.02, 0x1C1D2B, 0.06, 2.9, -5.18));
 
   // Banchi: 4 file x 3 colonne.
-  for (let f = 0; f < 4; f++) for (let c = 0; c < 3; c++) scena.add(banco(f, c));
+  for (let f = 0; f < 3; f++) for (let c = 0; c < 3; c++) scena.add(banco(f, c));
+  scena.add(banco3());
 
   // --- Personaggi ----------------------------------------------------------
   const MAGLIE = [0xC0392B, 0x27AE60, 0xF39C12, 0x8E44AD, 0x16A085, 0xD35400, 0x2980B9, 0xE84393];
   const CAPELLI = [0x2B1D14, 0x5A3A22, 0xC8A25A, 0x15110E, 0x7A4A2A];
-  function persona(o) {
+  function persona(o, scala = 1) {
     const p = creaPersona(o);
-    p.radice.scale.setScalar(SCALA_PERSONA);
+    p.radice.scale.setScalar(SCALA_PERSONA * scala);
     scena.add(p.radice);
     return p;
   }
@@ -117,8 +137,10 @@ export function creaAula() {
   roberto.radice.position.copy(PORTA);
 
   const amici = [
-    persona({ maglia: 0x27AE60, capelli: 0x5A3A22, pantaloni: 0x34495E, conZaino: true, zaino: 0x2C3E50 }),
-    persona({ maglia: 0xF39C12, capelli: 0x15110E, pantaloni: 0x2A2D3A, conZaino: true, zaino: 0x16A085 }),
+    // I due amici sono un po' più alti di Roberto: uno coi capelli lisci pettinati da un lato,
+    // l'altro con un ciuffo biondo cenere sulla fronte.
+    persona({ maglia: 0x27AE60, capelli: 0x2B1D14, acconciatura: 'lato', pantaloni: 0x34495E, conZaino: true, zaino: 0x2C3E50 }, 1.07),
+    persona({ maglia: 0xF39C12, capelli: 0xB9AD94, acconciatura: 'ciuffo', pantaloni: 0x2A2D3A, conZaino: true, zaino: 0x16A085 }, 1.09),
   ];
   siediti(amici[0], sedia(3, 0));
   siediti(amici[1], sedia(3, 2));
@@ -210,7 +232,7 @@ export function creaAula() {
     // Prima fila: dal lato della lavagna si vedono Roberto e i compagni che ridono dietro di lui.
     // Ultima fila: dall'alto, davanti ai banchi, i tre amici in fila.
     if (esito === 'prima') vaiVerso(4.6, 2.0, 1.6, 0.8, 1.0, -0.1, 64);
-    else vaiVerso(2.4, 3.2, 3.9, -3.8, 1.0, 0.1, 68);
+    else vaiVerso(0.9, 2.7, 3.1, -3.8, 1.0, 0, 68);
     A.durataVista = 1.3;
     A.tVista = 0;
   };
@@ -392,8 +414,8 @@ export function creaAula() {
     for (const f of fRisata) f.visible = false;
     // Camera: parte larga e si stringe sul gruppetto, con un leggero dondolio.
     const k = Math.min(1, t / 5);
-    vista.pos.set(2.4 - k * 0.8, 3.2 - k * 0.4, 3.9 - k * 0.2);
-    vista.mira.set(-3.8, 1.0, 0.1);
+    vista.pos.set(0.9 - k * 0.5, 2.7 - k * 0.3, 3.1 - k * 0.2);
+    vista.mira.set(-3.8, 1.0, 0);
     vista.fov = 68 - k * 6;
   }
 

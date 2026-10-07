@@ -582,6 +582,16 @@ export function creaPersona(o = {}) {
   testa.add(cranio);
   testa.add(blocco(0.46, 0.12, 0.46, CAPELLI, 0, 0.2));
   testa.add(blocco(0.46, 0.34, 0.12, CAPELLI, 0, -0.02, 0.18));
+  if (o.acconciatura === 'ciuffo') {
+    // Ciuffo che cade sulla fronte, più lungo da un lato.
+    testa.add(blocco(0.44, 0.13, 0.07, CAPELLI, 0, 0.09, -0.225));
+    testa.add(blocco(0.2, 0.12, 0.07, CAPELLI, 0.1, -0.02, -0.225));
+  } else if (o.acconciatura === 'lato') {
+    // Capelli lisci pettinati da un lato: massa che scende sulla tempia sinistra e frangia obliqua.
+    testa.add(blocco(0.1, 0.36, 0.42, CAPELLI, -0.245, -0.14, 0));
+    testa.add(blocco(0.3, 0.12, 0.07, CAPELLI, -0.07, 0.1, -0.225));
+    testa.add(blocco(0.12, 0.16, 0.07, CAPELLI, -0.17, -0.02, -0.225));
+  }
   for (const s of [-1, 1]) testa.add(blocco(0.05, 0.12, 0.08, PELLE, s * 0.23, -0.04));
   corpo.add(testa);
 
