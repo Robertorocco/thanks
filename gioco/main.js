@@ -98,8 +98,10 @@ const cielo = new THREE.HemisphereLight(0xffffff, 0x77736a, 1.5);
 scena.add(cielo);
 const sole = new THREE.DirectionalLight(0xfff4e0, 1.6);
 sole.castShadow = true;
-sole.shadow.mapSize.set(1024, 1024);
-Object.assign(sole.shadow.camera, { left: -12, right: 12, top: 14, bottom: -14, near: 1, far: 50 });
+// Il riquadro delle ombre copre ~60 m davanti a chi corre (e segue le curve): le ombre sono già
+// al loro posto quando gli oggetti arrivano vicino, invece di comparire all'ultimo.
+sole.shadow.mapSize.set(2048, 2048);
+Object.assign(sole.shadow.camera, { left: -11, right: 11, top: 34, bottom: -34, near: 1, far: 110 });
 sole.shadow.bias = -0.0008;
 scena.add(sole, sole.target);
 
@@ -330,6 +332,7 @@ function creaMesh(e) {
   else if (e.genere === 'avviso') { m = creaAvviso(); m.position.x = e.corsia === 1 ? 1.25 : CORSIE[e.corsia] + (e.corsia === 0 ? -0.95 : 0.95); }
   const involucro = new THREE.Group();
   involucro.add(m);
+  if (e.genere === 'soffitto' || e.genere === 'parete') m.traverse(o => { o.castShadow = false; });
   e.interno = m;
   e.anima = m.userData?.anima ?? null;
   return involucro;
@@ -948,8 +951,12 @@ function ciclo(ora) {
     const sudore = G.mondo === 0 && G.pos < SEZ_INGRESSO.inizio + 120 && (G.stato === 'gioco' || G.stato === 'aulaIn');
     aggiornaSudore(dt, sudore, Math.min(1, G.pos / SEZ_INGRESSO.inizio));
 
-    sole.position.set(roberto.position.x - 6, roberto.position.y + 14, roberto.position.z + 8);
-    sole.target.position.set(roberto.position.x, roberto.position.y, roberto.position.z - 6);
+    // Il sole è fisso rispetto alla direzione di corsa; il riquadro è allungato lungo il percorso.
+    perc.punto(G.pos, tmp);
+    const sn = Math.sin(tmp.psi), cs = Math.cos(tmp.psi);
+    sole.target.position.set(roberto.position.x + sn * 22, roberto.position.y, roberto.position.z - cs * 22);
+    sole.position.set(sole.target.position.x - 4 * cs - 9 * sn, sole.target.position.y + 14, sole.target.position.z - 4 * sn + 9 * cs);
+    sole.shadow.camera.up.set(sn, 0, -cs);
   }
 
   if (G.stato !== 'inizio' && G.stato !== 'fine' && G.stato !== 'pausa' && G.stato !== 'intro') {

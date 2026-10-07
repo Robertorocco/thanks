@@ -183,11 +183,10 @@ export function generaLivello(TRATTI, perc, velocitaIn) {
           compagni(a + 4, b - 12, sz.id === 'corridoio' ? 3 : 2);
           break;
         case 'uscita':
-          riempi(a + 6, b - 4, { stile: 'liceoInt', tipi: ['basso', 'buco'], barriere: false, corridoi: false, spazio: 1.3 });
-          compagni(a + 2, b, 2);
+          // Dopo la scena in aula la corsa riparte in un tratto libero: nessun ostacolo per i primi ~45 m.
           break;
         case 'scale-giu':
-          compagni(a + 2, b - 2, 3);
+          compagni(a + 20, b - 2, 3);
           break;
         case 'discesa': case 'curva4': case 'rettilineo': case 'curva5':
           riempi(a + (sz.id === 'discesa' ? 14 : 4), b - 4, { stile: 'liceo', tipi: ['muro', 'basso', 'alto', 'buco'], corridoi: 0.16, spazio: 1.1 });
