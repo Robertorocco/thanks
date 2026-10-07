@@ -133,7 +133,7 @@ export function creaAula() {
     p.seduto = true;
   }
 
-  const roberto = persona({ foto: true, conZaino: true });
+  const roberto = persona({ roberto: true, conZaino: true });
   roberto.radice.position.copy(PORTA);
 
   const amici = [
@@ -206,6 +206,7 @@ export function creaAula() {
     roberto.radice.rotation.y = 0;
     posaInPiedi(roberto);
     roberto.testa.rotation.set(0, 0, 0);
+    roberto.espressione('imbarazzo');
     for (const p of [...compagni, ...amici, roberto]) {
       for (const b of p.braccia) { b.spalla.rotation.set(0, 0, 0); b.gomito.rotation.set(0, 0, 0); }
       p.testa.rotation.set(0, 0, 0); p.corpo.rotation.set(0, 0, 0);
@@ -223,6 +224,7 @@ export function creaAula() {
   A.scegli = function (esito) {
     if (A.stato !== 'scelta') return;
     A.esito = esito;
+    roberto.espressione(esito === 'prima' ? 'triste' : 'sorriso');
     A.stato = 'cammina';
     A.t = 0;
     seduta = esito === 'prima' ? sedia(0, 1) : sedia(3, 1);
@@ -285,6 +287,7 @@ export function creaAula() {
 
   A.aggiorna = function (dt) {
     A.t += dt;
+    roberto.aggiornaVolto(dt);
     const t = A.t;
 
     if (A.stato === 'scelta') {
@@ -313,6 +316,7 @@ export function creaAula() {
     } else if (A.stato === 'campanella') {
       aggiornaCompagni(t, dt);
       fCampana.visible = true;
+      roberto.espressione('sorriso');
       fCampana.position.y = 3.0 + Math.sin(t * 30) * 0.03;
       for (const f of [...fRisata, ...fAmici, fRoberto]) f.visible = false;
       roberto.testa.rotation.x += (0 - roberto.testa.rotation.x) * Math.min(1, dt * 6);
@@ -337,7 +341,7 @@ export function creaAula() {
     for (const b of roberto.braccia) { b.spalla.rotation.x = -0.9; b.gomito.rotation.x = -0.4; }
     roberto.corpo.position.y = -ALTEZZA_SEDUTO - 0.02 + Math.sin(t * 2) * 0.004;
     roberto.corpo.rotation.x = 0.12;
-    let colpo = 0;
+    let colpo = 0, dolore = false;
     for (const l of lanci) {
       if (!l.fatto && t >= l.t0) {
         l.fatto = true;
@@ -353,7 +357,9 @@ export function creaAula() {
         }
       }
       if (l.fatto && t - l.t0 > 0.5 && t - l.t0 < 0.7) colpo = 1;
+      if (l.fatto && t - l.t0 > 0.45 && t - l.t0 < 1.0) dolore = true;
     }
+    roberto.espressione(dolore ? 'dolore' : 'triste');
     roberto.corpo.rotation.z = colpo * Math.sin(t * 50) * 0.06;
     // Chi sta dietro ride e tira.
     for (const p of compagni) {
@@ -389,6 +395,7 @@ export function creaAula() {
   // --- Scena: ultima fila, con gli amici -----------------------------------
   function scenaUltimaFila(t, dt) {
     const [a1, a2] = amici;
+    roberto.espressione(['gioia', 'furbo', 'gioia', 'bacio'][Math.floor(t * 1.8) % 4]);
     // Roberto fa il cretino: braccia in alto a turno, testa che dondola, busto che ondeggia.
     roberto.testa.rotation.z = Math.sin(t * 8) * 0.28;
     roberto.testa.rotation.x = Math.sin(t * 5) * 0.15;

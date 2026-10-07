@@ -9,10 +9,90 @@
 //   alto  -> si scivola sotto (swipe in giù)
 //   muro  -> si cambia corsia (swipe a sinistra/destra)
 
+// Proporzioni e fisica di Roberto nelle varie età: `scala` del modello, salto (altezza massima in metri),
+// altezza del corpo (in piedi/strisciando) e quote degli ostacoli ("basso" si salta, "alto" si passa sotto).
+// `posa` è il modo di muoversi. `camera`: distanza dietro, altezza e quota guardata.
+export const FISICA = {
+  neonato: {
+    nome: 'Neonato', posa: 'gattona', scala: 0.5, salto: 0.5, altezza: 0.55, altezzaBassa: 0.3,
+    bassoMax: 0.32, altoDa: 0.45, bucoMax: 0.1, persona: 0.4, cambioCorsia: 9,
+    camera: { indietro: 3.3, alto: 2.25, guarda: 0.3, fov: 0.95 },
+  },
+  bimbo: {
+    nome: 'Bambino', posa: 'corsa', scala: 0.6, salto: 1.25, altezza: 1.3, altezzaBassa: 0.62,
+    bassoMax: 0.6, altoDa: 0.84, bucoMax: 0.22, persona: 3, cambioCorsia: 13,
+    camera: { indietro: 5.0, alto: 2.7, guarda: 1.0, fov: 1.0 },
+  },
+  liceo: {
+    nome: 'Ragazzo', posa: 'corsa', scala: 0.8, salto: 1.79, altezza: 1.8, altezzaBassa: 0.85,
+    bassoMax: 0.85, altoDa: 1.2, bucoMax: 0.3, persona: 3, cambioCorsia: 15,
+    camera: { indietro: 6.2, alto: 3.3, guarda: 1.3, fov: 1.0 },
+  },
+};
+
+// Gli archi del racconto: gruppi di mondi con un nome.
+export const ARCHI = {
+  infanzia: 'Primi passi',
+  scuole: 'Gli anni di scuola',
+};
+
 export const MONDI = [
+  {
+    nome: 'Casa mia',
+    stile: 'casa',
+    arco: 'infanzia',
+    eta: 'neonato',
+    anni: '0 anni',
+    luogo: 'Casa',
+    ordine: -2,
+    sezioni: [
+      { id: 'culla',      lung: 20, amb: 'int' },
+      { id: 'salotto',    lung: 64, amb: 'int', checkpoint: 'Salotto', sottotitolo: 'Si gattona verso la cucina' },
+      { id: 'curva-c1',   lung: 26, curva: Math.PI / 2, amb: 'int' },
+      { id: 'corridoio-c', lung: 50, amb: 'int' },
+      { id: 'curva-c2',   lung: 26, curva: -Math.PI / 2, amb: 'int' },
+      { id: 'cucina',     lung: 58, amb: 'int', checkpoint: 'Cucina', sottotitolo: 'La porta di casa è aperta' },
+      { id: 'soglia',     lung: 22, amb: 'int' },
+    ],
+    velocita: 3.7,
+    cielo: 0xF3E4CF,
+    terreno: 0xC7B493,
+    corsie: 0xC9A173,
+    edifici: [0xF1D9A7, 0xE6B98A, 0xF4EBD9],
+    ostacoli: { basso: 0xE0533F, alto: 0x3A7CC4, muro: 0x8C6A4A },
+    interno: { cielo: 0xF7ECD8, terreno: 0xE7D5B6, corsie: 0xF0D6AA, terra: 0xFFE3BC },
+  },
+  {
+    nome: 'Istituto Darmon',
+    stile: 'darmon',
+    arco: 'infanzia',
+    eta: 'bimbo',
+    anni: '6 – 10 anni',
+    luogo: 'Napoli',
+    ordine: -1,
+    sezioni: [
+      { id: 'via',        lung: 170, pend: 0.015, amb: 'est' },
+      { id: 'cortile',    lung: 80,  amb: 'est' },
+      { id: 'atrio-d',    lung: 14,  amb: 'int', checkpoint: 'Ingresso all\'Istituto', sottotitolo: 'Si entra a scuola' },
+      { id: 'corridoio-d', lung: 78, amb: 'int' },
+      { id: 'sala-evento', lung: 56, amb: 'int', evento: 'darmon', checkpoint: 'Sala dell\'evento', sottotitolo: 'Qui succederà qualcosa' },
+      { id: 'uscita-d',   lung: 20,  amb: 'int' },
+      { id: 'piazzale',   lung: 110, pend: -0.02, amb: 'est' },
+    ],
+    velocita: 9,
+    cielo: 0xBFE3F5,
+    terreno: 0xB5C98A,
+    corsie: 0xCFC7B8,
+    edifici: [0xF4D9A0, 0xE9B7A0, 0xCFE0C0],
+    ostacoli: { basso: 0xE0533F, alto: 0x3A7CC4, muro: 0xF2C14E },
+    interno: { cielo: 0xE6E1D2, terreno: 0xD8D2C0, corsie: 0xD9D0BB, terra: 0xE0D6BC },
+  },
   {
     nome: 'Liceo Vittorini',
     stile: 'liceo',
+    arco: 'scuole',
+    eta: 'liceo',
+    ordine: 0,
     anni: '2015 – 2020',
     luogo: 'Napoli',
     // Sezioni del percorso (vedi percorso.js). `evento: 'aula'` ferma la corsa per la scena in
@@ -20,7 +100,7 @@ export const MONDI = [
     sezioni: [
       { id: 'salita',        lung: 330, pend: 0.09, amb: 'est' },
       { id: 'avvicinamento', lung: 310, pend: 0.035, amb: 'est' },
-      { id: 'atrio',         lung: 14,  amb: 'int', checkpoint: 'Ingresso a scuola' },
+      { id: 'atrio',         lung: 14,  amb: 'int', checkpoint: 'Ingresso a scuola', sottotitolo: 'Sono le 8:30, corri verso la 5ª H' },
       { id: 'hall',          lung: 62,  amb: 'int' },
       { id: 'scale1',        lung: 34,  pend: 0.30, amb: 'int', piano: '1° piano' },
       { id: 'curva1',        lung: 26,  curva: Math.PI / 2, amb: 'int' },
@@ -30,7 +110,7 @@ export const MONDI = [
       { id: 'curva3',        lung: 26,  curva: Math.PI / 2, amb: 'int', verso5H: true },
       { id: 'corridoio5H',   lung: 44,  amb: 'int', verso5H: true },
       { id: 'aula',          lung: 6,   amb: 'int', evento: 'aula' },
-      { id: 'uscita',        lung: 30,  amb: 'int', checkpoint: 'Uscita dall\'aula' },
+      { id: 'uscita',        lung: 30,  amb: 'int', checkpoint: 'Uscita dall\'aula', sottotitolo: 'Ora giù dalle scale' },
       { id: 'scale-giu',     lung: 42,  pend: -0.30, amb: 'int' },
       { id: 'portone',       lung: 12,  amb: 'int' },
       { id: 'discesa',       lung: 90,  pend: -0.08, amb: 'est' },
@@ -50,6 +130,9 @@ export const MONDI = [
   },
   {
     nome: 'Federico II · Triennale',
+    arco: 'scuole',
+    eta: 'liceo',
+    ordine: 1,
     stile: 'triennale',
     anni: '2020 – 2023',
     luogo: 'Napoli',
@@ -63,6 +146,9 @@ export const MONDI = [
   },
   {
     nome: 'Federico II · Magistrale',
+    arco: 'scuole',
+    eta: 'liceo',
+    ordine: 2,
     stile: 'magistrale',
     anni: '2023 – 2026',
     luogo: 'Napoli',
@@ -76,6 +162,9 @@ export const MONDI = [
   },
   {
     nome: 'ElRow Festival',
+    arco: 'scuole',
+    eta: 'liceo',
+    ordine: 3,
     stile: 'festival',
     anni: '2024 – 2025',
     luogo: 'Campovolo, Emilia-Romagna',
@@ -89,6 +178,9 @@ export const MONDI = [
   },
   {
     nome: 'Rennes',
+    arco: 'scuole',
+    eta: 'liceo',
+    ordine: 4,
     stile: 'rennes',
     anni: '2026',
     luogo: 'Bretagna, Francia',

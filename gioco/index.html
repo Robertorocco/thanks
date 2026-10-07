@@ -28,6 +28,8 @@
 <div id="orologio" class="orologio" hidden></div>
 
 <div id="sipario" class="sipario"></div>
+<div id="eta-conto" class="eta-conto" hidden></div>
+<div id="lampo" class="lampo"></div>
 
 <div id="scelta" class="scelta" hidden>
   <p class="domanda">5ª H. Dove ti siedi?</p>
@@ -41,19 +43,20 @@
 <section id="schermo-inizio" class="schermo">
   <div class="carta">
     <a class="indietro" href="../">← Menù</a>
-    <div class="eyebrow">Dal liceo alla laurea</div>
+    <div class="eyebrow">Dalla culla alla laurea</div>
     <h1>Corri, Roberto<span class="dot">.</span></h1>
-    <p>Cinque mondi, un traguardo. Ogni mondo ha un checkpoint: se urti un ostacolo riparti da lì, ma il cronometro non si ferma. Ogni caffè raccolto toglie un quarto di secondo.</p>
+    <p>Dalla culla alla laurea, un mondo dopo l'altro e un traguardo. Se urti un ostacolo si riparte, ma il cronometro non si ferma. Ogni caffè (o biberon, o merendina) raccolto toglie 2 secondi.</p>
     <ul class="comandi">
       <li><b>← →</b> scorri per cambiare corsia</li>
       <li><b>↑</b> scorri in su per saltare</li>
-      <li><b>↓</b> scorri in giù per scivolare</li>
+      <li><b>↓</b> scorri in giù per scivolare (o abbassarti)</li>
     </ul>
     <form id="modulo-nome">
+      <label class="dev-mondo" hidden>Sviluppo: parti dal mondo<select id="dev-mondo"></select></label>
       <label for="nome">Il tuo nome, per la classifica</label>
       <input id="nome" name="nome" maxlength="24" autocomplete="given-name" required placeholder="Es. Zia Anna">
       <button type="submit" class="primario">Inizia</button>
-      <span class="versione">v9</span>
+      <span class="versione">v10</span>
     </form>
     <button type="button" class="link" data-apri="classifica">Guarda la classifica</button>
   </div>
@@ -94,7 +97,7 @@
 </section>
 
 <!-- Il numero di versione in fondo ai file (?v=) evita che il telefono usi codice vecchio in cache: va cambiato a ogni versione, insieme all'etichetta. -->
-<script type="importmap">{"imports":{"./aula.js":"./aula.js?v=9","./classifica.js":"./classifica.js?v=9","./config.js":"./config.js?v=9","./livello.js":"./livello.js?v=9","./modelli-liceo.js":"./modelli-liceo.js?v=9","./modelli.js":"./modelli.js?v=9","./mondi.js":"./mondi.js?v=9","./percorso.js":"./percorso.js?v=9","./lib/three.module.min.js":"./lib/three.module.min.js?v=9"}}</script>
-<script type="module" src="main.js?v=9"></script>
+<script type="importmap">{"imports":{"./aula.js":"./aula.js?v=10","./classifica.js":"./classifica.js?v=10","./config.js":"./config.js?v=10","./livello.js":"./livello.js?v=10","./modelli-liceo.js":"./modelli-liceo.js?v=10","./modelli.js":"./modelli.js?v=10","./mondi.js":"./mondi.js?v=10","./modelli-infanzia.js":"./modelli-infanzia.js?v=10","./volto.js":"./volto.js?v=10","./percorso.js":"./percorso.js?v=10","./lib/three.module.min.js":"./lib/three.module.min.js?v=10"}}</script>
+<script type="module" src="main.js?v=10"></script>
 </body>
 </html>
