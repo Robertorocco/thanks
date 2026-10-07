@@ -34,3 +34,7 @@ v10: nuovo arco "Primi passi" prima del liceo (mondo "Casa mia" da neonato che g
 v11: aggiornamento automatico quando il browser mostra pagine vecchie (`versione.json` + `bump.sh`).
 
 v12: casa con i primi passi (niente salto né scivolata, camera che segue meglio il cambio di corsia, mamma/papà/nonna al posto dei gatti), Istituto Darmon con Roberto di 8 anni con la cartellina e la scena del maestro Rodolfo (piangere = giusto, salutare = +10 s e il maestro diventa un demonio), liceo con salita più ripida e visuale che la mostra, ingresso della Metro e l'amico biondo che esce da scuola con Roberto e poi viene seminato.
+
+v13: Roberto torna a fare un saltello anche da piccolissimo.
+
+v14: in casa le prime apparizioni di mamma, papà e nonna camminano più svelte; poi la mamma urla dal lato del corridoio e lancia la sua voce ("METTI IN ORDINE!") nella tua corsia, e il papà dal divano davanti alla TV ti tira il joystick: entrambi vanno schivati.

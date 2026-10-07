@@ -13,10 +13,10 @@ import {
   creaPortone, creaMuroLungo,
 } from './modelli-liceo.js';
 import {
-  creaPareteStile, creaSoffittoStile, creaArredo, creaPortaCasa, creaBonus, creaScuolaDarmon, ICONA_BONUS,
+  creaPareteStile, creaSoffittoStile, creaArredo, creaPortaCasa, creaLanciatore, creaBonus, creaScuolaDarmon, ICONA_BONUS,
 } from './modelli-infanzia.js';
 import { costruisciPercorso } from './percorso.js';
-import { CORSIE, PENDENZA_CROCIERA, generaLivello, distanzaPersona } from './livello.js';
+import { CORSIE, PENDENZA_CROCIERA, generaLivello, distanzaPersona, distanzaLancio } from './livello.js';
 import { creaAula, fumetto } from './aula.js';
 import { creaAulaDarmon } from './aula-darmon.js';
 
@@ -410,7 +410,7 @@ function creaMesh(e) {
   if (e.genere === 'ostacolo') {
     if (e.lungo && (e.stile === 'liceo' || e.stile === 'liceoInt' || e.stile === 'darmon')) m = creaMuroLungo(e);
     else m = creaOstacolo(e, t);
-    if (e.tipo !== 'crociera') m.position.x = CORSIE[e.corsia];
+    if (e.tipo !== 'crociera' && e.tipo !== 'lancio') m.position.x = CORSIE[e.corsia];
   }
   else if (e.genere === 'caffe') {
     m = creaBonus(t.stile);
@@ -431,6 +431,7 @@ function creaMesh(e) {
   else if (e.genere === 'parete') m = creaPareteStile(e);
   else if (e.genere === 'soffitto') m = creaSoffittoStile(e);
   else if (e.genere === 'arredo') m = creaArredo(e);
+  else if (e.genere === 'lanciatore') m = creaLanciatore(e);
   else if (e.genere === 'cartello') m = creaCartelloAppeso(e.testo, e.w, e.colore);
   else if (e.genere === 'portaAula') m = e.stile === 'darmon' ? creaPortaAula('3ª B', 0xE0533F) : creaPortaAula();
   else if (e.genere === 'portone') m = e.stile === 'casa' ? creaPortaCasa() : creaPortone();
@@ -443,11 +444,12 @@ function creaMesh(e) {
 }
 
 const bucoInStrada = e => e.genere === 'ostacolo' && e.tipo === 'buco' && e.stile === 'liceo';
-const dinamico = e => e.genere === 'caffe' || bucoInStrada(e) || (e.genere === 'ostacolo' && (e.tipo === 'persona' || e.tipo === 'crociera'));
+const dinamico = e => e.genere === 'caffe' || bucoInStrada(e) || (e.genere === 'ostacolo' && (e.tipo === 'persona' || e.tipo === 'crociera' || e.tipo === 'lancio'));
 
 // Distanza effettiva lungo il percorso: i compagni ti vengono incontro.
 function distanza(e, pos) {
   if (e.tipo === 'persona') return distanzaPersona(e, pos);
+  if (e.tipo === 'lancio') return distanzaLancio(e, pos);
   return e.d;
 }
 const latoCrociera = (e, pos) => CORSIE[e.corsia] - e.dir * PENDENZA_CROCIERA * (e.d - pos);
@@ -981,6 +983,19 @@ function aggiornaEntita(ora) {
     } else if (e.tipo === 'persona') {
       mettiSulPercorso(e.mesh, d, true);
       e.anima?.(ora / 1000);
+    } else if (e.tipo === 'lancio') {
+      // Parte quando il giocatore è vicino, nella corsia in cui si trova in quel momento.
+      if (pos < e.d0 - e.anticipo) e.lanciato = false;
+      else if (!e.lanciato) { e.lanciato = true; e.corsia = G.corsia; e.t0 = ora / 1000; }
+      const k = e.lanciato ? THREE.MathUtils.smoothstep(e.d0 - d, 0, 3.5) : 0;
+      e.xLat = THREE.MathUtils.lerp(e.lato * 3.0, CORSIE[e.corsia], k);
+      mettiSulPercorso(e.mesh, d, true);
+      e.mesh.position.x += Math.cos(tmp.psi) * e.xLat;
+      e.mesh.position.z += Math.sin(tmp.psi) * e.xLat;
+      e.mesh.visible = Boolean(e.lanciato) && d > pos - 1;   // passato il giocatore sparisce
+      e.anima?.(ora / 1000);
+    } else if (e.genere === 'lanciatore') {
+      e.anima?.(ora / 1000, e.proiettile, e.d - pos);
     } else if (e.tipo === 'crociera') {
       mettiSulPercorso(e.mesh, e.d, true);
       const lat = latoCrociera(e, pos);
@@ -1007,7 +1022,8 @@ function controllaUrti() {
       if (Math.abs(latoCrociera(e, G.pos) - G.x) < 2.1 + 0.5 && basso < 1.3) { caduta(); return; }
       continue;
     }
-    if (Math.abs(CORSIE[e.corsia] - G.x) > 1.15) continue;
+    if (e.tipo === 'lancio') { if (!e.lanciato || Math.abs(e.xLat - G.x) > 1.0) continue; }
+    else if (Math.abs(CORSIE[e.corsia] - G.x) > 1.15) continue;
     if (e.genere === 'caffe') {
       G.caffe++;
       G.exprNome = 'gioia'; G.exprTemp = 0.9;

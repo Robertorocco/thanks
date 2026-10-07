@@ -39,7 +39,7 @@
 </style>
 <script>
 // Se questa pagina arriva dalla cache del browser ed è più vecchia dell'ultima versione, si ricarica da sola.
-(()=>{const V=13;try{fetch('versione.json?t='+Date.now(),{cache:'no-store'}).then(r=>r.json()).then(d=>{if(d.v!==V){const k='ricarica-'+location.pathname+d.v;if(!sessionStorage.getItem(k)){sessionStorage.setItem(k,1);const u=new URL(location.href);u.searchParams.set('v',d.v);location.replace(u)}}}).catch(()=>{})}catch(e){}})();
+(()=>{const V=14;try{fetch('versione.json?t='+Date.now(),{cache:'no-store'}).then(r=>r.json()).then(d=>{if(d.v!==V){const k='ricarica-'+location.pathname+d.v;if(!sessionStorage.getItem(k)){sessionStorage.setItem(k,1);const u=new URL(location.href);u.searchParams.set('v',d.v);location.replace(u)}}}).catch(()=>{})}catch(e){}})();
 </script>
 </head>
 <body>
@@ -52,7 +52,7 @@
   </header>
 
   <nav class="scelte" aria-label="Menù">
-    <a class="scelta primaria" href="gioco/?v=13">
+    <a class="scelta primaria" href="gioco/?v=14">
       <strong>Gioca</strong>
       <span>Cinque mondi, un cronometro, una classifica.</span>
     </a>
@@ -60,8 +60,8 @@
       <strong>Ringraziamenti</strong>
       <span>Per chi mi ha accompagnato fin qui.</span>
     </a>
-    <a class="secondario" href="gioco/?v=13#classifica">Guarda la classifica</a>
-    <span class="versione">v13</span>
+    <a class="secondario" href="gioco/?v=14#classifica">Guarda la classifica</a>
+    <span class="versione">v14</span>
   </nav>
 
   <footer>

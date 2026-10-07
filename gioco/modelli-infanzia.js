@@ -5,9 +5,10 @@
 
 import * as THREE from './lib/three.module.min.js';
 import {
-  blocco, cilindro, sfera, tela, esa, scritta, OSTACOLI, creaPersona, posaCorsa, creaCaffe, CUBO,
+  blocco, cilindro, sfera, tela, esa, scritta, OSTACOLI, creaPersona, posaCorsa, posaSeduto, creaCaffe, CUBO,
 } from './modelli.js';
 import { creaParete, creaSoffitto, creaAuto } from './modelli-liceo.js';
+import { fumetto } from './aula.js';
 
 const BASIC = n => new THREE.MeshBasicMaterial({ color: n });
 const S = n => new THREE.MeshLambertMaterial({ color: n });
@@ -520,10 +521,109 @@ export function creaFamigliare(nome, via = false, seme = 0) {
   p.radice.rotation.y = via ? 0 : Math.PI;
   g.add(p.radice);
   g.userData.anima = t => {
-    posaCorsa(p, t * 5 + seme, 0.45);
+    posaCorsa(p, t * 7.5 + seme, 0.6);
     // Si chinano un po' verso di te e agitano una mano.
     p.superiore.rotation.x = -0.12;
     p.braccia[1].spalla.rotation.z = 0.25 + Math.max(0, Math.sin(t * 6 + seme)) * 0.5;
+  };
+  return g;
+}
+
+// --- Lanci in casa: la voce della mamma e il joystick del papà ---------------------------------
+
+const ALTEZZA_LANCIO = 0.7;
+
+function voce() {
+  const g = new THREE.Group();
+  const scritta = fumetto('METTI IN ORDINE!', '#FF5A3C', '#FFFFFF', 2.2);
+  scritta.visible = true; scritta.position.y = ALTEZZA_LANCIO + 0.75;
+  g.add(scritta);
+  // Onde sonore: anelli che pulsano davanti alla scritta.
+  const anelli = [0, 1, 2].map(i => {
+    const m = new THREE.Mesh(new THREE.TorusGeometry(0.35 + i * 0.22, 0.05, 6, 24), new THREE.MeshBasicMaterial({ color: [0xFF5A3C, 0xFF9A3C, 0xFFD23F][i], transparent: true, opacity: 0.85 }));
+    m.position.set(0, ALTEZZA_LANCIO, -0.1 * i);
+    g.add(m);
+    return m;
+  });
+  g.userData.anima = t => {
+    anelli.forEach((a, i) => { const k = 1 + 0.25 * Math.sin(t * 16 - i * 1.2); a.scale.set(k, k, 1); });
+    scritta.scale.set(2.2 * (1 + 0.06 * Math.sin(t * 20)), 1.1 * (1 + 0.06 * Math.sin(t * 20)), 1);
+  };
+  return g;
+}
+
+function joystick(scala = 1) {
+  const g = new THREE.Group();
+  g.add(blocco(0.5, 0.12, 0.26, 0x1C1D24, 0, 0));
+  for (const x of [-0.22, 0.22]) g.add(blocco(0.14, 0.12, 0.3, 0x1C1D24, x, -0.04, 0.1));
+  g.add(cilindro(0.04, 0.06, 0x3A3F48, -0.12, 0.12, -0.03));
+  for (const [x, z, c] of [[0.12, -0.05, 0xE0533F], [0.18, 0.0, 0x4CAF6A], [0.12, 0.05, 0x3A7CC4], [0.06, 0.0, 0xF2C14E]]) g.add(blocco(0.04, 0.03, 0.04, BASIC(c), x, 0.12, z));
+  g.scale.setScalar(scala);
+  return g;
+}
+
+function proiettileJoystick() {
+  const g = new THREE.Group();
+  const j = joystick(1.6);
+  j.position.y = ALTEZZA_LANCIO;
+  g.add(j);
+  g.userData.anima = t => { j.rotation.set(t * 9, t * 5, t * 3); };
+  return g;
+}
+
+// Chi lancia, a lato della corsia. `anima(t, proiettile, vicino)`: vicino = metri al giocatore.
+export function creaLanciatore(e) {
+  const g = new THREE.Group();
+  const { scala, ...opzioni } = FAMIGLIA[e.membro];
+  const p = creaPersona(opzioni);
+  p.radice.scale.setScalar(scala);
+  p.radice.rotation.y = e.lato * Math.PI / 2;         // guarda verso il centro della corsia
+  g.add(p.radice);
+  const mamma = e.membro === 'mamma';
+  const bolla = fumetto(mamma ? 'Metti in ordine!' : 'Levati di mezzo!', mamma ? '#FFE27A' : '#ffffff', '#1C1D2B', 1.9);
+  bolla.position.set(e.lato * 2.6, 2.75 * scala, 0);
+  g.add(bolla);
+  let manina = null;
+  if (mamma) {
+    p.radice.position.x = e.lato * 3.3;
+  } else {
+    // Papà seduto sul divano, joystick in mano, gli occhi sulla TV dall'altra parte.
+    p.radice.position.x = e.lato * 3.45;
+    posaSeduto(p, 0.3);
+    manina = joystick(0.9);
+    manina.position.set(0, 1.25, -0.45);
+    p.superiore.add(manina);
+  }
+  g.userData.anima = (t, pr, vicino) => {
+    const lanciato = pr.lanciato;
+    const tl = lanciato ? t - (pr.t0 ?? t) : -1;
+    bolla.visible = mamma ? vicino < 26 : (lanciato && tl < 1.6);
+    if (mamma) {
+      // Mani sui fianchi; quando urla si sporge in avanti con le braccia tese.
+      const urla = lanciato && tl < 1.2 ? 1 : THREE.MathUtils.smoothstep(26 - vicino, 0, 10) * 0.4;
+      for (const [i, b] of p.braccia.entries()) {
+        const s = i ? 1 : -1;
+        b.spalla.rotation.set(-1.4 * urla, 0, s * (0.6 - 0.4 * urla));
+        b.gomito.rotation.set(-1.6 * (1 - urla), 0, 0);
+      }
+      p.superiore.rotation.x = -0.25 * urla;
+      p.testa.rotation.z = Math.sin(t * 18) * 0.06 * (0.3 + urla);
+      p.corpo.position.y = Math.abs(Math.sin(t * 9)) * 0.03 * urla;
+      bolla.scale.set(1.9 * (1 + 0.05 * Math.sin(t * 22)), 0.95 * (1 + 0.05 * Math.sin(t * 22)), 1);
+    } else {
+      // Gioca: pollici che si muovono; poi il lancio con il braccio destro.
+      manina.visible = !lanciato;
+      for (const b of p.braccia) { b.spalla.rotation.set(-1.0, 0, 0); b.gomito.rotation.set(-0.8, 0, 0); }
+      manina.rotation.z = Math.sin(t * 14) * 0.08;
+      p.testa.rotation.set(0, 0, 0);
+      if (lanciato && tl < 0.8) {
+        const k = tl / 0.8;
+        const b = p.braccia[1];
+        b.spalla.rotation.x = k < 0.35 ? -1.0 - 1.9 * (k / 0.35) : -2.9 + 3.3 * ((k - 0.35) / 0.65);
+        b.gomito.rotation.x = -0.3;
+      }
+      if (!lanciato) p.testa.rotation.y = Math.sin(t * 2.5) * 0.08;
+    }
   };
   return g;
 }
@@ -534,6 +634,7 @@ OSTACOLI.casa = {
   alto: (p, e) => tavolino(e.var ?? 0),
   muro: (p, e) => mobileCasa(p, e),
   persona: (p, e) => creaFamigliare(e.membro ?? 'mamma', e.via, e.var ?? 0),
+  lancio: (p, e) => (e.oggetto === 'voce' ? voce() : proiettileJoystick()),
 };
 
 // --- Darmon: all'aperto -----------------------------------------------------

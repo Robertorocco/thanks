@@ -13,14 +13,25 @@ export const VELOCITA_CAMMINATORI = 0.3;
 export const PENDENZA_CROCIERA = 0.4;   // metri di spostamento laterale per metro di avvicinamento
 
 // Posizione lungo il percorso di una persona quando il giocatore è in `pos`.
+// `e.vel` cambia la velocità di chi viene incontro (la famiglia in casa cammina più svelta).
 export function distanzaPersona(e, pos) {
   const k = Math.max(0, pos - (e.d0 - ANTICIPO_COMPAGNI));
-  return e.via ? e.d0 + VELOCITA_CAMMINATORI * k : e.d0 - VELOCITA_COMPAGNI * k;
+  return e.via ? e.d0 + VELOCITA_CAMMINATORI * k : e.d0 - (e.vel ?? VELOCITA_COMPAGNI) * k;
 }
 // Posizione del giocatore in cui incrocia la persona.
 export const incontroPersona = e => (e.via
   ? e.d0 + VELOCITA_CAMMINATORI * ANTICIPO_COMPAGNI / (1 - VELOCITA_CAMMINATORI)
-  : e.d0 - VELOCITA_COMPAGNI * ANTICIPO_COMPAGNI / (1 + VELOCITA_COMPAGNI));
+  : e.d0 - (e.vel ?? VELOCITA_COMPAGNI) * ANTICIPO_COMPAGNI / (1 + (e.vel ?? VELOCITA_COMPAGNI)));
+
+// Lanci in casa: mamma urla (la voce vola verso di te), papà tira il joystick. L'oggetto parte da chi
+// lancia quando il giocatore è a `ANTICIPO_LANCIO` metri e gli viene incontro; la corsia è quella in cui
+// si trova il giocatore al momento del lancio, quindi va schivato.
+export const ANTICIPO_LANCIO = 16;
+export const VELOCITA_LANCIO = 0.9;
+export function distanzaLancio(e, pos) {
+  return e.d0 - e.vel * Math.max(0, pos - (e.d0 - e.anticipo));
+}
+export const incontroLancio = e => e.d0 - e.vel * e.anticipo / (1 + e.vel);
 
 export function rng(seme) {
   return () => {
@@ -112,7 +123,7 @@ export function generaLivello(TRATTI, perc, velocitaIn) {
       while (d < b) {
         const v = velocitaIn(d);
         // Con `evita`, niente ostacoli dove sta per passare una persona (la famiglia in casa).
-        if (o.evita && ENTITA.some(e => e.tipo === 'persona' && e.mondo === t.indice && Math.abs(incontroPersona(e) - d) < 9)) { d += v * (o.spazio ?? 1) * 1.1; continue; }
+        if (o.evita && ENTITA.some(e => e.mondo === t.indice && ((e.tipo === 'persona' && Math.abs(incontroPersona(e) - d) < 9) || (e.tipo === 'lancio' && Math.abs(incontroLancio(e) - d) < 11)))) { d += v * (o.spazio ?? 1) * 1.1; continue; }
         const corsie = mescola([0, 1, 2], r);
         const x = r();
         const pCorr = o.corridoi === true ? 0.12 + 0.12 * diff : (o.corridoi || 0);
@@ -154,7 +165,21 @@ export function generaLivello(TRATTI, perc, velocitaIn) {
         const libere = [0, 1, 2].filter(c => !bl.has(c));
         if (libere.length < 2) continue;
         const corsia = libere[Math.floor(r() * libere.length)];
-        ostacolo(d0, corsia, 'persona', stile, { d0, via, membro: membri ? membri[i % membri.length] : undefined });
+        ostacolo(d0, corsia, 'persona', stile, { d0, via, membro: membri ? membri[i % membri.length] : undefined, vel: stile === 'casa' ? 0.6 : undefined });
+      }
+    }
+
+    // Mamma che urla o papà sul divano col joystick, a lato della corsia: lanciano qualcosa da schivare.
+    function lancia(d, membro, lato) {
+      const proiettile = {
+        d, d0: d, genere: 'ostacolo', tipo: 'lancio', corsia: 1, profondita: 0.8, stile: 'casa', mondo: t.indice,
+        lato, oggetto: membro === 'mamma' ? 'voce' : 'joystick', anticipo: ANTICIPO_LANCIO, vel: VELOCITA_LANCIO,
+      };
+      ENTITA.push({ d, genere: 'lanciatore', membro, lato, mondo: t.indice, stile: 'casa', proiettile });
+      ENTITA.push(proiettile);
+      if (membro === 'papa') {
+        ENTITA.push({ d, genere: 'arredo', tipo: 'divano', lato, mondo: t.indice, stile: 'casa', esterno: false, var: 0 });
+        ENTITA.push({ d, genere: 'arredo', tipo: 'tv', lato: -lato, mondo: t.indice, stile: 'casa', esterno: false, var: 0 });
       }
     }
 
@@ -266,20 +291,26 @@ export function generaLivello(TRATTI, perc, velocitaIn) {
           break;
         // --- Casa (neonato): niente salto né scivolata, gli ostacoli si schivano e basta ---
         case 'culla': break;
+        // La prima volta mamma, papà e nonna camminano verso di te; poi mamma urla e papà tira il joystick.
         case 'salotto':
           compagni(a + 6, b - 4, 2, 'casa', false, ['mamma', 'papa']);
           riempi(a + 8, b - 6, { stile: 'casa', tipi: ['muro'], corridoi: 0, spazio: 1.5, evita: true });
           break;
-        case 'curva-c1': case 'curva-c2':
-          compagni(a + 2, b + 8, 1, 'casa', false, [sz.id === 'curva-c1' ? 'nonna' : 'mamma']);
+        case 'curva-c1':
+          compagni(a + 2, b + 8, 1, 'casa', false, ['nonna']);
+          riempi(a + 2, b - 2, { stile: 'casa', tipi: ['muro'], barriere: false, corridoi: false, spazio: 1.9, evita: true });
+          break;
+        case 'curva-c2':
           riempi(a + 2, b - 2, { stile: 'casa', tipi: ['muro'], barriere: false, corridoi: false, spazio: 1.9, evita: true });
           break;
         case 'corridoio-c':
-          compagni(a + 4, b + 8, 2, 'casa', false, ['papa', 'nonna']);
+          lancia(a + 20, 'mamma', -1);
+          compagni(a + 30, b + 8, 1, 'casa', false, ['nonna']);
           riempi(a + 4, b - 4, { stile: 'casa', tipi: ['muro'], corridoi: 0.1, spazio: 1.35, evita: true });
           break;
         case 'cucina':
-          compagni(a + 2, b + 6, 3, 'casa', false, ['mamma', 'nonna', 'papa']);
+          lancia(a + 12, 'papa', -1);
+          lancia(a + 37, 'mamma', 1);
           riempi(a + 6, b - 8, { stile: 'casa', tipi: ['muro'], corridoi: 0.1, spazio: 1.35, evita: true });
           break;
         case 'soglia': break;
