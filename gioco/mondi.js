@@ -14,8 +14,9 @@
 // `posa` è il modo di muoversi. `camera`: distanza dietro, altezza e quota guardata.
 export const FISICA = {
   neonato: {
-    // Primi passi: niente salto né scivolata. Gli ostacoli o si schivano o si urtano.
-    nome: 'Neonato', posa: 'primipassi', senzaSalto: true, scala: 0.5, salto: 0, altezza: 1.1, altezzaBassa: 1.1,
+    // Primi passi: niente scivolata e solo un saltello, che non basta a superare nulla.
+    // Gli ostacoli o si schivano o si urtano.
+    nome: 'Neonato', posa: 'primipassi', senzaScivolata: true, scala: 0.5, salto: 0.3, altezza: 1.1, altezzaBassa: 1.1,
     bassoMax: 0, altoDa: 9, bucoMax: 0, persona: 3, cambioCorsia: 9,
     camera: { indietro: 4.4, alto: 2.4, guarda: 0.6, fov: 1.0, segue: 0.95 },
   },

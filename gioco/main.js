@@ -762,7 +762,7 @@ function comando(azione) {
   if (G.stato !== 'gioco') return;
   if (azione === 'sinistra') G.corsia = Math.max(0, G.corsia - 1);
   if (azione === 'destra') G.corsia = Math.min(2, G.corsia + 1);
-  if (fisica().senzaSalto && (azione === 'su' || azione === 'giu')) return;   // primi passi: solo cambio corsia
+  if (fisica().senzaScivolata && azione === 'giu') return;   // primi passi: niente scivolata
   if (azione === 'su' && G.y <= 0.001) { G.vy = Math.sqrt(2 * GRAVITA * fisica().salto); G.scivola = 0; }
   if (azione === 'giu') {
     if (G.y > 0.001) G.vy = -Math.sqrt(2 * GRAVITA * fisica().salto) * 1.6;
