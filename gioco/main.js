@@ -9,12 +9,12 @@ import {
   creaEdificio, creaMonumento, creaLampione, creaAlbero, caricaFotoLuogo,
 } from './modelli.js';
 import {
-  creaSemaforo, creaMetro, creaSegnaleSalita, creaAmico, creaScuola, creaParete, creaSoffitto, creaCartelloAppeso, creaPortaAula,
+  creaSemaforo, creaMetro, creaSegnaleSalita, creaAmico, creaMotorino, creaScuola, creaParete, creaSoffitto, creaCartelloAppeso, creaPortaAula,
   creaPortone, creaMuroLungo,
 } from './modelli-liceo.js';
 import {
   creaPareteStile, creaSoffittoStile, creaArredo, creaPortaCasa, creaLanciatore, creaBonus, creaScuolaDarmon, ICONA_BONUS,
-  creaCartelloCamaldoli,
+  creaCartelloCamaldoli, creaFratello,
 } from './modelli-infanzia.js';
 import { costruisciPercorso } from './percorso.js';
 import { CORSIE, PENDENZA_CROCIERA, generaLivello, distanzaPersona, distanzaLancio } from './livello.js';
@@ -154,7 +154,7 @@ const EVENTO = {
     opzioni: [{ id: 'piango', etichetta: 'Piango' }, { id: 'saluto', etichetta: 'Saluto il maestro' }],
     esiti: {
       piango: { titolo: 'Che pianto!', sotto: 'Tutti fuori dalla classe', malus: 0, durata: 3.0 },
-      saluto: { titolo: 'Il maestro è diventato un demonio!', sotto: `+${MALUS_PRIMA_FILA} secondi di penalità`, malus: MALUS_PRIMA_FILA, durata: 3.2 },
+      saluto: { titolo: 'Roberto aveva paura del maestro Rodolfo', sotto: `+${MALUS_PRIMA_FILA} secondi di penalità`, malus: MALUS_PRIMA_FILA, durata: 3.2 },
     },
     // Il cartello dell'esito arriva alla fine della scena, quando la classe è vuota (non subito alla scelta).
     esitoAllaFine: true,
@@ -549,7 +549,7 @@ function nuovaPartita() {
   const m0 = MODALITA_SVILUPPO ? mondoDiPartenza() : 0;
   try { localStorage.setItem('gioco-laurea:dev-mondo', String(m0)); } catch {}
   G.pos = TRATTI[m0].inizio; G.tempo = 0; G.malus = 0; G.caffe = 0; G.raccolti = new Set(); G.mondo = m0; G.cadute = 0;
-  G.fatti = new Set(); G.esitoAula = null; G.invul = 0; G.posCaduta = null; G.bassa = 0; G.exprTemp = 0;
+  G.fatti = new Set(); G.comandiVisti = new Set(); G.esitoAula = null; G.invul = 0; G.posCaduta = null; G.bassa = 0; G.exprTemp = 0;
   impostaEta(TRATTI[m0].eta);
   salvaCheckpoint(CHECKPOINT.findIndex(c => c.mondo === m0 && c.nuovoMondo));
   azzeraGiocatore();
@@ -871,6 +871,33 @@ const hud = {
 document.getElementById('hud-tacche').innerHTML =
   TRATTI.slice(1).map(t => `<span style="left:${(t.inizio / LUNGHEZZA) * 100}%"></span>`).join('');
 
+// I comandi restano a schermo per i primi secondi di corsa, così si provano subito. Si rimostrano
+// quando cambiano (dai primi passi in casa al bambino che salta e si abbassa).
+const DURATA_COMANDI = 5;
+const elComandi = document.getElementById('comandi');
+let durataComandi = 0, barraComandi = null;
+function mostraComandi() {
+  const f = fisica();
+  const righe = [['← →', 'Scorri a sinistra o a destra', 'cambi corsia']];
+  if (f.senzaScivolata) righe.push(['↑', 'Scorri in su', 'un saltello']);
+  else righe.push(['↑', 'Scorri in su', 'salti'], ['↓', 'Scorri in giù', 'ti abbassi']);
+  elComandi.innerHTML = `<h3>Comandi · provali ora</h3><ul>${righe.map(([g, a, b]) =>
+    `<li><span class="gesto">${g}</span><span>${a}<small>${b}</small></span></li>`).join('')}</ul>`
+    + '<div class="resta"><div></div></div>';
+  barraComandi = elComandi.querySelector('.resta div');
+  elComandi.hidden = false;
+  durataComandi = DURATA_COMANDI;
+}
+function aggiornaComandi(dt) {
+  const chiave = fisica().senzaScivolata ? 'primi' : 'tutti';
+  if (G.stato === 'gioco' && !G.comandiVisti.has(chiave)) { G.comandiVisti.add(chiave); mostraComandi(); }
+  if (durataComandi <= 0) return;
+  if (G.stato === 'gioco') durataComandi -= dt;
+  if (G.stato === 'aula' || G.stato === 'crescita' || G.stato === 'fine') durataComandi = 0;
+  barraComandi.style.transform = `scaleX(${Math.max(0, durataComandi / DURATA_COMANDI)})`;
+  if (durataComandi <= 0) { elComandi.hidden = true; elComandi.innerHTML = ''; }
+}
+
 const elBanner = document.getElementById('banner');
 let durataBanner = 0;
 function banner(html, durata, posizione = '') {
@@ -1072,83 +1099,189 @@ function avvicinamentoAula() {
 }
 
 // ---------------------------------------------------------------------------
-// L'amico biondo: esce da scuola insieme a Roberto, chiacchierando, poi viene seminato.
+// L'amico biondo: esce dall'aula insieme a Roberto; fuori dal portone chiacchierano, lui va verso il suo
+// motorino sul marciapiede e si salutano.
 // ---------------------------------------------------------------------------
 
 const amico = creaAmico();
 amico.radice.visible = false;
 amico.radice.rotation.order = 'YXZ';
 scena.add(amico.radice);
+const motorino = new THREE.Group();
+const motorinoMesh = creaMotorino();
+motorino.add(motorinoMesh);
+motorino.visible = false;
+scena.add(motorino);
 const SEZ_PORTONE = TRATTI[LICEO].sezioni.find(s => s.id === 'portone');
 const AMICO_INIZIO = EVENTO[LICEO].porta + 0.6;    // esce dall'aula con Roberto
-const AMICO_SEMINA = SEZ_PORTONE.fine + 4;         // da qui in poi Roberto accelera e lo lascia indietro
-const AMICO_SPARITO = 11;                          // metri di distacco oltre i quali non si vede più
+const AMICO_PARLA = SEZ_PORTONE.fine + 1;          // appena fuori dal portone comincia il dialogo
+const RIGA_DIALOGO = 1.7;                          // secondi per battuta
 const DIALOGO = [
-  ['amico', 'Che giornata!'], ['roberto', 'Lascia stare!'],
-  ['amico', 'Hai visto la prof?'], ['roberto', 'Ahah, dopo ti dico!'],
+  ['amico', 'Oh, dopo mi mandi i compiti?'], ['roberto', 'Sì fra, te li mando'],
+  ['amico', 'Allora ci sentiamo dopo'], ['roberto', 'Ciao fra'],
 ];
 const bolleAmico = DIALOGO.map(([chi, testo]) => {
-  const f = fumetto(testo, chi === 'amico' ? '#FFE27A' : '#ffffff', '#1C1D2B', 1.7);
+  const largo = testo.length > 16 ? 1.9 : testo.length > 10 ? 1.4 : 1;
+  const f = fumetto(testo, chi === 'amico' ? '#FFE27A' : '#ffffff', '#1C1D2B', 1.7 * largo, largo);
   scena.add(f);
   return f;
 });
-const bollaAspetta = fumetto('Ehi, aspettami!', '#FFFFFF', '#1C1D2B', 2.1);
-scena.add(bollaAspetta);
-const amicoStato = { x: 0, parla: 0, ritardo: 0, lato: 1 };
+const MOTORINO_X = 3.75;                           // sul bordo del marciapiede, così resta in vista
+const amicoStato = { x: 0, parla: 0, lato: 1, avviato: false, dMoto: null, latoMoto: -1, dFermo: null, d3: 0, pos3: 0 };
 const posAmico = new THREE.Vector3();
 
 function aggiornaAmico(dt) {
-  const ritardo = Math.max(0, G.pos - AMICO_SEMINA) * 0.6;
-  const attivo = G.mondo === LICEO && G.fatti.has(LICEO) && G.pos >= AMICO_INIZIO && ritardo < AMICO_SPARITO
+  const fermo = amicoStato.dFermo !== null;
+  const attivo = G.mondo === LICEO && G.fatti.has(LICEO) && G.pos >= AMICO_INIZIO && (!fermo || G.pos - amicoStato.dFermo < 40)
     && (G.stato === 'gioco' || G.stato === 'caduto' || G.stato === 'aulaRientro' || G.stato === 'pausa');
   amico.radice.visible = attivo;
-  for (const b of [...bolleAmico, bollaAspetta]) b.visible = false;
+  motorino.visible = attivo && amicoStato.dMoto !== null;
+  for (const b of bolleAmico) b.visible = false;
   G.parlaAmico = 0;
-  if (!attivo) { amicoStato.parla = 0; amicoStato.avviato = false; return; }
+  if (!attivo) {
+    if (G.pos < AMICO_INIZIO || G.mondo !== LICEO) Object.assign(amicoStato, { parla: 0, avviato: false, dMoto: null, dFermo: null });
+    return;
+  }
 
-  // Resta accanto a Roberto, sempre alla sua sinistra (a destra se Roberto è nella corsia di sinistra).
-  const bersaglio = G.x > -1 ? G.x - 1.25 : G.x + 1.25;
-  if (!amicoStato.avviato) { amicoStato.x = bersaglio; amicoStato.avviato = true; }
-  amicoStato.x += (bersaglio - amicoStato.x) * Math.min(1, dt * 6);
-  const cambia = Math.min(1, Math.abs(bersaglio - amicoStato.x) / 1.2);
-  const d = G.pos - ritardo - 0.15 - cambia * 1.2;
+  // Le battute partono appena fuori dal portone, una ogni RIGA_DIALOGO secondi.
+  if (G.pos >= AMICO_PARLA && G.stato === 'gioco') amicoStato.parla += dt;
+  const riga = Math.floor(amicoStato.parla / RIGA_DIALOGO);
+  const parlano = G.pos >= AMICO_PARLA && riga < DIALOGO.length && G.stato === 'gioco';
+
+  // Alla terza battuta compare il motorino sul marciapiede dal suo lato, poco più avanti.
+  if (riga >= 2 && amicoStato.dMoto === null) {
+    amicoStato.latoMoto = amicoStato.x - G.x < 0 ? -1 : 1;
+    amicoStato.dMoto = G.pos + 25;
+    amicoStato.d3 = G.pos - 0.15; amicoStato.pos3 = G.pos;
+    mettiSulPercorso(motorino, amicoStato.dMoto, false);
+    motorinoMesh.position.set(amicoStato.latoMoto * MOTORINO_X, 0.12, 0);
+    motorinoMesh.rotation.y = -amicoStato.latoMoto * 0.35;
+  }
+
+  let d, x, sterza = 0;
+  azzeraPosa(amico);
+  if (amicoStato.dMoto === null) {
+    // Accanto a Roberto, alla sua sinistra (a destra se Roberto è nella corsia di sinistra).
+    const bersaglio = G.x > -1 ? G.x - 1.25 : G.x + 1.25;
+    if (!amicoStato.avviato) { amicoStato.x = bersaglio; amicoStato.avviato = true; }
+    amicoStato.x += (bersaglio - amicoStato.x) * Math.min(1, dt * 6);
+    x = amicoStato.x;
+    d = G.pos - 0.15 - Math.min(1, Math.abs(bersaglio - amicoStato.x) / 1.2) * 1.2;
+    posaCorsa(amico, G.passo + 0.9, 0.85);
+  } else {
+    // Va verso il motorino e si ferma lì accanto; Roberto tira dritto.
+    // Allunga il passo per arrivarci prima di Roberto, così lo si vede salire sul marciapiede.
+    const meta = amicoStato.dMoto - 1.0, xMeta = amicoStato.latoMoto * (MOTORINO_X - 0.55);
+    if (!fermo) {
+      d = Math.min(amicoStato.d3 + (G.pos - amicoStato.pos3) * 1.85, meta);
+      amicoStato.x += (xMeta - amicoStato.x) * Math.min(1, dt * 2.2);
+      if (d >= meta - 0.01) amicoStato.dFermo = meta;
+      sterza = -Math.sign(xMeta - amicoStato.x) * Math.min(0.9, Math.abs(xMeta - amicoStato.x) * 0.6);
+      posaCorsa(amico, G.passo * 0.8 + 0.9, 0.7);
+    } else {
+      d = amicoStato.dFermo;
+      amicoStato.x += (xMeta - amicoStato.x) * Math.min(1, dt * 3);
+      // Saluta con la mano mentre Roberto si allontana.
+      const i = amicoStato.latoMoto < 0 ? 1 : 0;     // il braccio dal lato di Roberto
+      amico.braccia[i].spalla.rotation.set(0, 0, (i ? 1 : -1) * (2.5 + Math.sin(G.tempo * 9) * 0.25));
+    }
+    x = amicoStato.x;
+  }
   perc.punto(d, tmp);
   const c = Math.cos(tmp.psi), s = Math.sin(tmp.psi);
-  amico.radice.position.set(tmp.x + c * amicoStato.x, tmp.h, tmp.z + s * amicoStato.x);
-  amico.radice.rotation.set(Math.atan(tmp.pend) * 0.5, -tmp.psi, 0);
+  const suMarciapiede = Math.abs(x) > 3.3 ? 0.12 : 0;
+  amico.radice.position.set(tmp.x + c * x, tmp.h + suMarciapiede, tmp.z + s * x);
+  amico.radice.rotation.set(Math.atan(tmp.pend) * 0.5, -tmp.psi + sterza, 0);
 
-  const lato = Math.sign(amicoStato.x - G.x) || 1;    // +1 = amico alla destra di Roberto
+  const lato = Math.sign(x - G.x) || 1;    // +1 = amico alla destra di Roberto
   amicoStato.lato = lato;
-  const parlano = ritardo === 0 && G.stato === 'gioco';
-  if (parlano) amicoStato.parla += dt;
-  const riga = Math.min(DIALOGO.length - 1, Math.floor(amicoStato.parla / 1.25));
-  azzeraPosa(amico);
-  const rallenta = 1 - Math.min(1, ritardo / 4) * 0.6;
-  posaCorsa(amico, G.passo * rallenta + 0.9, 0.85);
-  // Si guardano mentre parlano; chi parla gesticola con una mano.
-  const voltato = ritardo === 0 ? 0.55 : 0.2;
-  amico.testa.rotation.y = lato * voltato;
-  if (parlano && DIALOGO[riga][0] === 'amico') {
+  amico.testa.rotation.y = parlano ? lato * 0.55 : 0;
+  if (parlano && DIALOGO[riga][0] === 'amico' && !fermo) {
     amico.braccia[0].spalla.rotation.set(-1.1 + Math.sin(G.tempo * 14) * 0.25, 0, -0.25);
     amico.braccia[0].gomito.rotation.set(-1.0, 0, 0);
   }
-  // Fumetti sopra la testa di chi parla.
   if (parlano) {
     const bolla = bolleAmico[riga];
     const parlaRoberto = DIALOGO[riga][0] === 'roberto';
-    // Il fumetto sta a metà tra i due, così non esce dallo schermo.
     roberto.getWorldPosition(posAmico);
     amico.radice.getWorldPosition(bolla.position);
-    bolla.position.add(posAmico).multiplyScalar(0.5);
+    // Finché sono vicini il fumetto sta a metà tra i due (così non esce dallo schermo), poi sopra chi parla.
+    const vicini = bolla.position.distanceTo(posAmico) < 4;
+    if (vicini) bolla.position.add(posAmico).multiplyScalar(0.5);
+    else if (parlaRoberto) bolla.position.copy(posAmico);
+    else bolla.position.lerp(posAmico, 0.55);
     bolla.position.y += 2.5;
     bolla.visible = true;
     G.parlaAmico = parlaRoberto ? 2 : 1;
   }
-  if (ritardo > 0.8) {
-    amico.radice.getWorldPosition(bollaAspetta.position);
-    bollaAspetta.position.y += 2.5;
-    bollaAspetta.visible = true;
+}
+
+// ---------------------------------------------------------------------------
+// Il fratello all'Istituto Darmon: esce dalla classe accanto a Roberto con il suo creeper, corrono un po'
+// insieme, poi lui entra nella sua classe. Roberto gli chiede "Dove vai?" e tira dritto.
+// ---------------------------------------------------------------------------
+
+const fratello = creaFratello();
+fratello.radice.visible = false;
+fratello.radice.rotation.order = 'YXZ';
+fratello.radice.scale.setScalar(0.52);
+scena.add(fratello.radice);
+const SEZ_USCITA_D = TRATTI[DARMON].sezioni.find(s => s.id === 'uscita-d');
+const FRATELLO_INIZIO = EVENTO[DARMON].porta + 0.6;
+const FRATELLO_PORTA = SEZ_USCITA_D.inizio + SEZ_USCITA_D.portaFratello;
+const FRATELLO_GIRA = FRATELLO_PORTA - 17;       // da qui corre avanti verso la porta (che si vede ancora)
+const bollaDoveVai = fumetto('Dove vai?', '#FFFFFF', '#1C1D2B', 1.25);
+scena.add(bollaDoveVai);
+const fr = { x: 0, avviato: false, dentro: false, d0: 0, x0: 0, domanda: 0 };
+
+function aggiornaFratello(dt) {
+  if (G.pos < FRATELLO_INIZIO || G.mondo !== DARMON) Object.assign(fr, { avviato: false, dentro: false, domanda: 0 });
+  const attivo = G.mondo === DARMON && G.fatti.has(DARMON) && G.pos >= FRATELLO_INIZIO && !fr.dentro
+    && G.pos < FRATELLO_PORTA + 20
+    && (G.stato === 'gioco' || G.stato === 'caduto' || G.stato === 'aulaRientro' || G.stato === 'pausa');
+  fratello.radice.visible = attivo;
+  bollaDoveVai.visible = false;
+  if (fr.domanda > 0 && G.stato === 'gioco') {
+    // Roberto chiede "Dove vai?" mentre il fratello sparisce in classe.
+    fr.domanda -= dt;
+    roberto.getWorldPosition(bollaDoveVai.position);
+    bollaDoveVai.position.y += 1.9;
+    bollaDoveVai.visible = true;
+    G.exprTemp = 0.2; G.exprNome = 'sorpresa';
   }
+  if (!attivo) return;
+
+  let d, x, sterza = 0;
+  azzeraPosa(fratello);
+  if (G.pos < FRATELLO_GIRA) {
+    // Accanto a Roberto, dal lato della porta (a destra), a sinistra se Roberto è già nella corsia di destra.
+    const bersaglio = G.x < 1 ? G.x + 1.0 : G.x - 1.0;
+    if (!fr.avviato) { fr.x = bersaglio; fr.avviato = true; }
+    fr.x += (bersaglio - fr.x) * Math.min(1, dt * 6);
+    x = fr.x;
+    d = G.pos - 0.2 - Math.min(1, Math.abs(bersaglio - fr.x) / 1.2);
+    fr.d0 = d; fr.x0 = x;
+    posaCorsa(fratello, G.passo + 0.7, 0.75);
+    fratello.testa.rotation.y = -Math.sign(x - G.x) * 0.35 * (0.5 + 0.5 * Math.sin(G.tempo * 1.7));
+  } else {
+    // Rallenta e piega verso la porta; quando la raggiunge entra in classe.
+    // Scatta avanti (più veloce di Roberto) e piega verso la porta, così si vede entrare in classe.
+    const u = Math.min(1, (G.pos - FRATELLO_GIRA) * 2.3 / Math.hypot(FRATELLO_PORTA - fr.d0, 4.6 - fr.x0));
+    d = fr.d0 + (FRATELLO_PORTA - fr.d0) * (1 - (1 - u) * (1 - u) * 0.6 - 0.4 * (1 - u));
+    x = fr.x0 + (4.6 - fr.x0) * Math.pow(u, 2.2);
+    const vd = (FRATELLO_PORTA - fr.d0) * (1.2 * (1 - u) + 0.4), vx = (4.6 - fr.x0) * 2.2 * Math.pow(u, 1.2);
+    sterza = Math.atan2(vx, vd);
+    posaCorsa(fratello, G.passo * 1.3 + 0.7, 0.9);
+    if (fr.domanda === 0 && u > 0.3) fr.domanda = 2.4;
+    if (x > 4.15) { fr.dentro = true; fratello.radice.visible = false; return; }
+  }
+  // Il creeper resta in mano, tenuto davanti.
+  fratello.braccia[1].spalla.rotation.set(0.4, 0, 0.35);
+  fratello.braccia[1].gomito.rotation.set(1.1, 0, 0);
+  perc.punto(d, tmp);
+  const c = Math.cos(tmp.psi), s = Math.sin(tmp.psi);
+  fratello.radice.position.set(tmp.x + c * x, tmp.h, tmp.z + s * x);
+  fratello.radice.rotation.set(0, -tmp.psi - sterza, 0);
 }
 
 function animaRoberto(dt) {
@@ -1406,6 +1539,7 @@ function ciclo(ora) {
     if (G.timer <= 0) ripartiDalCheckpoint();
   }
 
+  aggiornaComandi(dt);
   if (durataBanner > 0) {
     durataBanner -= dt;
     if (durataBanner <= 0) { elBanner.hidden = true; elBanner.innerHTML = ''; }
@@ -1416,6 +1550,7 @@ function ciclo(ora) {
     aggiornaEntita(ora);
     aggiornaColori();
     aggiornaAmico(dt);
+    aggiornaFratello(dt);
     animaRoberto(dt);
     aggiornaCamera(dt);
     aggiornaScintille(dt);

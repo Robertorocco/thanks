@@ -219,6 +219,10 @@ export function generaLivello(TRATTI, perc, velocitaIn) {
           metti('scivolo', -1, a + 12); metti('altalena', 1, a + 24); metti('canestro', -1, a + 40);
           metti('giostra', 1, a + 54); metti('panchina', -1, a + 62); metti('aiuola', 1, a + 70);
           break;
+        case 'uscita-d':
+          metti('portaClasse', 1, a + sz.portaFratello);
+          for (let q = a + 8, i = 0; q < b - 8; q += 13, i++) if (Math.abs(q - a - sz.portaFratello) > 6) metti(i % 2 ? 'armadietto' : 'appendiabiti', -1, q);
+          break;
         case 'corridoio-d':
           for (let q = a + 6, i = 0; q < b - 8; q += 11, i++) metti(i % 3 === 0 ? 'appendiabiti' : i % 3 === 1 ? 'armadietto' : 'pianta', i % 2 ? -1 : 1, q);
           ENTITA.push({ d: a + 4, genere: 'cartello', testo: '3ª B', mondo: t.indice, w: 2.6, colore: 0xE0533F, stile: 'darmon' });
@@ -316,6 +320,7 @@ export function generaLivello(TRATTI, perc, velocitaIn) {
         }
         case 'cucina':
           lancia(a + 12, 'papa', -1);
+          ostacolo(a + 1, 0, 'muro', 'casa');     // un mobile sulla corsia di sinistra prima del papà
           riempi(a + 6, b - 8, { stile: 'casa', tipi: ['muro'], corridoi: 0.1, spazio: 1.35, evita: true });
           break;
         case 'soglia': break;
@@ -340,7 +345,10 @@ export function generaLivello(TRATTI, perc, velocitaIn) {
           compagni(a + 8, b - 14, 3, 'darmonInt');
           break;
         case 'aula-d': break;                // la porta della 3ª B: qui c'è l'evento
-        case 'uscita-d': break;
+        case 'uscita-d':
+          // Prima un tratto libero con il fratello accanto, poi, quando lui entra in classe, gli ostacoli.
+          riempi(a + sz.portaFratello + 12, b - 10, { stile: 'darmonInt', tipi: ['basso', 'alto', 'muro'], corridoi: 0.1, spazio: 1.2 });
+          break;
         case 'piazzale':
           riempi(a + 10, b - 30, { stile: 'darmon', tipi: ['basso', 'alto', 'muro'], corridoi: 0.1, spazio: 1.2 });
           dopo.push(() => compagni(a + 10, b - 30, 3, 'darmon', true));
@@ -353,7 +361,10 @@ export function generaLivello(TRATTI, perc, velocitaIn) {
         const primo = Math.floor(a / 3) * 3;
         for (let q = primo, i = 0; q < b; q += 3, i++) {
           const k = Math.round(q / 3);
-          for (const lato of [-1, 1]) ENTITA.push({ d: q + 1.5, genere: 'parete', lato, idx: k + (lato > 0 ? 1 : 0), mondo: t.indice, stile: t.stile });
+          for (const lato of [-1, 1]) {
+            const spoglia = lato > 0 && sz.portaFratello && Math.abs(q + 1.5 - a - sz.portaFratello) < 3.6;
+            ENTITA.push({ d: q + 1.5, genere: 'parete', lato, idx: k + (lato > 0 ? 1 : 0), mondo: t.indice, stile: t.stile, spoglia });
+          }
           ENTITA.push({ d: q + 1.5, genere: 'soffitto', luce: k % 3 === 0, mondo: t.indice, stile: t.stile });
         }
         if (sz.piano) ENTITA.push({ d: sz.id === 'corridoio' ? a + 5 : b - 6, genere: 'cartello', testo: sz.piano.toUpperCase(), mondo: t.indice, w: 3.4 });

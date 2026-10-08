@@ -39,18 +39,30 @@ function creaDemonio() {
   g.add(blocco(1.35, 1.25, 0.75, rosso, 0, 1.1, 0));
   g.add(blocco(1.0, 0.55, 0.1, scuro, 0, 1.55, -0.4));
   g.add(blocco(1.7, 0.35, 0.8, scuro, 0, 2.15, 0));            // spalle
-  // Braccia alzate, con gli artigli.
+  // Braccia con spalla, gomito e mano artigliata: si alzano durante la trasformazione, poi graffiano l'aria.
   const braccia = [];
   for (const lato of [-1, 1]) {
     const sp = new THREE.Group();
-    sp.position.set(lato * 0.95, 2.2, 0);
-    sp.add(blocco(0.32, 1.2, 0.32, rosso, 0, -1.1, 0));
-    for (let i = -1; i <= 1; i++) {
-      const c = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.35, 5), nero);
-      c.position.set(i * 0.1, 0.0 - 1.25, 0); c.rotation.x = Math.PI; sp.add(c);
+    sp.position.set(lato * 0.88, 2.2, 0);
+    sp.add(blocco(0.5, 0.42, 0.5, scuro, 0, -0.26, 0));                     // spallaccio
+    sp.add(blocco(0.36, 0.72, 0.36, rosso, 0, -0.78, 0));
+    const gomito = new THREE.Group();
+    gomito.position.y = -0.74;
+    gomito.add(blocco(0.31, 0.62, 0.31, rosso, 0, -0.62, 0));
+    gomito.add(blocco(0.36, 0.14, 0.36, nero, 0, -0.56, 0));                // bracciale
+    const mano = new THREE.Group();
+    mano.position.y = -0.62;
+    mano.add(blocco(0.38, 0.3, 0.24, scuro, 0, -0.3, 0));
+    for (let i = 0; i < 4; i++) {
+      const c = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.32, 5), nero);
+      c.position.set(-0.14 + i * 0.093, -0.44, -0.05); c.rotation.x = Math.PI + 0.35; mano.add(c);
     }
+    const pollice = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.26, 5), nero);
+    pollice.position.set(-lato * 0.2, -0.24, -0.08); pollice.rotation.set(Math.PI + 0.6, 0, -lato * 0.7); mano.add(pollice);
+    gomito.add(mano);
+    sp.add(gomito);
     g.add(sp);
-    braccia.push(sp);
+    braccia.push({ sp, gomito, mano, lato });
   }
   // Testa: occhi che brillano, sopracciglia cattive, bocca con i denti, corna.
   const testa = new THREE.Group();
@@ -84,9 +96,21 @@ function creaDemonio() {
   g.add(luce);
   g.userData = {
     luce,
-    anima(t, k) {
+    // su: 0 braccia lungo i fianchi, 1 alzate ad artiglio; insegue: le braccia si allungano in avanti.
+    anima(t, k, su = 1, insegue = false) {
       fiamme.forEach((f, i) => { f.scale.set(1, (0.8 + 0.5 * Math.abs(Math.sin(t * 17 + i * 1.9))) * k, 1); f.position.y = (0.3 + (i % 4) * 0.3) * k; });
-      braccia.forEach((b, i) => { b.rotation.z = (i ? -1 : 1) * (2.3 + Math.sin(t * 9 + i) * 0.25); b.rotation.x = Math.sin(t * 6) * 0.15; });
+      for (const [i, { sp, gomito, mano, lato }] of braccia.entries()) {
+        const graffio = Math.sin(t * 7 + i * Math.PI);
+        if (insegue) {
+          sp.rotation.set(1.35 + graffio * 0.25, 0, lato * 0.45);
+          gomito.rotation.set(0.35 + graffio * 0.2, 0, 0);
+        } else {
+          // Gomiti in fuori e avambracci in su, con gli artigli verso chi guarda.
+          sp.rotation.set((0.45 + graffio * 0.25) * su, 0, lato * (0.15 + 1.45 * su));
+          gomito.rotation.set((0.55 + graffio * 0.35) * su, 0, lato * 0.85 * su);
+        }
+        mano.rotation.x = 0.3 + Math.max(0, graffio) * 0.5;
+      }
       testa.rotation.z = Math.sin(t * 11) * 0.06;
       g.position.y = Math.abs(Math.sin(t * 7)) * 0.05;
     },
@@ -517,6 +541,12 @@ export function creaAulaDarmon() {
       maestro.corpo.position.x = Math.sin(t * 55) * 0.03 * tr;
       maestro.radice.scale.setScalar(SCALA_MAESTRO * (1 + tr * 0.25));
       maestro.testa.rotation.z = Math.sin(t * 40) * 0.05 * tr;
+      // I pugni si stringono e le braccia si sollevano: la trasformazione comincia dalle braccia.
+      for (const [i, b] of maestro.braccia.entries()) {
+        const lato = i ? 1 : -1;
+        b.spalla.rotation.set(tr * 0.5, 0, lato * tr * 0.9 + Math.sin(t * 50 + i) * 0.04 * tr);
+        b.gomito.rotation.set(tr * 1.1, 0, 0);
+      }
     }
     demonio.visible = trasf;
     if (trasf) {
@@ -536,7 +566,7 @@ export function creaAulaDarmon() {
       let dr = verGuardo - demonio.rotation.y; dr = Math.atan2(Math.sin(dr), Math.cos(dr));
       demonio.rotation.y += insegue ? dr * Math.min(1, dt * 4) : dr;
       demonio.scale.setScalar(0.9 * (0.2 + 0.8 * (1 + 2.7 * Math.pow(pop - 1, 3) + 1.7 * Math.pow(pop - 1, 2))));
-      demonio.userData.anima(t, Math.min(1, 0.4 + td));
+      demonio.userData.anima(t, Math.min(1, 0.4 + td), THREE.MathUtils.smoothstep(td, 0.05, 0.7), insegue);
       demonio.userData.luce.intensity = 4 * Math.min(1, td * 3) * (0.85 + 0.15 * Math.sin(t * 25));
       // La stanza si fa rossa e buia.
       const rs = Math.min(1, td * 2);

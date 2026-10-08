@@ -11,7 +11,7 @@
 <link rel="stylesheet" href="gioco.css">
 <script>
 // Se questa pagina arriva dalla cache del browser ed è più vecchia dell'ultima versione, si ricarica da sola.
-(()=>{const V=17;try{fetch('../versione.json?t='+Date.now(),{cache:'no-store'}).then(r=>r.json()).then(d=>{if(d.v!==V){const k='ricarica-'+location.pathname+d.v;if(!sessionStorage.getItem(k)){sessionStorage.setItem(k,1);const u=new URL(location.href);u.searchParams.set('v',d.v);location.replace(u)}}}).catch(()=>{})}catch(e){}})();
+(()=>{const V=18;try{fetch('../versione.json?t='+Date.now(),{cache:'no-store'}).then(r=>r.json()).then(d=>{if(d.v!==V){const k='ricarica-'+location.pathname+d.v;if(!sessionStorage.getItem(k)){sessionStorage.setItem(k,1);const u=new URL(location.href);u.searchParams.set('v',d.v);location.replace(u)}}}).catch(()=>{})}catch(e){}})();
 </script>
 </head>
 <body>
@@ -29,6 +29,7 @@
 </div>
 
 <div id="banner" class="banner" hidden></div>
+<div id="comandi" class="comandi" hidden></div>
 <div id="orologio" class="orologio" hidden></div>
 
 <div id="sipario" class="sipario"></div>
@@ -60,7 +61,7 @@
       <label for="nome">Il tuo nome, per la classifica</label>
       <input id="nome" name="nome" maxlength="24" autocomplete="given-name" required placeholder="Es. Zia Anna">
       <button type="submit" class="primario">Inizia</button>
-      <span class="versione">v17</span>
+      <span class="versione">v18</span>
     </form>
     <button type="button" class="link" data-apri="classifica">Guarda la classifica</button>
   </div>
@@ -101,7 +102,7 @@
 </section>
 
 <!-- Il numero di versione in fondo ai file (?v=) evita che il telefono usi codice vecchio in cache: va cambiato a ogni versione, insieme all'etichetta. -->
-<script type="importmap">{"imports":{"./aula.js":"./aula.js?v=17","./aula-darmon.js":"./aula-darmon.js?v=17","./classifica.js":"./classifica.js?v=17","./config.js":"./config.js?v=17","./livello.js":"./livello.js?v=17","./modelli-liceo.js":"./modelli-liceo.js?v=17","./modelli.js":"./modelli.js?v=17","./mondi.js":"./mondi.js?v=17","./modelli-infanzia.js":"./modelli-infanzia.js?v=17","./volto.js":"./volto.js?v=17","./percorso.js":"./percorso.js?v=17","./lib/three.module.min.js":"./lib/three.module.min.js?v=17"}}</script>
-<script type="module" src="main.js?v=17"></script>
+<script type="importmap">{"imports":{"./aula.js":"./aula.js?v=18","./aula-darmon.js":"./aula-darmon.js?v=18","./classifica.js":"./classifica.js?v=18","./config.js":"./config.js?v=18","./livello.js":"./livello.js?v=18","./modelli-liceo.js":"./modelli-liceo.js?v=18","./modelli.js":"./modelli.js?v=18","./mondi.js":"./mondi.js?v=18","./modelli-infanzia.js":"./modelli-infanzia.js?v=18","./volto.js":"./volto.js?v=18","./percorso.js":"./percorso.js?v=18","./lib/three.module.min.js":"./lib/three.module.min.js?v=18"}}</script>
+<script type="module" src="main.js?v=18"></script>
 </body>
 </html>

@@ -140,6 +140,7 @@ export function creaPareteStile(e) {
   }
   if (e.stile === 'darmon') {
     return parete(e, matDarmon, 4.2, (g, x, e) => {
+      if (e.spoglia) return;          // accanto alla porta della classe del fratello
       const k = Math.abs(e.idx);
       const fuori = -e.lato;          // verso il centro del corridoio
       if (e.lato < 0 && k % 2 === 0) {
@@ -465,8 +466,34 @@ function mucchioGiochi(p, var_) {
   return g;
 }
 
+// Porta aperta di un'aula sul muro di destra: dentro si vede la classe. Ci entra il fratello di Roberto.
+const texClasse = tela(128, 256, (g, W, H) => {
+  g.fillStyle = '#FCEBB0'; g.fillRect(0, 0, W, H);
+  g.fillStyle = '#E7A33F'; g.fillRect(0, H * 0.7, W, H * 0.3);
+  g.fillStyle = '#C9A877'; g.fillRect(0, H * 0.86, W, H * 0.14);
+  g.fillStyle = '#2F5D3A'; g.fillRect(W * 0.18, H * 0.3, W * 0.64, H * 0.24);
+  g.fillStyle = '#8A5A34'; g.fillRect(W * 0.12, H * 0.74, W * 0.5, 10); g.fillRect(W * 0.16, H * 0.74, 6, H * 0.14);
+  for (const [x, c] of [[0.2, '#E0533F'], [0.42, '#3A7CC4'], [0.64, '#F2C14E']]) { g.fillStyle = c; g.fillRect(W * x, H * 0.12, 18, 18); }
+});
+function portaClasse() {
+  const g = new THREE.Group();
+  const x = 0.665;                            // il filo del muro (4,25 m dal centro)
+  const vano = new THREE.Mesh(new THREE.PlaneGeometry(1.3, 2.55), new THREE.MeshBasicMaterial({ map: texClasse }));
+  vano.rotation.y = -Math.PI / 2; vano.position.set(x, 1.275, 0); g.add(vano);
+  for (const z of [-0.71, 0.71]) g.add(blocco(0.12, 2.68, 0.12, 0x6B4A2E, x - 0.02, 0, z));
+  g.add(blocco(0.12, 0.12, 1.54, 0x6B4A2E, x - 0.02, 2.6, 0));
+  // L'anta è aperta verso il corridoio, appoggiata in avanti.
+  const anta = new THREE.Group();
+  anta.position.set(x - 0.04, 0, -0.66);
+  anta.add(blocco(1.2, 2.5, 0.07, 0xA6774A, -0.6, 0, 0));
+  anta.add(blocco(0.45, 0.6, 0.08, 0xDCE9F0, -0.6, 1.6, 0));
+  anta.rotation.y = -0.35;
+  g.add(anta);
+  return g;
+}
+
 const ARREDI = {
-  giochiSparsi,
+  giochiSparsi, portaClasse,
   culla, tappeto, lampada, pianta, libreria, tv, divano: divanoArredo, cassapanca, appendiabiti, scarpiera,
   frigo, bancone, tavolo: tavoloArredo, seggiolone, panchina, aiuola, scivolo, altalena, canestro, giostra,
   armadietto, palloncini,
@@ -971,6 +998,54 @@ export function creaBonus(stile) {
 }
 
 export const ICONA_BONUS = { casa: '🍼', darmon: '🥪' };
+
+// ---------------------------------------------------------------------------
+// Il fratello di Roberto: più piccolo, magro, capelli neri corti, con il suo creeper di peluche
+// ---------------------------------------------------------------------------
+
+const texCreeper = tela(64, 64, (g, W) => {
+  const p = W / 8;
+  for (let i = 0; i < 8; i++) for (let j = 0; j < 8; j++) {
+    g.fillStyle = ['#5DAE3B', '#4C9A30', '#73C04F', '#3F8A28'][(i * 5 + j * 3) % 4]; g.fillRect(i * p, j * p, p, p);
+  }
+});
+const texCreeperFaccia = tela(64, 64, (g, W) => {
+  g.drawImage(texCreeper.image, 0, 0);
+  const p = W / 8;
+  g.fillStyle = '#111';
+  g.fillRect(1 * p, 2 * p, 2 * p, 2 * p); g.fillRect(5 * p, 2 * p, 2 * p, 2 * p);     // occhi
+  g.fillRect(3 * p, 4 * p, 2 * p, 3 * p); g.fillRect(2 * p, 5 * p, 1 * p, 3 * p); g.fillRect(5 * p, 5 * p, 1 * p, 3 * p);
+});
+export function creaCreeper() {
+  const g = new THREE.Group();
+  const pelo = new THREE.MeshLambertMaterial({ map: texCreeper });
+  const faccia = new THREE.MeshLambertMaterial({ map: texCreeperFaccia });
+  g.add(blocco(0.16, 0.26, 0.11, pelo, 0, 0.1, 0));
+  const testa = new THREE.Mesh(CUBO, [pelo, pelo, pelo, pelo, pelo, faccia]);
+  testa.scale.setScalar(0.2); testa.position.y = 0.46; g.add(testa);
+  for (const x of [-0.05, 0.05]) for (const z of [-0.045, 0.045]) g.add(blocco(0.07, 0.1, 0.07, pelo, x, 0, z));
+  return g;
+}
+
+export function creaFratello() {
+  const p = creaPersona({
+    pelle: 0xB97A50, capelli: 0x120D0A, maglia: 0x233A73, pantaloni: 0x3A3F52, scarpe: 0xF2F2F2,
+    corpulenza: 0.84, conZaino: false,
+  });
+  // Colletto bianco e fiocco del grembiule, come Roberto; testa un po' grande da bambino.
+  p.superiore.add(blocco(0.4, 0.08, 0.18, 0xFFFFFF, 0, 1.74, -0.08));
+  p.superiore.add(blocco(0.2, 0.1, 0.05, 0xE3B23C, 0, 1.6, -0.17));
+  p.testa.scale.setScalar(1.12);
+  // Gambe corte da bambino (come Roberto a 8 anni).
+  p.dim = { ...p.dim, gambe: 0.84, busto: 1 };
+  for (const { anca } of p.gambe) { anca.scale.set(0.9, 0.84, 0.9); anca.position.y = 0.84; }
+  p.superiore.position.y = 0.84 - 1;
+  const creeper = creaCreeper();
+  creeper.position.set(0, -0.62, -0.1);
+  creeper.rotation.x = -1.2;          // in mano, con la faccia verso l'avanti
+  p.braccia[1].gomito.add(creeper);
+  return p;
+}
 
 // ---------------------------------------------------------------------------
 // La facciata dell'Istituto Darmon, vista da lontano e da vicino

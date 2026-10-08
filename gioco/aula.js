@@ -19,8 +19,9 @@ const COL_Z = [-2.5, 0.0, 2.5];
 const ULTIMA_Z = [-0.95, 0.0, 0.95];   // l'ultimo banco è unico, da tre posti
 const sedia = (f, c) => new THREE.Vector3(FILE_X[f] - 0.7, 0, f === 3 ? ULTIMA_Z[c] : COL_Z[c]);
 
-export function fumetto(testo, colore = '#ffffff', inchiostro = '#1C1D2B', larghezza = 1.1) {
-  const tex = tela(256, 128, (g, W, H) => {
+// `largo` allarga il fumetto (per le frasi lunghe) senza schiacciare il testo.
+export function fumetto(testo, colore = '#ffffff', inchiostro = '#1C1D2B', larghezza = 1.1, largo = 1) {
+  const tex = tela(Math.round(256 * largo), 128, (g, W, H) => {
     g.fillStyle = colore;
     g.beginPath(); if (g.roundRect) g.roundRect(8, 8, W - 16, H - 36, 26); else g.rect(8, 8, W - 16, H - 36); g.fill();
     g.beginPath(); g.moveTo(W / 2 - 14, H - 30); g.lineTo(W / 2, H - 6); g.lineTo(W / 2 + 14, H - 30); g.fill();
@@ -29,7 +30,7 @@ export function fumetto(testo, colore = '#ffffff', inchiostro = '#1C1D2B', largh
     g.fillText(testo, W / 2, (H - 28) / 2 + 6, W - 40);
   });
   const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }));
-  s.scale.set(larghezza, larghezza / 2, 1);
+  s.scale.set(larghezza, larghezza / (2 * largo), 1);
   s.visible = false;
   return s;
 }

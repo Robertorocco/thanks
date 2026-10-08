@@ -138,6 +138,27 @@ button { cursor: pointer; }
 .classifica .vuota { display: block; color: var(--muted); text-align: center; }
 .classifica .vuota::before { content: none; }
 .banner.in-basso { top: auto; bottom: max(80px, 14vh); }
+
+/* I comandi, a schermo per i primi secondi di corsa (si possono provare intanto). */
+.comandi {
+  position: fixed; left: 16px; right: 16px; bottom: max(16px, 2.5vh); margin: 0 auto; max-width: 340px;
+  padding: 9px 12px 10px; border-radius: 16px; pointer-events: none;
+  background: rgba(28,29,43,.8); color: #fff; box-shadow: 0 8px 24px rgba(0,0,0,.25);
+  animation: comandi-entra .35s ease-out;
+}
+.comandi[hidden] { display: none; }
+.comandi h3 { margin: 0 0 6px; font: 500 12px var(--mono); letter-spacing: .08em; text-transform: uppercase; opacity: .8; }
+.comandi ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.comandi li { display: grid; grid-template-columns: 40px 1fr; align-items: center; gap: 10px; font-size: 14px; line-height: 1.2; }
+.comandi .gesto {
+  display: grid; place-items: center; height: 26px; border-radius: 8px;
+  background: rgba(255,255,255,.16); font: 700 16px var(--mono);
+}
+.comandi li small { font-size: 12px; opacity: .7; }
+.comandi li small::before { content: ' · '; }
+.comandi .resta { height: 3px; margin-top: 8px; border-radius: 2px; background: rgba(255,255,255,.25); overflow: hidden; }
+.comandi .resta div { height: 100%; width: 100%; background: var(--tuff, #F2C14E); transform-origin: left; }
+@keyframes comandi-entra { from { opacity: 0; transform: translateY(12px); } }
 .versione { justify-self: center; font: 11px var(--mono); color: var(--muted); }
 
 /* Orologio del mondo del liceo */

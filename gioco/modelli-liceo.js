@@ -558,6 +558,29 @@ export function creaSegnaleSalita(lato, testo = '15%') {
 }
 
 // L'amico biondo riccio che esce da scuola insieme a Roberto.
+// Il motorino dell'amico, parcheggiato sul marciapiede: guarda avanti (-z).
+export function creaMotorino() {
+  const g = new THREE.Group();
+  const carena = 0xD8352A, nero = 0x1C1D2B, grigio = 0x9AA3AD;
+  const ruota = z => {
+    const r = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.12, 14), new THREE.MeshLambertMaterial({ color: nero }));
+    r.rotation.z = Math.PI / 2; r.position.set(0, 0.24, z); r.castShadow = true; g.add(r);
+    g.add(blocco(0.13, 0.08, 0.08, grigio, 0, 0.2, z));
+  };
+  ruota(-0.62); ruota(0.6);
+  g.add(blocco(0.36, 0.1, 0.8, nero, 0, 0.3, 0.05));                 // pedana
+  g.add(blocco(0.5, 0.42, 0.62, carena, 0, 0.36, 0.42));             // scocca dietro
+  g.add(blocco(0.4, 0.14, 0.62, nero, 0, 0.78, 0.36));               // sella
+  g.add(blocco(0.46, 0.75, 0.12, carena, 0, 0.3, -0.42));            // scudo davanti
+  g.add(blocco(0.22, 0.5, 0.2, carena, 0, 0.42, -0.58));             // parafango
+  g.add(blocco(0.08, 0.5, 0.08, grigio, 0, 0.98, -0.46));            // piantone
+  g.add(blocco(0.72, 0.07, 0.07, nero, 0, 1.46, -0.46));             // manubrio
+  g.add(blocco(0.2, 0.14, 0.1, 0xF7F4E6, 0, 1.3, -0.52));            // faro
+  for (const x of [-0.3, 0.3]) g.add(blocco(0.02, 0.18, 0.02, grigio, x, 1.5, -0.46));
+  g.add(blocco(0.03, 0.42, 0.03, grigio, 0.18, 0.0, 0.0));           // cavalletto
+  return g;
+}
+
 export function creaAmico() {
   const p = creaPersona({
     pelle: 0xEBC4A0, capelli: 0xD9B55A, acconciatura: 'ricci', maglia: 0xE8D9B0, pantaloni: 0x34495E,
