@@ -5,7 +5,7 @@
 
 import * as THREE from './lib/three.module.min.js';
 import {
-  blocco, cilindro, sfera, tela, esa, scritta, OSTACOLI, creaPersona, posaCorsa, posaSeduto, creaCaffe, CUBO,
+  blocco, cilindro, sfera, tela, esa, scritta, OSTACOLI, creaPersona, posaCorsa, creaCaffe, CUBO,
 } from './modelli.js';
 import { creaParete, creaSoffitto, creaAuto } from './modelli-liceo.js';
 import { fumetto } from './aula.js';
@@ -382,7 +382,51 @@ function palloncini(e) {
   return g;
 }
 
+// Giocattoli lasciati per terra lungo il muro: cubi, palla, trenino, paperella sparsi.
+function giochiSparsi(e) {
+  const g = new THREE.Group();
+  const v = e.var ?? 0;
+  for (let i = 0; i < 4; i++) {
+    const t = giocattolo(v + i);
+    t.position.set(((i * 37 + v * 13) % 9 - 4) * 0.12, 0, -1.4 + i * 0.95 + ((v + i) % 3) * 0.15);
+    t.rotation.y = (v * 1.7 + i * 2.3) % (Math.PI * 2);
+    g.add(t);
+  }
+  return g;
+}
+
+// Mucchio di giocattoli che occupa una corsia: la cassa rovesciata e tutto quello che ne è uscito.
+function mucchioGiochi(p, var_) {
+  const g = new THREE.Group();
+  const lungo = Math.max(1.2, p);
+  // La cassa dei giochi rovesciata su un fianco, con il coperchio aperto.
+  const cassa = new THREE.Group();
+  cassa.add(blocco(1.2, 0.75, 0.8, PALETTE[(var_ + 1) % PALETTE.length], 0, 0));
+  cassa.add(blocco(1.24, 0.08, 0.84, 0xF2C14E, 0, 0.75));
+  cassa.rotation.y = (var_ % 2 ? 0.35 : -0.35);
+  cassa.position.set(var_ % 2 ? 0.25 : -0.25, 0, -lungo / 2 + 0.5);
+  g.add(cassa);
+  // Giocattoli sparsi intorno e dietro.
+  const n = 3 + Math.round(lungo * 1.5);
+  for (let i = 0; i < n; i++) {
+    const t = giocattolo(var_ + i);
+    t.scale.setScalar(1.25);
+    t.position.set(((i * 53 + var_ * 7) % 11 - 5) * 0.13, 0, -lungo / 2 + 0.2 + (i + 0.5) * (lungo / n));
+    t.rotation.y = i * 1.9 + var_;
+    g.add(t);
+  }
+  // Un orsacchiotto seduto in cima al mucchio.
+  const orso = new THREE.Group();
+  orso.add(sfera(0.22, S(0xA8743F), 0, 0.22, 0)); orso.add(sfera(0.16, S(0xA8743F), 0, 0.55, 0));
+  for (const x of [-0.11, 0.11]) orso.add(sfera(0.06, S(0x8C5E34), x, 0.68, 0));
+  orso.add(sfera(0.06, S(0xF0DDB8), 0, 0.52, -0.14));
+  orso.position.set(cassa.position.x, 0.8, cassa.position.z);
+  g.add(orso);
+  return g;
+}
+
 const ARREDI = {
+  giochiSparsi,
   culla, tappeto, lampada, pianta, libreria, tv, divano: divanoArredo, cassapanca, appendiabiti, scarpiera,
   frigo, bancone, tavolo: tavoloArredo, seggiolone, panchina, aiuola, scivolo, altalena, canestro, giostra,
   armadietto, palloncini,
@@ -533,21 +577,50 @@ export function creaFamigliare(nome, via = false, seme = 0) {
 
 const ALTEZZA_LANCIO = 0.7;
 
+// L'urlo della mamma che vola verso di te: uno scoppio a fumetto con la scritta, la bocca che urla
+// e le onde del suono dietro.
+let texUrlo = null;
+function disegnaUrlo() {
+  texUrlo ??= tela(512, 512, (g, W, H) => {
+    g.clearRect(0, 0, W, H);
+    const punte = (r1, r2, n, colore) => {
+      g.fillStyle = colore; g.beginPath();
+      for (let i = 0; i <= n * 2; i++) {
+        const a = (i / (n * 2)) * Math.PI * 2 - Math.PI / 2, r = i % 2 ? r2 : r1 * (0.92 + 0.08 * ((i * 7) % 3));
+        const x = W / 2 + Math.cos(a) * r, y = H / 2 + Math.sin(a) * r * 0.82;
+        if (i === 0) g.moveTo(x, y); else g.lineTo(x, y);
+      }
+      g.closePath(); g.fill();
+    };
+    punte(250, 175, 14, '#B3202A');
+    punte(228, 160, 14, '#FFD23F');
+    punte(180, 130, 14, '#FF5A3C');
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.lineJoin = 'round';
+    g.font = '900 104px "Bricolage Grotesque", Arial Black, sans-serif';
+    g.lineWidth = 18; g.strokeStyle = '#1C1D2B'; g.strokeText('ORDINE!', W / 2, H / 2 - 4);
+    g.fillStyle = '#FFFFFF'; g.fillText('ORDINE!', W / 2, H / 2 - 4);
+  });
+  return texUrlo;
+}
+
 function voce() {
   const g = new THREE.Group();
-  const scritta = fumetto('METTI IN ORDINE!', '#FF5A3C', '#FFFFFF', 2.2);
-  scritta.visible = true; scritta.position.y = ALTEZZA_LANCIO + 0.75;
-  g.add(scritta);
-  // Onde sonore: anelli che pulsano davanti alla scritta.
-  const anelli = [0, 1, 2].map(i => {
-    const m = new THREE.Mesh(new THREE.TorusGeometry(0.35 + i * 0.22, 0.05, 6, 24), new THREE.MeshBasicMaterial({ color: [0xFF5A3C, 0xFF9A3C, 0xFFD23F][i], transparent: true, opacity: 0.85 }));
-    m.position.set(0, ALTEZZA_LANCIO, -0.1 * i);
+  const scoppio = new THREE.Sprite(new THREE.SpriteMaterial({ map: disegnaUrlo(), transparent: true, depthWrite: false }));
+  scoppio.position.y = ALTEZZA_LANCIO + 0.55;
+  g.add(scoppio);
+  // Onde sonore: archi che si allargano dietro lo scoppio, nel verso del volo.
+  const archi = [0, 1, 2].map(i => {
+    const m = new THREE.Mesh(new THREE.TorusGeometry(0.5 + i * 0.25, 0.06, 6, 20, Math.PI), new THREE.MeshBasicMaterial({ color: [0xFF5A3C, 0xFF9A3C, 0xFFD23F][i], transparent: true, opacity: 0.9 }));
+    m.position.set(0, ALTEZZA_LANCIO + 0.55, -0.35 - i * 0.35);
     g.add(m);
     return m;
   });
   g.userData.anima = t => {
-    anelli.forEach((a, i) => { const k = 1 + 0.25 * Math.sin(t * 16 - i * 1.2); a.scale.set(k, k, 1); });
-    scritta.scale.set(2.2 * (1 + 0.06 * Math.sin(t * 20)), 1.1 * (1 + 0.06 * Math.sin(t * 20)), 1);
+    const k = 1 + 0.08 * Math.sin(t * 24);
+    scoppio.scale.set(2.3 * k, 2.3 * k, 1);
+    scoppio.material.rotation = Math.sin(t * 9) * 0.12;
+    archi.forEach((a, i) => { const q = 1 + 0.3 * ((t * 3 + i / 3) % 1); a.scale.set(q, q, 1); a.material.opacity = 0.9 * (1 - ((t * 3 + i / 3) % 1)); });
   };
   return g;
 }
@@ -589,7 +662,9 @@ export function creaLanciatore(e) {
   } else {
     // Papà seduto sul divano, joystick in mano, gli occhi sulla TV dall'altra parte.
     p.radice.position.x = e.lato * 3.45;
-    posaSeduto(p, 0.3);
+    // Seduto con le cosce in avanti (verso il centro della corsia) e le gambe giù.
+    for (const { anca, ginocchio } of p.gambe) { anca.rotation.x = Math.PI / 2; ginocchio.rotation.x = -Math.PI / 2; }
+    p.corpo.position.y = -0.3;
     manina = joystick(0.9);
     manina.position.set(0, 1.25, -0.45);
     p.superiore.add(manina);
@@ -603,7 +678,7 @@ export function creaLanciatore(e) {
       const urla = lanciato && tl < 1.2 ? 1 : THREE.MathUtils.smoothstep(26 - vicino, 0, 10) * 0.4;
       for (const [i, b] of p.braccia.entries()) {
         const s = i ? 1 : -1;
-        b.spalla.rotation.set(-1.4 * urla, 0, s * (0.6 - 0.4 * urla));
+        b.spalla.rotation.set(1.4 * urla, 0, s * (0.6 - 0.4 * urla));
         b.gomito.rotation.set(-1.6 * (1 - urla), 0, 0);
       }
       p.superiore.rotation.x = -0.25 * urla;
@@ -613,15 +688,20 @@ export function creaLanciatore(e) {
     } else {
       // Gioca: pollici che si muovono; poi il lancio con il braccio destro.
       manina.visible = !lanciato;
-      for (const b of p.braccia) { b.spalla.rotation.set(-1.0, 0, 0); b.gomito.rotation.set(-0.8, 0, 0); }
+      // Braccia in avanti, mani sul joystick (rotazione x positiva = in avanti).
+      for (const [i, b] of p.braccia.entries()) { b.spalla.rotation.set(0.75, 0, (i ? -1 : 1) * 0.3); b.gomito.rotation.set(0.9, 0, 0); }
       manina.rotation.z = Math.sin(t * 14) * 0.08;
       p.testa.rotation.set(0, 0, 0);
-      if (lanciato && tl < 0.8) {
-        const k = tl / 0.8;
+      if (lanciato && tl < 0.9) {
+        // Carica il braccio sopra la testa, lancia in avanti verso la corsia, poi torna a giocare.
         const b = p.braccia[1];
-        b.spalla.rotation.x = k < 0.35 ? -1.0 - 1.9 * (k / 0.35) : -2.9 + 3.3 * ((k - 0.35) / 0.65);
-        b.gomito.rotation.x = -0.3;
-      }
+        const S = THREE.MathUtils.smoothstep;
+        const carica = S(tl, 0, 0.3), tiro = S(tl, 0.3, 0.45), ritorno = S(tl, 0.6, 0.9);
+        const alza = 0.75 + 2.25 * carica - 1.5 * tiro;            // sopra la testa, poi giù in avanti (1,5)
+        b.spalla.rotation.set(THREE.MathUtils.lerp(alza, 0.75, ritorno), 0, -0.3 * (1 - carica + ritorno));
+        b.gomito.rotation.x = 0.9 + 0.6 * carica - 1.4 * tiro + 0.8 * ritorno;
+        p.superiore.rotation.x = -0.15 * tiro * (1 - ritorno);
+      } else p.superiore.rotation.x = 0;
       if (!lanciato) p.testa.rotation.y = Math.sin(t * 2.5) * 0.08;
     }
   };
@@ -632,7 +712,7 @@ OSTACOLI.casa = {
   proprio: true,
   basso: (p, e) => giocattolo(e.var ?? 0),
   alto: (p, e) => tavolino(e.var ?? 0),
-  muro: (p, e) => mobileCasa(p, e),
+  muro: (p, e) => (e.giochi ? mucchioGiochi(p, e.var ?? 0) : mobileCasa(p, e)),
   persona: (p, e) => creaFamigliare(e.membro ?? 'mamma', e.via, e.var ?? 0),
   lancio: (p, e) => (e.oggetto === 'voce' ? voce() : proiettileJoystick()),
 };

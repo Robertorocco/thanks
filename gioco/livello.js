@@ -201,6 +201,8 @@ export function generaLivello(TRATTI, perc, velocitaIn) {
         case 'corridoio-c':
           metti('appendiabiti', 1, a + 8); metti('scarpiera', -1, a + 15); metti('pianta', 1, a + 24);
           metti('lampada', -1, a + 31); metti('cassapanca', 1, a + 38); metti('pianta', -1, a + 44);
+          // Giocattoli sparsi lungo i muri (non si urtano: sono fuori dalle corsie).
+          for (const [lato, q] of [[1, 4], [-1, 9], [1, 13], [-1, 24], [1, 19], [-1, 29], [1, 33], [-1, 39], [1, 43]]) metti('giochiSparsi', lato, a + q);
           break;
         case 'cucina':
           metti('frigo', 1, a + 8); metti('bancone', 1, a + 17); metti('tavolo', -1, a + 24);
@@ -303,14 +305,17 @@ export function generaLivello(TRATTI, perc, velocitaIn) {
         case 'curva-c2':
           riempi(a + 2, b - 2, { stile: 'casa', tipi: ['muro'], barriere: false, corridoi: false, spazio: 1.9, evita: true });
           break;
-        case 'corridoio-c':
+        case 'corridoio-c': {
+          // L'unica volta che la mamma urla: il corridoio è pieno di giocattoli da mettere in ordine.
           lancia(a + 20, 'mamma', -1);
           compagni(a + 30, b + 8, 1, 'casa', false, ['nonna']);
-          riempi(a + 4, b - 4, { stile: 'casa', tipi: ['muro'], corridoi: 0.1, spazio: 1.35, evita: true });
+          const primo = ENTITA.length;
+          riempi(a + 3, b - 4, { stile: 'casa', tipi: ['muro'], corridoi: 0.1, spazio: 1.1, evita: true });
+          for (let i = primo; i < ENTITA.length; i++) if (ENTITA[i].genere === 'ostacolo') ENTITA[i].giochi = true;
           break;
+        }
         case 'cucina':
           lancia(a + 12, 'papa', -1);
-          lancia(a + 37, 'mamma', 1);
           riempi(a + 6, b - 8, { stile: 'casa', tipi: ['muro'], corridoi: 0.1, spazio: 1.35, evita: true });
           break;
         case 'soglia': break;

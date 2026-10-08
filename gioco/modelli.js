@@ -721,22 +721,29 @@ export function creaPersona(o = {}) {
   }
   function braccio(x) {
     const spalla = new THREE.Group();
-    spalla.position.set(x, 1.66, 0);
+    spalla.position.set(x * corpo_x, 1.66, 0);
+    if (corpo_x !== 1) spalla.scale.setScalar(1 + (corpo_x - 1) * 0.6);   // braccia un po' più robuste
     spalla.add(blocco(0.17, 0.34, 0.18, matMaglia, 0, -0.34));
     const gomito = new THREE.Group();
     gomito.position.y = -0.34;
     gomito.add(blocco(0.14, 0.3, 0.15, matPolsi, 0, -0.3));
     gomito.add(blocco(0.15, 0.12, 0.15, matPelle, 0, -0.4));
     spalla.add(gomito);
-    superiore.add(spalla);
+    attacco.add(spalla);
     return { spalla, gomito };
   }
 
-  // Corporatura robusta: busto più largo e profondo (la testa resta com'è).
+  // Corporatura robusta: busto più largo e profondo. Testa e braccia stanno in `attacco`, che annulla
+  // l'allargamento: così ruotano senza deformarsi (una scala non uniforme storcerebbe le braccia).
+  let attacco = superiore, corpo_x = 1;
   if (o.corpulenza && o.corpulenza !== 1) {
     const c = o.corpulenza, cz = 1 + (c - 1) * 0.8;
     superiore.scale.set(c, 1, cz);
-    testa.scale.set(1 / c, 1, 1 / cz);
+    attacco = new THREE.Group();
+    attacco.scale.set(1 / c, 1, 1 / cz);
+    superiore.add(attacco);
+    superiore.remove(testa); attacco.add(testa);
+    corpo_x = c;
   }
   // Abito elegante: camicia bianca e cravatta sul davanti.
   if (o.abito === 'elegante') {
