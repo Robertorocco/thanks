@@ -1229,6 +1229,7 @@ scena.add(fratello.radice);
 const SEZ_USCITA_D = TRATTI[DARMON].sezioni.find(s => s.id === 'uscita-d');
 const FRATELLO_INIZIO = EVENTO[DARMON].porta + 0.6;
 const FRATELLO_PORTA = SEZ_USCITA_D.inizio + SEZ_USCITA_D.portaFratello;
+const FRATELLO_MOSTRA = 28;                       // metri in cui si fa vedere bene, con il creeper alzato
 const FRATELLO_GIRA = FRATELLO_PORTA - 17;       // da qui corre avanti verso la porta (che si vede ancora)
 const bollaDoveVai = fumetto('Dove vai?', '#FFFFFF', '#1C1D2B', 1.25);
 scena.add(bollaDoveVai);
@@ -1241,6 +1242,7 @@ function aggiornaFratello(dt) {
     && (G.stato === 'gioco' || G.stato === 'caduto' || G.stato === 'aulaRientro' || G.stato === 'pausa');
   fratello.radice.visible = attivo;
   bollaDoveVai.visible = false;
+  G.zoomFratello = 0;
   if (fr.domanda > 0 && G.stato === 'gioco') {
     // Roberto chiede "Dove vai?" mentre il fratello sparisce in classe.
     fr.domanda -= dt;
@@ -1251,20 +1253,25 @@ function aggiornaFratello(dt) {
   }
   if (!attivo) return;
 
-  let d, x, sterza = 0;
+  let d, x, sterza = 0, mostra = 0;
   azzeraPosa(fratello);
   if (G.pos < FRATELLO_GIRA) {
     // Accanto a Roberto, dal lato della porta (a destra), a sinistra se Roberto è già nella corsia di destra.
     const bersaglio = G.x < 1 ? G.x + 1.0 : G.x - 1.0;
     if (!fr.avviato) { fr.x = bersaglio; fr.avviato = true; }
     fr.x += (bersaglio - fr.x) * Math.min(1, dt * 6);
-    x = fr.x;
-    d = G.pos - 0.2 - Math.min(1, Math.abs(bersaglio - fr.x) / 1.2);
+    // All'inizio si presenta: un po' più avanti, girato verso di noi, con il creeper alzato in mano.
+    const pr = G.pos - FRATELLO_INIZIO;
+    mostra = 1 - THREE.MathUtils.smoothstep(pr, FRATELLO_MOSTRA, FRATELLO_MOSTRA + 7);
+    G.zoomFratello = THREE.MathUtils.smoothstep(pr, 0, 3) * mostra;
+    x = THREE.MathUtils.lerp(fr.x, G.x + Math.sign(bersaglio - G.x) * 0.85, mostra);
+    d = G.pos - 0.2 - Math.min(1, Math.abs(bersaglio - fr.x) / 1.2) + 2.6 * mostra;
     fr.d0 = d; fr.x0 = x;
-    posaCorsa(fratello, G.passo + 0.7, 0.75);
-    fratello.testa.rotation.y = -Math.sign(x - G.x) * 0.35 * (0.5 + 0.5 * Math.sin(G.tempo * 1.7));
+    posaCorsa(fratello, G.passo + 0.7, 0.75 - 0.35 * mostra);
+    fratello.testa.rotation.y = -Math.sign(x - G.x) * 0.35 * (0.5 + 0.5 * Math.sin(G.tempo * 1.7)) * (1 - mostra);
+    // Girato verso la camera (dietro Roberto), di tre quarti.
+    sterza = -mostra * (Math.PI - Math.sign(x - G.x) * 0.45);
   } else {
-    // Rallenta e piega verso la porta; quando la raggiunge entra in classe.
     // Scatta avanti (più veloce di Roberto) e piega verso la porta, così si vede entrare in classe.
     const u = Math.min(1, (G.pos - FRATELLO_GIRA) * 2.3 / Math.hypot(FRATELLO_PORTA - fr.d0, 4.6 - fr.x0));
     d = fr.d0 + (FRATELLO_PORTA - fr.d0) * (1 - (1 - u) * (1 - u) * 0.6 - 0.4 * (1 - u));
@@ -1275,9 +1282,13 @@ function aggiornaFratello(dt) {
     if (fr.domanda === 0 && u > 0.3) fr.domanda = 2.4;
     if (x > 4.15) { fr.dentro = true; fratello.radice.visible = false; return; }
   }
-  // Il creeper resta in mano, tenuto davanti.
-  fratello.braccia[1].spalla.rotation.set(0.4, 0, 0.35);
-  fratello.braccia[1].gomito.rotation.set(1.1, 0, 0);
+  // Il creeper resta in mano: tenuto davanti mentre corre, alzato sopra la spalla quando lo fa vedere.
+  const [sx, gx] = [THREE.MathUtils.lerp(0.4, 2.3, mostra), THREE.MathUtils.lerp(1.1, 0.5, mostra)];
+  fratello.braccia[1].spalla.rotation.set(sx, 0, THREE.MathUtils.lerp(0.35, 0.25, mostra));
+  fratello.braccia[1].gomito.rotation.set(gx, 0, 0);
+  fratello.creeper.rotation.set(-(sx + gx), 0, 0);
+  // L'altra mano saluta.
+  if (mostra > 0.05) fratello.braccia[0].spalla.rotation.set(0, 0, -(2.4 + Math.sin(G.tempo * 9) * 0.3) * mostra);
   perc.punto(d, tmp);
   const c = Math.cos(tmp.psi), s = Math.sin(tmp.psi);
   fratello.radice.position.set(tmp.x + c * x, tmp.h, tmp.z + s * x);
@@ -1445,8 +1456,9 @@ function aggiornaCamera(dt) {
   for (const k of ['indietro', 'alto', 'guarda', 'fov', 'segue']) camP[k] += (cam[k] - camP[k]) * dolce;
   const kAula = avvicinamentoAula();
   const kInt = perc.quantoInterno(G.pos, 6);
-  const indietro = camP.indietro * THREE.MathUtils.lerp(1, 0.84, kInt) - 2.4 * kAula;
-  const alto = camP.alto * THREE.MathUtils.lerp(1, 0.88, kInt) - 1.2 * kAula;
+  const kFr = G.zoomFratello ?? 0;      // si avvicina quando il fratello mostra il creeper
+  const indietro = camP.indietro * THREE.MathUtils.lerp(1, 0.84, kInt) - 2.4 * kAula - 1.6 * kFr;
+  const alto = camP.alto * THREE.MathUtils.lerp(1, 0.88, kInt) - 1.2 * kAula - 0.7 * kFr;
   const lat = G.x * camP.segue;
 
   perc.punto(G.pos - indietro, tmp);
@@ -1459,7 +1471,7 @@ function aggiornaCamera(dt) {
   guarda.set(tmp.x + Math.cos(tmp.psi) * lat, hMira + camP.guarda + 0.25 * kAula, tmp.z + Math.sin(tmp.psi) * lat);
   camera.lookAt(guarda);
 
-  const fov = fovBase * camP.fov * (1 - 0.22 * kAula);
+  const fov = fovBase * camP.fov * (1 - 0.22 * kAula - 0.12 * kFr);
   if (Math.abs(camera.fov - fov) > 0.01) { camera.fov = fov; camera.updateProjectionMatrix(); }
 }
 

@@ -3,7 +3,7 @@
 // barba piena e baffi. Il viso si ridisegna per ogni espressione; le espressioni si cambiano con
 // `imposta('sorriso')` e l'ammiccamento è automatico (`aggiorna`).
 //
-// Si adatta all'età: neonato (niente barba, pochi capelli, occhioni), bimbo (niente barba, ricci corti),
+// Si adatta all'età: neonato (niente barba, pochi capelli, occhioni), bimbo (niente barba, capelli corti quasi lisci),
 // adulto (barba e riccioli folti).
 
 import * as THREE from './lib/three.module.min.js';
@@ -13,7 +13,8 @@ const esa = n => '#' + n.toString(16).padStart(6, '0');
 
 export const ETA_VOLTO = {
   neonato: { pelle: 0xD9A27C, guance: 'rgba(235,110,100,.35)', barba: 0, occhi: 1.28, sopracciglia: 0.55, naso: 0.7, riccioli: 9, ricciolo: 0.06, capelli: 0x2A1A10 },
-  bimbo:   { pelle: 0xD29468, guance: 'rgba(225,105,90,.3)', barba: 0, occhi: 1.2, sopracciglia: 0.6, naso: 0.62, riccioli: 46, ricciolo: 0.066, capelli: 0x1B1009, cranio: [0.47, 0.46, 0.45], frangia: 0.8 },
+  // A scuola Roberto aveva pochi ricci: capelli neri corti, quasi rasati (`corti`).
+  bimbo:   { pelle: 0xD29468, guance: 'rgba(225,105,90,.3)', barba: 0, occhi: 1.2, sopracciglia: 0.6, naso: 0.62, riccioli: 150, ricciolo: 0.04, capelli: 0x141010, cranio: [0.47, 0.46, 0.45], corti: true },
   adulto:  { pelle: 0xC48A62, guance: 'rgba(205,95,80,.18)', barba: 0.2, occhi: 1.0, sopracciglia: 1.0, naso: 1.0, riccioli: 46, ricciolo: 0.105, capelli: 0x17100A },
 };
 const BARBA = '#2E1D13';
@@ -82,6 +83,8 @@ function disegnaFaccia(eta, espr, chiuso) {
   const ric = 9;
   for (let i = ric; i >= 0; i--) {
     const x = (W * i) / ric;
+    // Capelli corti: attaccatura quasi dritta, appena arrotondata sulle tempie.
+    if (P.corti) { g.lineTo(x, W * (0.1 + 0.04 * Math.pow(Math.abs(i / ric - 0.5) * 2, 3))); continue; }
     g.quadraticCurveTo(x + W / ric * 0.5, W * (0.13 + (i % 2) * 0.05), x, W * 0.09 + (i % 3) * 4);
   }
   g.closePath(); g.fill();
@@ -332,15 +335,22 @@ export function creaTestaRoberto(eta = 'adulto') {
     // Davanti (z < 0) restano solo la fascia alta, per lasciare libero il viso; ai lati sopra l'orecchio.
     if (z < -0.15 && y < 0.72) continue;
     if (Math.abs(x) > 0.6 && y < 0.2) continue;
+    if (P.corti && Math.abs(x) > 0.5 && y < 0.38 && z < 0.3) continue;   // basette corte, orecchie libere
     const raggio = P.ricciolo * (0.85 + r() * 0.35);
     const m = new THREE.Mesh(GEO_RICCIOLO, i % 3 === 0 ? capelliChiari : capelli);
     m.scale.set(raggio * 1.1, raggio, raggio * 1.05);
     m.position.set(x * 0.235, y * 0.25 + 0.01, z * 0.225);
+    if (P.corti) {
+      // Capelli corti: scaglie piatte aderenti al cranio, non palline.
+      m.position.set(x * 0.24, y * 0.235 + 0.005, z * 0.228);
+      m.lookAt(m.position.clone().multiplyScalar(2));
+      m.scale.set(raggio * 1.5, raggio * 1.5, raggio * 0.55);
+    }
     m.castShadow = true;
     riccioli.add(m);
   }
   // Frangia di riccioli sulla fronte (solo con i capelli abbondanti).
-  if (P.barba || eta === 'bimbo') {
+  if (P.barba || (eta === 'bimbo' && !P.corti)) {
     for (let i = 0; i < 6; i++) {
       const m = new THREE.Mesh(GEO_RICCIOLO, capelli);
       const k = P.ricciolo * (0.85 + r() * 0.3) * (P.frangia ?? 1);

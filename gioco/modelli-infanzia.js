@@ -1040,10 +1040,12 @@ export function creaFratello() {
   p.dim = { ...p.dim, gambe: 0.84, busto: 1 };
   for (const { anca } of p.gambe) { anca.scale.set(0.9, 0.84, 0.9); anca.position.y = 0.84; }
   p.superiore.position.y = 0.84 - 1;
+  // Il creeper di peluche, bello grande, nella mano destra (main.js lo tiene sempre dritto).
   const creeper = creaCreeper();
-  creeper.position.set(0, -0.62, -0.1);
-  creeper.rotation.x = -1.2;          // in mano, con la faccia verso l'avanti
+  creeper.scale.setScalar(1.65);
+  creeper.position.set(0, -0.5, -0.12);
   p.braccia[1].gomito.add(creeper);
+  p.creeper = creeper;
   return p;
 }
 
