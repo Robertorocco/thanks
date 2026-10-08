@@ -165,6 +165,32 @@ button { cursor: pointer; }
 .orologio.urgente { background: rgba(200,40,40,.75); animation: lampeggia .5s steps(2) infinite; }
 .orologio[hidden] { display: none; }
 
+/* Presentazione del boss, come nei picchiaduro: i due nomi entrano dai lati e in mezzo esplode il VS. */
+.vs {
+  position: fixed; left: 0; right: 0; top: 30%; pointer-events: none; z-index: 6;
+  display: grid; grid-template-rows: auto auto auto; justify-items: center; gap: 2px;
+}
+.vs[hidden] { display: none; }
+.vs-lato { width: 100%; display: flex; }
+.vs-lato span {
+  font: 800 italic 30px/1 var(--display); text-transform: uppercase; letter-spacing: .01em; color: #fff;
+  padding: 10px 26px 11px; text-shadow: 0 3px 0 rgba(0,0,0,.35);
+}
+.vs-a { justify-content: flex-start; }
+.vs-a span { background: linear-gradient(90deg, #8E1B1B, #E0533F 70%, #F2A33A); transform: skewX(-14deg); margin-left: -12px; padding-left: 30px;
+  animation: vs-da-sinistra 2.6s cubic-bezier(.2,.9,.25,1) both; }
+.vs-b { justify-content: flex-end; }
+.vs-b span { background: linear-gradient(270deg, #4A2716, #D9638A 60%, #9CCB6A); transform: skewX(-14deg); margin-right: -12px; padding-right: 30px;
+  animation: vs-da-destra 2.6s cubic-bezier(.2,.9,.25,1) both; }
+.vs-x {
+  font: 800 italic 76px/0.9 var(--display); color: #FFD23F; letter-spacing: -.02em;
+  -webkit-text-stroke: 3px #1C1D2B; text-shadow: 0 0 18px rgba(255,140,0,.9), 0 5px 0 #1C1D2B;
+  animation: vs-scoppio 2.6s ease-out both;
+}
+@keyframes vs-da-sinistra { 0% { transform: translateX(-110%) skewX(-14deg); } 14%, 84% { transform: translateX(0) skewX(-14deg); } 100% { transform: translateX(-110%) skewX(-14deg); } }
+@keyframes vs-da-destra { 0% { transform: translateX(110%) skewX(-14deg); } 14%, 84% { transform: translateX(0) skewX(-14deg); } 100% { transform: translateX(110%) skewX(-14deg); } }
+@keyframes vs-scoppio { 0%, 12% { transform: scale(3); opacity: 0; } 22% { transform: scale(.9); opacity: 1; } 28%, 84% { transform: scale(1); opacity: 1; } 100% { transform: scale(1.4); opacity: 0; } }
+
 /* Boss del gelato: solo quanto manca alla fine del combattimento, senza scritte. */
 .boss {
   position: fixed; left: 16px; right: 16px; top: calc(max(12px, env(safe-area-inset-top)) + 96px);

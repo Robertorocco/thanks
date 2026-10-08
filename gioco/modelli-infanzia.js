@@ -956,7 +956,7 @@ OSTACOLI.darmonInt = {
 };
 
 // ---------------------------------------------------------------------------
-// Bonus: biberon in casa, merendina all'Istituto, caffè altrove
+// Bonus: ciuccio, Nutella, joystick, CFU
 // ---------------------------------------------------------------------------
 
 function alone() {
@@ -968,36 +968,88 @@ function alone() {
   return m;
 }
 
-function biberon() {
+// Ciuccio (in casa): scudo azzurro con il foro, anello davanti e tettarella dietro.
+function ciuccio() {
   const g = new THREE.Group();
-  const vetro = new THREE.MeshLambertMaterial({ color: 0xE8F4FF, transparent: true, opacity: 0.85 });
-  g.add(cilindro(0.16, 0.34, vetro, 0, -0.1));
-  g.add(cilindro(0.15, 0.2, 0xFFFFFF, 0, -0.1));                 // latte
-  g.add(cilindro(0.19, 0.07, 0x4FA3E0, 0, 0.24));                 // ghiera
-  const tettarella = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.2, 10), S(0xF2D2A0));
-  tettarella.position.y = 0.42; g.add(tettarella);
-  g.add(blocco(0.02, 0.18, 0.01, 0x4FA3E0, 0, 0.0, -0.17));
+  const corpo = new THREE.Group();
+  const scudo = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.26, 0.06, 20), S(0x7EC8F2));
+  scudo.rotation.x = Math.PI / 2; scudo.scale.set(1.15, 1, 0.8); corpo.add(scudo);
+  const bottone = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.1, 14), S(0xFFFFFF));
+  bottone.rotation.x = Math.PI / 2; bottone.position.z = -0.05; corpo.add(bottone);
+  const anello = new THREE.Mesh(new THREE.TorusGeometry(0.16, 0.035, 8, 20), S(0xF5D33F));
+  anello.position.set(0, -0.02, -0.14); anello.rotation.x = 0.35; corpo.add(anello);
+  const tettarella = new THREE.Mesh(new THREE.SphereGeometry(0.11, 12, 10), new THREE.MeshLambertMaterial({ color: 0xF2D2A0, transparent: true, opacity: 0.9 }));
+  tettarella.scale.set(0.9, 0.8, 1.4); tettarella.position.z = 0.17; corpo.add(tettarella);
+  corpo.position.y = 0.05;
+  g.add(corpo);
   g.add(alone());
   return g;
 }
 
-function merendina() {
+// Barattolo di Nutella (alle medie): vetro con la crema scura, coperchio bianco, etichetta.
+const texNutella = tela(256, 96, (g, W, H) => {
+  g.fillStyle = '#FFFFFF'; g.fillRect(0, 0, W, H);
+  g.font = '900 56px system-ui, sans-serif'; g.textBaseline = 'middle';
+  const w1 = g.measureText('n').width, w2 = g.measureText('utella').width, x0 = (W - w1 - w2) / 2;
+  g.fillStyle = '#D9261C'; g.fillText('n', x0, H / 2 + 4);
+  g.fillStyle = '#1C1D2B'; g.fillText('utella', x0 + w1, H / 2 + 4);
+});
+function nutella() {
   const g = new THREE.Group();
-  g.add(blocco(0.42, 0.14, 0.26, 0xF08A3A, 0, 0.1));
-  g.add(blocco(0.3, 0.15, 0.01, 0xFFFFFF, 0, 0.1, -0.135));
-  g.add(blocco(0.1, 0.1, 0.3, 0xD96B1E, -0.24, 0.12));
-  g.add(blocco(0.1, 0.1, 0.3, 0xD96B1E, 0.24, 0.12));
+  const vetro = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.19, 0.36, 18), S(0x4A2716));
+  vetro.position.y = 0.04; g.add(vetro);
+  const etichetta = new THREE.Mesh(new THREE.CylinderGeometry(0.205, 0.195, 0.16, 18, 1, true), new THREE.MeshLambertMaterial({ map: texNutella }));
+  etichetta.position.y = 0.04; g.add(etichetta);
+  g.add(cilindro(0.21, 0.09, 0xFFFFFF, 0, 0.26));
   g.add(alone());
   return g;
 }
 
+// Joystick (al liceo): un controller bianco con levette nere e tasti colorati, in piedi verso chi corre.
+function joystickBonus() {
+  const g = new THREE.Group();
+  const j = new THREE.Group();
+  j.add(blocco(0.56, 0.13, 0.28, 0xE9EBEF, 0, 0));
+  for (const x of [-0.25, 0.25]) j.add(blocco(0.16, 0.13, 0.34, 0xE9EBEF, x, -0.03, 0.12));
+  j.add(blocco(0.22, 0.02, 0.2, 0x1C1D24, 0, 0.12, 0.02));
+  for (const x of [-0.09, 0.09]) j.add(cilindro(0.045, 0.06, 0x1C1D24, x, 0.13, 0.08));
+  j.add(blocco(0.1, 0.03, 0.035, 0x3A3F48, -0.19, 0.13, -0.03));
+  j.add(blocco(0.035, 0.03, 0.1, 0x3A3F48, -0.19, 0.13, -0.03));
+  for (const [x, z, c] of [[0.19, -0.08, 0x4CAF6A], [0.25, -0.03, 0xE0533F], [0.19, 0.02, 0x3A7CC4], [0.13, -0.03, 0xF2C14E]]) j.add(blocco(0.05, 0.035, 0.05, BASIC(c), x, 0.13, z));
+  j.rotation.x = -1.2; j.position.y = 0.1;
+  j.scale.setScalar(1.15);
+  g.add(j);
+  g.add(alone());
+  return g;
+}
+
+// CFU (all'università): un gettone d'oro con la scritta.
+const texCfu = tela(128, 128, (g, W, H) => {
+  g.fillStyle = '#E8B730'; g.fillRect(0, 0, W, H);
+  g.strokeStyle = '#B8861A'; g.lineWidth = 8; g.beginPath(); g.arc(W / 2, H / 2, W / 2 - 10, 0, Math.PI * 2); g.stroke();
+  g.fillStyle = '#7A4F0A'; g.font = '900 40px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText('CFU', W / 2, H / 2 + 3);
+});
+function cfu() {
+  const g = new THREE.Group();
+  const faccia = new THREE.MeshLambertMaterial({ map: texCfu });
+  const bordo = S(0xC9971F);
+  const moneta = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.07, 28), [bordo, faccia, faccia]);
+  moneta.rotation.x = Math.PI / 2; moneta.position.y = 0.06;
+  g.add(moneta);
+  g.add(alone());
+  return g;
+}
+
+// Il bonus cambia con l'età: ciuccio in casa, Nutella alle medie, joystick al liceo, CFU all'università.
 export function creaBonus(stile) {
-  if (stile === 'casa') return biberon();
-  if (stile === 'darmon') return merendina();
-  return creaCaffe();
+  if (stile === 'casa') return ciuccio();
+  if (stile === 'darmon') return nutella();
+  if (stile === 'liceo') return joystickBonus();
+  return cfu();
 }
 
-export const ICONA_BONUS = { casa: '🍼', darmon: '🥪' };
+export const ICONA_BONUS = { casa: '👶', darmon: '🫙', liceo: '🎮', triennale: '🎓', magistrale: '🎓', rennes: '🎓' };
 
 // ---------------------------------------------------------------------------
 // Il fratello di Roberto: più piccolo, magro, capelli neri corti, con il suo creeper di peluche

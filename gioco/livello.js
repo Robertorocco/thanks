@@ -346,8 +346,16 @@ export function generaLivello(TRATTI, perc, velocitaIn) {
           break;
         case 'aula-d': break;                // la porta della 3ª B: qui c'è l'evento
         case 'uscita-d':
-          // Prima un tratto libero con il fratello accanto, poi, quando lui entra in classe, gli ostacoli.
-          riempi(a + sz.portaFratello + 12, b - 10, { stile: 'darmonInt', tipi: ['basso', 'alto', 'muro'], corridoi: 0.1, spazio: 1.2 });
+          // Prima un tratto libero con il fratello accanto e il creeper che lui lancia, poi gli ostacoli.
+          riempi(a + sz.portaFratello + 36, b - 10, { stile: 'darmonInt', tipi: ['basso', 'alto', 'muro'], corridoi: 0.1, spazio: 1.2 });
+          break;
+        // --- Magistrale: prima e dopo l'esame ---
+        case 'campus':
+          riempi(a + 45, b - 40, { stile: t.stile, tipi: ['basso', 'alto', 'muro'], corridoi: true });
+          break;
+        case 'esame': break;
+        case 'dopo-esame':
+          riempi(a + 30, b - 30, { stile: t.stile, tipi: ['basso', 'alto', 'muro'], corridoi: true });
           break;
         case 'piazzale':
           riempi(a + 10, b - 30, { stile: 'darmon', tipi: ['basso', 'alto', 'muro'], corridoi: 0.1, spazio: 1.2 });
@@ -411,6 +419,8 @@ export function generaLivello(TRATTI, perc, velocitaIn) {
           }
         }
         if (t.stile === 'darmon') arreda(sz, a, b);
+        // La facciata della facoltà dove si fa l'esame: si nasconde dopo la scena, come le porte delle aule.
+        if (sz.id === 'esame') ENTITA.push({ d: b, genere: 'portaAula', mondo: t.indice, stile: 'facolta' });
       }
     }
 
@@ -422,6 +432,11 @@ export function generaLivello(TRATTI, perc, velocitaIn) {
         if (e.mondo === t.indice && e.lato === m.lato && ['edificio', 'albero', 'lampione'].includes(e.genere) && Math.abs(e.d - m.d) < 10) e.nascosto = true;
       }
     }
+    // Davanti alla facciata della facoltà niente edifici, alberi o lampioni che la attraversino.
+    for (const f of ENTITA) {
+      if (f.genere !== 'portaAula' || f.stile !== 'facolta' || f.mondo !== t.indice) continue;
+      for (const e of ENTITA) if (e.mondo === t.indice && ['edificio', 'albero', 'lampione'].includes(e.genere) && Math.abs(e.d - f.d) < 8) e.nascosto = true;
+    }
     // Edifici, lampioni e alberi generati prima dell'inizio del mondo sono quelli del mondo precedente.
     for (let i = primaDelMondo; i < ENTITA.length; i++) {
       const e = ENTITA[i];
@@ -429,7 +444,7 @@ export function generaLivello(TRATTI, perc, velocitaIn) {
     }
 
     // Scenografia per i mondi senza sezioni: monumento con foto del luogo.
-    if (!t.sezioni) {
+    if (!t.sezioni || t.stile === 'magistrale') {
       const latoMonumento = t.indice % 2 ? 1 : -1;
       const dMonumento = t.inizio + 70;
       ENTITA.push({ d: dMonumento, genere: 'monumento', lato: latoMonumento, mondo: t.indice });

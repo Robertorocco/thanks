@@ -194,7 +194,7 @@ function macchia(colore) {
 // (si salta); quella alta è un getto denso sospeso all'altezza della testa, con le colature (ci si abbassa).
 const CIOCC_LUCIDO = new THREE.MeshPhongMaterial({ color: 0x6B3E26, specular: 0x8A6048, shininess: 60, side: THREE.DoubleSide });
 const CIOCC_SCIA = new THREE.MeshPhongMaterial({ color: 0x4A2716, specular: 0x5A4030, shininess: 50, polygonOffset: true, polygonOffsetFactor: -8, polygonOffsetUnits: -8 });
-function ondaCioccolato(alta, larghezza) {
+function ondaCioccolato(alta, larghezza, f) {
   const g = new THREE.Group();
   const ciocc = CIOCC_LUCIDO, scuro = new THREE.MeshPhongMaterial({ color: GUSTI.cioccolato.scuro, specular: 0x6A4A38, shininess: 50 }), lucido = BAS(GUSTI.cioccolato.chiaro);
   const parti = [];
@@ -210,7 +210,7 @@ function ondaCioccolato(alta, larghezza) {
     const riflesso = new THREE.Mesh(new THREE.TubeGeometry(curva, 40, 0.1, 5), lucido);
     riflesso.position.set(0, 0.26, 0.18); g.add(riflesso);
     for (let x = -larghezza / 2 + 0.35; x < larghezza / 2 - 0.2; x += 0.62) {
-      const lung = 0.16 + Math.abs(Math.sin(x * 3.1)) * 0.12;
+      const lung = Math.min(0.16 + Math.abs(Math.sin(x * 3.1)) * 0.12, (f.altoDa - f.altezzaBassa) * 0.55);
       const goccia = new THREE.Group();
       const c = new THREE.Mesh(new THREE.ConeGeometry(0.12, lung, 7), scuro);
       c.rotation.x = Math.PI; c.position.y = -lung / 2; goccia.add(c);
@@ -246,7 +246,9 @@ function ondaCioccolato(alta, larghezza) {
     geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
     geo.setIndex(idx);
     geo.computeVertexNormals();
-    g.add(new THREE.Mesh(geo, CIOCC_LUCIDO));
+    const onda = new THREE.Mesh(geo, CIOCC_LUCIDO);
+    onda.scale.y = Math.min(1, f.bassoMax / 0.85);          // più bassa per il Roberto bambino
+    g.add(onda);
     // La scia di cioccolato fuso sull'asfalto, dietro l'onda fino al gelato.
     const scia = new THREE.Mesh(new THREE.PlaneGeometry(larghezza - 0.6, 7), CIOCC_SCIA);
     scia.rotation.x = -Math.PI / 2; scia.position.set(0, 0.07, -4.6); g.add(scia);
@@ -347,13 +349,13 @@ export function creaBossGelato(scena, ctx) {
     const f = ctx.fisica();
     if (alta) {
       // Tutta la strada: ci si deve abbassare.
-      aggiungi({ tipo: 'onda', alta, d: B.dBoss - 1.5, x: 0, larg: 7.2, vd: -8, da: f.altoDa, a: f.altoDa + 0.9, mesh: [ondaCioccolato(true, 7.2)] });
+      aggiungi({ tipo: 'onda', alta, d: B.dBoss - 1.5, x: 0, larg: 7.2, vd: -8, da: f.altoDa, a: f.altoDa + 0.9, mesh: [ondaCioccolato(true, 7.2, f)] });
     } else {
       // Due corsie su tre, bassa: si salta o si va nella corsia libera.
       const libera = Math.floor(r() * 3);
       const prese = [0, 1, 2].filter(c => c !== libera);
       const x = (corsie[prese[0]] + corsie[prese[1]]) / 2;
-      aggiungi({ tipo: 'onda', alta, d: B.dBoss - 1.5, x, larg: 4.6, vd: -8, da: 0, a: f.bassoMax * 0.95, mesh: [ondaCioccolato(false, 4.6)] });
+      aggiungi({ tipo: 'onda', alta, d: B.dBoss - 1.5, x, larg: 4.6, vd: -8, da: 0, a: f.bassoMax * 0.95, mesh: [ondaCioccolato(false, 4.6, f)] });
     }
     B.lancio = 0.5;
   }
@@ -392,6 +394,8 @@ export function creaBossGelato(scena, ctx) {
       if (B.fase !== -1 || B.grasso) B.reset();
       return;
     }
+    // Dopo un azzeramento (Roberto cresce subito dopo la piazza) il combattimento non riparte.
+    if (pos >= sez.fine && B.fase === -1) return;
     const k = (pos - sez.inizio) / lung;
 
     // Grasso: sale subito a ogni colpo (con un piccolo sobbalzo), scende piano.

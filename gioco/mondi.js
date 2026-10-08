@@ -83,6 +83,9 @@ export const MONDI = [
       // (porta a `portaFratello` metri dall'inizio della sezione).
       { id: 'uscita-d',   lung: 110, amb: 'int', portaFratello: 58 },
       { id: 'piazzale',   lung: 110, pend: -0.02, amb: 'est' },
+      // Boss di fine medie, prima di diventare liceale: il Gelato Gigante (vedi boss-gelato.js). Si sopravvive
+      // fino in fondo alla piazza; ogni colpo fa ingrassare e rallentare Roberto.
+      { id: 'boss-gelato', lung: 420, amb: 'est', boss: 'gelato', checkpoint: 'Il Gelato Gigante' },
     ],
     velocita: 9,
     cielo: 0xBFE3F5,
@@ -123,9 +126,6 @@ export const MONDI = [
       { id: 'rettilineo',    lung: 44,  amb: 'est' },
       { id: 'curva5',        lung: 58,  curva: -Math.PI / 2, amb: 'est' },
       { id: 'fine',          lung: 40,  amb: 'est' },
-      // Boss di fine liceo: il Gelato Gigante (vedi boss-gelato.js). Si sopravvive fino in fondo alla
-      // piazza; ogni colpo fa ingrassare e rallentare Roberto.
-      { id: 'boss-gelato',   lung: 450, amb: 'est', boss: 'gelato', checkpoint: 'Il Gelato Gigante', sottotitolo: 'Boss di fine liceo: sopravvivi!' },
     ],
     velocita: 12,
     cielo: 0xBFE3F5,
@@ -163,7 +163,12 @@ export const MONDI = [
     stile: 'magistrale',
     anni: '2023 – 2026',
     luogo: 'Napoli',
-    lunghezza: 600,
+    // A metà, l'esame: Roberto corre verso la facoltà ed entra in aula (vedi aula-esame.js).
+    sezioni: [
+      { id: 'campus',     lung: 300, amb: 'est' },
+      { id: 'esame',      lung: 6,   amb: 'est', evento: 'esame' },
+      { id: 'dopo-esame', lung: 294, amb: 'est' },
+    ],
     velocita: 15,
     cielo: 0xDDE6EE,
     terreno: 0x5F6B78,

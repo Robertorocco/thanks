@@ -14,12 +14,13 @@ import {
 } from './modelli-liceo.js';
 import {
   creaPareteStile, creaSoffittoStile, creaArredo, creaPortaCasa, creaLanciatore, creaBonus, creaScuolaDarmon, ICONA_BONUS,
-  creaCartelloCamaldoli, creaFratello,
+  creaCartelloCamaldoli, creaFratello, creaCreeper,
 } from './modelli-infanzia.js';
 import { costruisciPercorso } from './percorso.js';
 import { CORSIE, PENDENZA_CROCIERA, generaLivello, distanzaPersona, distanzaLancio } from './livello.js';
 import { creaAula, fumetto } from './aula.js';
 import { creaAulaDarmon } from './aula-darmon.js';
+import { creaAulaEsame, creaFacolta } from './aula-esame.js';
 import { creaBossGelato, MALUS_COLPO } from './boss-gelato.js';
 
 // L'etichetta mostra la versione del codice che sta davvero girando (dal ?v= con cui è caricato).
@@ -84,7 +85,7 @@ function velocitaIn(pos) {
 }
 
 const ENTITA = generaLivello(TRATTI, perc, velocitaIn);
-for (const t of TRATTI) if (!t.sezioni) caricaFotoLuogo(t.stile);
+for (const t of TRATTI) if (!t.sezioni || t.stile === 'magistrale') caricaFotoLuogo(t.stile);
 // I bonus sono numerati nell'ordine del percorso: C1, C2... in casa, D1... all'Istituto, 1, 2... dopo.
 const contatori = { C: 0, D: 0, '': 0 };
 for (const e of ENTITA) {
@@ -106,6 +107,8 @@ CHECKPOINT.sort((a, b) => a.pos - b.pos);
 
 const LICEO = TRATTI.findIndex(t => t.stile === 'liceo');
 const DARMON = TRATTI.findIndex(t => t.stile === 'darmon');
+const MAGISTRALE = TRATTI.findIndex(t => t.stile === 'magistrale');
+const SEZ_ESAME = TRATTI[MAGISTRALE].sezioni.find(s => s.evento === 'esame');
 const SEZ_AULA = TRATTI[LICEO].sezioni.find(s => s.evento === 'aula');
 const SEZ_AULA_D = TRATTI[DARMON].sezioni.find(s => s.evento === 'darmon');
 const SEZ_INGRESSO = TRATTI[LICEO].sezioni.find(s => s.id === 'atrio');
@@ -145,9 +148,10 @@ scena.add(sole, sole.target);
 
 const aula = creaAula();
 const aulaD = creaAulaDarmon();
+const aulaE = creaAulaEsame();
 let aulaAttiva = aula;                      // la scena in classe in uso
 
-// Le due scene in classe: la 5ª H al liceo e la 3ª B all'Istituto Darmon. `esiti` dice cosa succede
+// Le scene in classe: la 5ª H al liceo, la 3ª B all'Istituto Darmon e l'esame alla magistrale. `esiti` dice cosa succede
 // con ogni scelta: penalità in secondi e testo del cartello.
 const EVENTO = {
   [LICEO]: {
@@ -172,6 +176,17 @@ const EVENTO = {
     esitoAllaFine: true,
     fuori: null,
   },
+  [MAGISTRALE]: {
+    sez: SEZ_ESAME, porta: SEZ_ESAME.fine, scena: aulaE,
+    domanda: 'Cosa fai?',
+    opzioni: [{ id: 'copiare', etichetta: 'Copiare' }, { id: 'rispondere', etichetta: 'Rispondere' }],
+    esiti: {
+      copiare: { titolo: 'Promosso!', sotto: 'Grazie, Chiara', malus: 0, durata: 2.4 },
+      rispondere: { titolo: 'Bocciato!', sotto: `+${MALUS_PRIMA_FILA} secondi di penalità`, malus: MALUS_PRIMA_FILA, durata: 2.6 },
+    },
+    esitoAllaFine: true,
+    fuori: null,
+  },
 };
 
 function ridimensiona() {
@@ -181,7 +196,7 @@ function ridimensiona() {
   fovBase = w < h ? 72 : 60;
   camera.fov = fovBase;
   camera.updateProjectionMatrix();
-  aula.ridimensiona(w / h); aulaD.ridimensiona(w / h);
+  aula.ridimensiona(w / h); aulaD.ridimensiona(w / h); aulaE.ridimensiona(w / h);
 }
 window.addEventListener('resize', ridimensiona);
 ridimensiona();
@@ -464,7 +479,7 @@ function creaMesh(e) {
   else if (e.genere === 'arredo') m = creaArredo(e);
   else if (e.genere === 'lanciatore') m = creaLanciatore(e);
   else if (e.genere === 'cartello') m = creaCartelloAppeso(e.testo, e.w, e.colore);
-  else if (e.genere === 'portaAula') m = e.stile === 'darmon' ? creaPortaAula('3ª B', 0xE0533F) : creaPortaAula();
+  else if (e.genere === 'portaAula') m = e.stile === 'darmon' ? creaPortaAula('3ª B', 0xE0533F) : e.stile === 'facolta' ? creaFacolta() : creaPortaAula();
   else if (e.genere === 'portone') m = e.stile === 'casa' ? creaPortaCasa() : creaPortone();
   const involucro = new THREE.Group();
   involucro.add(m);
@@ -666,6 +681,8 @@ function avviaCrescita(m) {
   G.timer = 0;
   G.crescita = { da: G.eta, a: TRATTI[m].eta, mondo: m, scambiato: false };
   G.invul = 0;
+  // Dopo il boss del gelato si cresce già magri.
+  if (boss.grasso || boss.grassoVis) { boss.reset(); R.corporatura(R.dim.corpo ?? 1); corpoBoss = null; }
   azzeraGiocatore();
   elBanner.hidden = true;
   elEta.hidden = false;
@@ -1244,10 +1261,14 @@ const FRATELLO_MOSTRA = 28;                       // metri in cui si fa vedere b
 const FRATELLO_GIRA = FRATELLO_PORTA - 17;       // da qui corre avanti verso la porta (che si vede ancora)
 const bollaDoveVai = fumetto('Dove vai?', '#FFFFFF', '#1C1D2B', 1.25);
 scena.add(bollaDoveVai);
-const fr = { x: 0, avviato: false, dentro: false, d0: 0, x0: 0, domanda: 0 };
+const fr = { x: 0, avviato: false, dentro: false, d0: 0, x0: 0, domanda: 0, lanciato: false };
 
 function aggiornaFratello(dt) {
-  if (G.pos < FRATELLO_INIZIO || G.mondo !== DARMON) Object.assign(fr, { avviato: false, dentro: false, domanda: 0 });
+  if (G.pos < FRATELLO_INIZIO || G.mondo !== DARMON) {
+    Object.assign(fr, { avviato: false, dentro: false, domanda: 0, lanciato: false });
+    if (lancioCreeper.stato !== 'no') azzeraCreeper();
+  }
+  fratello.creeper.visible = !fr.lanciato;
   const attivo = G.mondo === DARMON && G.fatti.has(DARMON) && G.pos >= FRATELLO_INIZIO && !fr.dentro
     && G.pos < FRATELLO_PORTA + 20
     && (G.stato === 'gioco' || G.stato === 'caduto' || G.stato === 'aulaRientro' || G.stato === 'pausa');
@@ -1290,11 +1311,20 @@ function aggiornaFratello(dt) {
     const vd = (FRATELLO_PORTA - fr.d0) * (1.2 * (1 - u) + 0.4), vx = (4.6 - fr.x0) * 2.2 * Math.pow(u, 1.2);
     sterza = Math.atan2(vx, vd);
     posaCorsa(fratello, G.passo * 1.3 + 0.7, 0.9);
-    if (fr.domanda === 0 && u > 0.3) fr.domanda = 2.4;
+    if (fr.domanda === 0 && u > 0.3) fr.domanda = 1.4;
+    // Sulla porta si gira e lancia il creeper verso Roberto, un po' più avanti, nella sua corsia.
+    if (!fr.lanciato && u > 0.86) { fr.lanciato = true; lanciaCreeper(d, x); fratello.creeper.visible = false; }
     if (x > 4.15) { fr.dentro = true; fratello.radice.visible = false; return; }
   }
-  // Il creeper resta in mano: tenuto davanti mentre corre, alzato sopra la spalla quando lo fa vedere.
-  const [sx, gx] = [THREE.MathUtils.lerp(0.4, 2.3, mostra), THREE.MathUtils.lerp(1.1, 0.5, mostra)];
+  // Il creeper resta in mano: tenuto davanti mentre corre, alzato sopra la spalla quando lo fa vedere;
+  // prima di entrare in classe carica il braccio dietro la testa e lo lancia.
+  let [sx, gx] = [THREE.MathUtils.lerp(0.4, 2.3, mostra), THREE.MathUtils.lerp(1.1, 0.5, mostra)];
+  if (G.pos >= FRATELLO_GIRA) {
+    const u = Math.min(1, (G.pos - FRATELLO_GIRA) * 2.3 / Math.hypot(FRATELLO_PORTA - fr.d0, 4.6 - fr.x0));
+    const carica = THREE.MathUtils.smoothstep(u, 0.5, 0.8), tiro = THREE.MathUtils.smoothstep(u, 0.8, 0.9);
+    sx = THREE.MathUtils.lerp(sx, 3.1, carica) - 2.4 * tiro; gx = THREE.MathUtils.lerp(gx, 1.2, carica) - 1.0 * tiro;
+    sterza = THREE.MathUtils.lerp(sterza, sterza - 1.3, carica * (1 - tiro * 0.5));   // si gira verso Roberto
+  }
   fratello.braccia[1].spalla.rotation.set(sx, 0, THREE.MathUtils.lerp(0.35, 0.25, mostra));
   fratello.braccia[1].gomito.rotation.set(gx, 0, 0);
   fratello.creeper.rotation.set(-(sx + gx), 0, 0);
@@ -1306,16 +1336,100 @@ function aggiornaFratello(dt) {
   fratello.radice.rotation.set(0, -tmp.psi - sterza, 0);
 }
 
+// Il creeper lanciato dal fratello: vola in una corsia davanti a Roberto, si accende e lampeggia come nel
+// gioco, poi esplode quando Roberto si avvicina. Va schivato cambiando corsia.
+const CREEPER_ANTICIPO = 28;          // metri davanti a Roberto in cui atterra
+const CREEPER_ESPLODE = 4.5;          // esplode quando Roberto è a questa distanza
+const creeperVolante = creaCreeper();
+creeperVolante.scale.setScalar(2.2);
+const matCreeper = [];
+creeperVolante.traverse(o => { if (o.material) { o.material = Array.isArray(o.material) ? o.material.map(m => m.clone()) : o.material.clone(); matCreeper.push(...[o.material].flat()); } });
+for (const m of matCreeper) m.fog = false;          // resta ben visibile anche in fondo al corridoio
+const creeperG = new THREE.Group();
+creeperG.add(creeperVolante);
+creeperG.visible = false;
+scena.add(creeperG);
+const lancioCreeper = { stato: 'no', t: 0, d0: 0, x0: 0, y0: 0, d: 0, x: 0, pezzi: [] };
+const GEO_PEZZO = new THREE.BoxGeometry(0.22, 0.22, 0.22);
+const MAT_PEZZI = [0x5FAE3E, 0x3E7D2A, 0x8CCB5E, 0x1C1D2B, 0x9A9A9A].map(c => new THREE.MeshLambertMaterial({ color: c }));
+const lampoBoom = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 12), new THREE.MeshBasicMaterial({ color: 0xFFFFFF, transparent: true, opacity: 0, depthWrite: false }));
+lampoBoom.visible = false;
+scena.add(lampoBoom);
+let boomT = 0;
+
+function azzeraCreeper() {
+  for (const p of lancioCreeper.pezzi) scena.remove(p.m);
+  Object.assign(lancioCreeper, { stato: 'no', pezzi: [] });
+  creeperG.visible = false; lampoBoom.visible = false;
+}
+function lanciaCreeper(d, x) {
+  Object.assign(lancioCreeper, { stato: 'volo', t: 0, d0: d, x0: x, y0: 0.9, d: G.pos + CREEPER_ANTICIPO, x: CORSIE[G.corsia] });
+  creeperG.visible = true;
+}
+function aggiornaCreeper(dt) {
+  const L = lancioCreeper;
+  boomT = Math.max(0, boomT - dt);
+  if (L.stato === 'no' || L.stato === 'fatto') return;
+  const gioca = G.stato === 'gioco';
+  if (gioca) L.t += dt;
+  let d = L.d, x = L.x, y = 0;
+  for (const m of matCreeper) m.emissive?.setHex(0x000000);
+  if (L.stato === 'volo') {
+    const k = Math.min(1, L.t / 0.75);
+    d = THREE.MathUtils.lerp(L.d0, L.d, k); x = THREE.MathUtils.lerp(L.x0, L.x, k);
+    y = L.y0 * (1 - k) + Math.sin(k * Math.PI) * 3.2;
+    creeperVolante.rotation.set(k * Math.PI * 4, k * Math.PI * 2, 0);
+    if (k >= 1) { L.stato = 'miccia'; L.t = 0; creeperVolante.rotation.set(0, Math.PI, 0); }
+  } else if (L.stato === 'miccia') {
+    // Lampeggia sempre più in fretta e si gonfia.
+    const ritmo = 5 + L.t * 6;
+    const acceso = Math.sin(L.t * ritmo * Math.PI) > 0;
+    for (const m of matCreeper) m.emissive?.setScalar(acceso ? 0.85 : 0);
+    creeperVolante.scale.setScalar(2.2 * (1 + 0.15 * Math.min(1, L.t / 1.2) + (acceso ? 0.06 : 0)));
+    y = Math.abs(Math.sin(L.t * 9)) * 0.06;
+    if (L.d - G.pos < CREEPER_ESPLODE || L.t > 4) {
+      L.stato = 'boom'; L.t = 0; boomT = 0.6;
+      creeperG.visible = false;
+      daLocale(L.d, L.x, 0.8, 0, lampoBoom.position);
+      lampoBoom.visible = true;
+      for (let i = 0; i < 22; i++) {
+        const m = new THREE.Mesh(GEO_PEZZO, MAT_PEZZI[i % MAT_PEZZI.length]);
+        m.position.copy(lampoBoom.position);
+        const a = Math.random() * Math.PI * 2, v = 3 + Math.random() * 5;
+        scena.add(m);
+        L.pezzi.push({ m, vx: Math.cos(a) * v, vy: 3 + Math.random() * 5, vz: Math.sin(a) * v });
+      }
+      if (navigator.vibrate) navigator.vibrate([60, 40, 120]);
+    }
+  } else if (L.stato === 'boom') {
+    const k = Math.min(1, L.t / 0.35);
+    lampoBoom.scale.setScalar(0.4 + 1.8 * Math.sqrt(k));
+    lampoBoom.material.opacity = 0.85 * (1 - k) * (1 - k);
+    for (const p of L.pezzi) {
+      p.vy -= 14 * dt;
+      p.m.position.x += p.vx * dt; p.m.position.y = Math.max(lampoBoom.position.y - 0.7, p.m.position.y + p.vy * dt); p.m.position.z += p.vz * dt;
+      p.m.rotation.x += dt * 8; p.m.rotation.y += dt * 6;
+    }
+    // Chi è nella corsia dell'esplosione, lì vicino, cade.
+    if (L.t < 0.35 && gioca && !G.immune && !(G.invul > 0) && Math.abs(G.x - L.x) < 1.3 && Math.abs(G.pos - L.d) < 3.2) caduta();
+    if (L.t > 1.2) { for (const p of L.pezzi) scena.remove(p.m); L.pezzi = []; lampoBoom.visible = false; L.stato = 'fatto'; }
+    return;
+  }
+  daLocale(d, x, y, 0, creeperG.position);
+  perc.punto(d, tmp);
+  creeperG.rotation.set(0, -tmp.psi, 0);
+}
+
 // ---------------------------------------------------------------------------
-// Boss di fine liceo: il Gelato Gigante (vedi boss-gelato.js)
+// Boss di fine medie: il Gelato Gigante (vedi boss-gelato.js), prima di diventare liceale
 // ---------------------------------------------------------------------------
 
-const SEZ_BOSS = TRATTI[LICEO].sezioni.find(s => s.boss === 'gelato');
+const SEZ_BOSS = TRATTI[DARMON].sezioni.find(s => s.boss === 'gelato');
 const tmpBoss = {};
 const DURATA_COLPO = 0.45;
 let colpoT = 0, corpoBoss = null;
 const boss = creaBossGelato(scena, {
-  sez: SEZ_BOSS, mondo: LICEO, corsie: CORSIE, daLocale, fisica, velocita: velocitaIn,
+  sez: SEZ_BOSS, corsie: CORSIE, daLocale, fisica, velocita: velocitaIn,
   psi: d => { perc.punto(d, tmpBoss); return tmpBoss.psi; },
   immune: () => Boolean(G.immune),
   colpito: () => {
@@ -1326,6 +1440,8 @@ const boss = creaBossGelato(scena, {
   },
 });
 const elBoss = document.getElementById('boss');
+const elVs = document.getElementById('vs');
+let vsT = 0, vsMostrato = false;
 const elBossBarra = document.getElementById('boss-barra');
 
 function aggiornaBoss(dt) {
@@ -1336,6 +1452,13 @@ function aggiornaBoss(dt) {
     if (corpoBoss === null || Math.abs(c - corpoBoss) > 0.001) { R.corporatura(c); corpoBoss = c; }
   } else if (corpoBoss !== null) { R.corporatura(R.dim.corpo ?? 1); corpoBoss = null; }
   colpoT = Math.max(0, colpoT - dt);
+  // All'inizio del combattimento: "Il Bulimico Roby VS Cono Gelato", come nei picchiaduro.
+  if (G.pos < SEZ_BOSS.inizio - 60 || G.pos > SEZ_BOSS.fine) vsMostrato = false;
+  if (!vsMostrato && G.stato === 'gioco' && G.pos >= SEZ_BOSS.inizio - 6 && G.pos < SEZ_BOSS.inizio + 40) {
+    vsMostrato = true; vsT = 2.6;
+    elVs.hidden = true; void elVs.offsetWidth; elVs.hidden = false;      // riparte l'animazione
+  }
+  if (vsT > 0 && G.stato !== 'pausa') { vsT -= dt; if (vsT <= 0) elVs.hidden = true; }
   // Pannello del boss.
   const visibile = boss.dentro(G.pos) && !hud.radice.hidden && (G.stato === 'gioco' || G.stato === 'pausa' || G.stato === 'caduto');
   elBoss.hidden = !visibile;
@@ -1524,8 +1647,8 @@ function aggiornaCamera(dt) {
   // La visuale segue solo in parte la pendenza: in salita la strada si vede salire verso l'alto.
   const hMira = hQui + (tmp.h - hQui) * THREE.MathUtils.lerp(0.2, 0.85, kInt);
   guarda.set(tmp.x + Math.cos(tmp.psi) * lat, hMira + camP.guarda + 0.25 * kAula, tmp.z + Math.sin(tmp.psi) * lat);
-  if (colpoT > 0) {
-    const k = colpoT / DURATA_COLPO;
+  if (colpoT > 0 || boomT > 0) {
+    const k = Math.max(colpoT / DURATA_COLPO, boomT / 0.6 * 1.6);
     camera.position.x += Math.sin(G.tempo * 70) * 0.12 * k;
     camera.position.y += Math.cos(G.tempo * 55) * 0.1 * k;
   }
@@ -1622,6 +1745,7 @@ function ciclo(ora) {
     aggiornaAmico(dt);
     aggiornaFratello(dt);
     aggiornaBoss(dt);
+    aggiornaCreeper(dt);
     animaRoberto(dt);
     aggiornaCamera(dt);
     aggiornaScintille(dt);
