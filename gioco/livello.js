@@ -277,10 +277,20 @@ export function generaLivello(TRATTI, perc, velocitaIn) {
         case 'curva1': case 'curva2': case 'curva3':
           compagni(a + 2, b, 1);
           break;
-        case 'corridoio': case 'corridoio5H':
-          riempi(a + 6, b - (sz.id === 'corridoio5H' ? 16 : 6), { stile: 'liceoInt', tipi: ['basso', 'alto', 'muro', 'buco'], corridoi: true, spazio: 1.1 });
-          compagni(a + 4, b - 12, sz.id === 'corridoio' ? 3 : 2);
+        case 'corridoio': case 'corridoio5H': {
+          const opz = { stile: 'liceoInt', tipi: ['basso', 'alto', 'muro', 'buco'], corridoi: true, spazio: 1.1 };
+          if (sz.ragazza) {
+            // La ragazza che saluta Roberto (main.js): attorno all'incontro il corridoio resta libero.
+            const m = a + sz.ragazza;
+            riempi(a + 6, m - 22, opz);
+            riempi(m + 14, b - 4, opz);
+            compagni(a + 2, m - 26, 1);
+          } else {
+            riempi(a + 6, b - 16, opz);
+            compagni(a + 4, b - 12, 2);
+          }
           break;
+        }
         case 'uscita':
           // Dopo la scena in aula la corsa riparte in un tratto libero: nessun ostacolo per i primi ~45 m.
           break;

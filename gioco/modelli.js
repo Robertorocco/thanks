@@ -656,7 +656,7 @@ export function creaPersona(o = {}) {
   const pelle = materiale(PELLE);
   const capelli = materiale(CAPELLI);
   if (!rob) {
-    voltoMat = new THREE.MeshLambertMaterial({ map: voltoDisegnato(PELLE, CAPELLI, o.serio) });
+    voltoMat = new THREE.MeshLambertMaterial({ map: o.volto ?? voltoDisegnato(PELLE, CAPELLI, o.serio) });
     // Ordine delle facce del cubo: +x, -x, +y, -y, +z, -z. Il volto guarda verso -z (avanti).
     cranio = new THREE.Mesh(CUBO, [pelle, pelle, capelli, pelle, capelli, voltoMat]);
     cranio.scale.set(0.42, 0.48, 0.42);
@@ -668,6 +668,9 @@ export function creaPersona(o = {}) {
       testa.add(blocco(0.06, 0.2, 0.34, CAPELLI, -0.235, 0.0, 0.04));
       testa.add(blocco(0.06, 0.2, 0.34, CAPELLI, 0.235, 0.0, 0.04));
       testa.add(blocco(0.4, 0.14, 0.05, CAPELLI, 0, 0.0, 0.225));
+    } else if (o.acconciatura === 'pelato') {
+      // Rasato a zero: solo pelle (il volto passato con `volto` non deve avere la fascia dei capelli).
+      cranio.material = [pelle, pelle, pelle, pelle, pelle, voltoMat];
     } else {
       testa.add(blocco(0.46, 0.12, 0.46, CAPELLI, 0, 0.2));
       testa.add(blocco(0.46, 0.34, 0.12, CAPELLI, 0, -0.02, 0.18));
@@ -859,8 +862,14 @@ export function creaPersona(o = {}) {
       const d = parti.dim, cz = 1 + (c - 1) * 0.9;
       tronco.scale.set(c, 1, cz);
       pancia.visible = c > 1;
-      pancia.scale.set(1, 1, 1 + Math.max(0, c - 1.2) * 1.2);    // oltre una certa misura la pancia sporge di più
-      for (const [i, { spalla }] of parti.braccia.entries()) spalla.position.x = (i ? 1 : -1) * 0.43 * c;
+      pancia.scale.set(1 + Math.max(0, c - 1.2) * 0.25, 1, 1 + Math.max(0, c - 1.15) * 2.2);    // oltre una certa misura la pancia sporge di più
+      // Braccia più grosse (solo in larghezza, come le gambe) e faccia un po' più piena.
+      for (const [i, { spalla }] of parti.braccia.entries()) {
+        spalla.position.x = (i ? 1 : -1) * 0.43 * c;
+        spalla.scale.set(d.arti * (1 + Math.max(0, c - (d.corpo ?? 1)) * 0.7), d.arti, d.arti);
+      }
+      const sTesta = d.testa / (d.busto ?? 1);
+      testa.scale.set(sTesta * (1 + Math.max(0, c - (d.corpo ?? 1)) * 0.12), sTesta, sTesta);
       for (const [i, { anca }] of parti.gambe.entries()) anca.position.x = (i ? 1 : -1) * 0.14 * (1 + (c - 1) * 1.3);
       zaino.position.z = (cz - 1) * 0.2;
       // Gambe più robuste solo in larghezza (x): non si mescola con il piegamento, che ruota attorno a x.

@@ -4,8 +4,8 @@
 //   fragola     palline di fragola lanciate che rotolano verso di te: si salta o si cambia corsia;
 //   cioccolato  onde di cioccolato: quelle alte si passano abbassandosi, quelle basse saltando.
 // Niente scritte: ogni colpo è uno schizzo di gelato del suo gusto, Roberto ingrassa (al massimo 5 volte),
-// rallenta del 20% a colpo (a 5 colpi va alla metà) e perde 1 secondo; ogni 5 secondi senza colpi
-// dimagrisce di un passo, piano piano, fino alla forma di partenza.
+// rallenta del 20% a colpo (a 5 colpi va alla metà) e perde 1 secondo; senza colpi dimagrisce piano
+// piano, di continuo (un passo ogni 5 secondi), fino alla forma di partenza.
 
 import * as THREE from './lib/three.module.min.js';
 import { tela } from './modelli.js';
@@ -13,7 +13,8 @@ import { tela } from './modelli.js';
 export const MAX_GRASSO = 5;
 export const MALUS_COLPO = 1;            // secondi per ogni colpo
 const RALLENTA = 0.2;                    // a ogni passo di grasso: velocità / (1 + 0.2 · passi)
-const DIMAGRISCE_DOPO = 5;               // secondi senza colpi per perdere un passo
+const DIMAGRISCE_DOPO = 5;               // secondi per perdere un passo di grasso, senza colpi
+const PAUSA_DIMAGRIRE = 1.2;             // dopo un colpo, per un attimo resta gonfio
 const INVULNERABILE = 1.0;
 
 const L = c => new THREE.MeshLambertMaterial({ color: c, flatShading: true });
@@ -404,14 +405,16 @@ export function creaBossGelato(scena, ctx) {
     if (inGioco) {
       B.senzaColpi += dt;
       const ogni = B.finito ? 1.0 : DIMAGRISCE_DOPO;
-      if (B.grasso > 0 && B.senzaColpi >= ogni) { B.grasso--; B.senzaColpi = 0; }
+      if (B.grasso > 0 && B.senzaColpi >= PAUSA_DIMAGRIRE) B.grasso = Math.max(0, B.grasso - dt / ogni);
     }
-    const vel = B.grassoVis < B.grasso ? 6 : 0.9;
+    // Si gonfia di colpo (con un rimbalzo, vedi `scossa`), si sgonfia seguendo il grasso.
+    const vel = B.grassoVis < B.grasso ? 5 : 3;
     B.grassoVis += Math.sign(B.grasso - B.grassoVis) * Math.min(Math.abs(B.grasso - B.grassoVis), dt * vel);
 
     // Il gelato: compare poco prima della piazza, fluttua davanti a Roberto e lo guarda.
     gelato.visible = k > -0.12 && B.sciolto < 1;
-    B.dBoss = Math.max(sez.inizio + 6, pos + 19);
+    // Quando Roberto rallenta il gelato se ne va avanti: si vede che si resta indietro.
+    B.dBoss = Math.max(sez.inizio + 6, pos + 19 + 14 * (1 - B.fattore()));
     if (k >= 1) B.dBoss = sez.fine + 4;
     if (gelato.visible) {
       const t = performance.now() / 1000;

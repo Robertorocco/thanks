@@ -1,11 +1,13 @@
 // La scena in classe (5ª H). Il gioco si ferma, la camera entra in aula e il giocatore sceglie
-// dove sedersi: in prima fila (sbagliato, penalità sul tempo) o in ultima, vicino ai due amici.
+// dove sedersi: in prima fila (sbagliato, penalità sul tempo) o in ultima, accanto al banco dei due amici
+// (il pelato alto e secco col casco sul banco e la ragazza castana con la felpa viola).
 // Le animazioni sono volutamente semplici e chiare. Alla fine tutti escono e si torna alla corsa.
 
 import * as THREE from './lib/three.module.min.js';
 import {
   materiale, blocco, scritta, tela, esa, creaPersona, posaCorsa, posaSeduto, posaInPiedi, CUBO,
 } from './modelli.js';
+import { creaCompagnaFelpa, creaCompagnoPelato, creaCasco } from './modelli-liceo.js';
 import { TEMPO_SCELTA } from './mondi.js';
 
 const LEGNO = 0xC89B5E, METALLO = 0x3B4A5A;
@@ -16,7 +18,8 @@ const PORTA = new THREE.Vector3(-4.5, 0, 5.1);
 // File (x) e colonne (z) dei banchi. Prima fila = più vicina alla lavagna.
 const FILE_X = [2.6, 0.7, -1.2, -3.1];
 const COL_Z = [-2.5, 0.0, 2.5];
-const ULTIMA_Z = [-0.95, 0.0, 0.95];   // l'ultimo banco è unico, da tre posti
+// Ultima fila: il banco da due dei due amici (posti 0 e 1) e, accanto, il banco singolo di Roberto (posto 2).
+const ULTIMA_Z = [-1.33, -0.37, 1.1];
 const sedia = (f, c) => new THREE.Vector3(FILE_X[f] - 0.7, 0, f === 3 ? ULTIMA_Z[c] : COL_Z[c]);
 
 // `largo` allarga il fumetto (per le frasi lunghe) senza schiacciare il testo.
@@ -35,12 +38,19 @@ export function fumetto(testo, colore = '#ffffff', inchiostro = '#1C1D2B', largh
   return s;
 }
 
-// Banco lungo da tre posti, con tre sedie vicine.
-function banco3() {
+// Ultima fila: banco da due posti per gli amici e banco singolo per Roberto, con le loro sedie.
+function bancoUltimaFila() {
   const tutto = new THREE.Group();
   const f = 3;
-  tutto.add(blocco(0.62, 0.05, 3.2, LEGNO, FILE_X[f], 0.7, 0));
-  for (const z of [-1.5, 0, 1.5]) for (const x of [-0.24, 0.24]) tutto.add(blocco(0.05, 0.7, 0.05, METALLO, FILE_X[f] + x, 0, z));
+  const zDue = (ULTIMA_Z[0] + ULTIMA_Z[1]) / 2;
+  tutto.add(blocco(0.62, 0.05, 2.0, LEGNO, FILE_X[f], 0.7, zDue));
+  tutto.add(blocco(0.62, 0.05, 1.2, LEGNO, FILE_X[f], 0.7, ULTIMA_Z[2]));
+  for (const z of [zDue - 0.92, zDue + 0.92, ULTIMA_Z[2] - 0.52, ULTIMA_Z[2] + 0.52]) for (const x of [-0.24, 0.24]) tutto.add(blocco(0.05, 0.7, 0.05, METALLO, FILE_X[f] + x, 0, z));
+  // Il casco da motorino del pelato, appoggiato sul banco davanti a lui.
+  const casco = creaCasco();
+  casco.position.set(FILE_X[f] - 0.02, 0.75, ULTIMA_Z[0] - 0.05);
+  casco.rotation.y = -Math.PI / 2 - 0.5;
+  tutto.add(casco);
   for (let c = 0; c < 3; c++) {
     const s = sedia(f, c);
     const seduta = new THREE.Group();
@@ -116,7 +126,7 @@ export function creaAula() {
 
   // Banchi: 4 file x 3 colonne.
   for (let f = 0; f < 3; f++) for (let c = 0; c < 3; c++) scena.add(banco(f, c));
-  scena.add(banco3());
+  scena.add(bancoUltimaFila());
 
   // --- Personaggi ----------------------------------------------------------
   const MAGLIE = [0xC0392B, 0x27AE60, 0xF39C12, 0x8E44AD, 0x16A085, 0xD35400, 0x2980B9, 0xE84393];
@@ -137,17 +147,16 @@ export function creaAula() {
   const roberto = persona({ roberto: true, conZaino: true });
   roberto.radice.position.copy(PORTA);
 
-  const amici = [
-    // I due amici sono un po' più alti di Roberto: uno coi capelli lisci pettinati da un lato,
-    // l'altro con un ciuffo biondo cenere sulla fronte.
-    persona({ maglia: 0x27AE60, capelli: 0x2B1D14, acconciatura: 'lato', pantaloni: 0x34495E, conZaino: true, zaino: 0x2C3E50 }, 1.07),
-    persona({ maglia: 0xF39C12, capelli: 0xB9AD94, acconciatura: 'ciuffo', pantaloni: 0x2A2D3A, conZaino: true, zaino: 0x16A085 }, 1.09),
-  ];
-  siediti(amici[0], sedia(3, 0));
-  siediti(amici[1], sedia(3, 2));
+  // I due amici, seduti vicini nell'ultima fila: il pelato alto e secco (col casco sul banco) e la
+  // ragazza coi capelli castani e la felpa viola.
+  const nuovo = (crea, scala) => { const p = crea(); p.radice.scale.setScalar(SCALA_PERSONA * scala); scena.add(p.radice); return p; };
+  const amici = [nuovo(creaCompagnoPelato, 1.13), nuovo(creaCompagnaFelpa, 0.97)];
+  amici[0].casella = [3, 0]; amici[1].casella = [3, 1];
+  for (const p of amici) siediti(p, sedia(...p.casella));
 
   const compagni = [];
-  [[0, 0], [0, 2], [1, 0], [1, 1], [1, 2], [2, 0], [2, 1], [2, 2]].forEach(([f, c], i) => {
+  // Il banco davanti ai due amici resta vuoto, così nella scena dell'ultima fila si vedono bene.
+  [[0, 0], [0, 2], [1, 0], [1, 1], [1, 2], [2, 0], [2, 2]].forEach(([f, c], i) => {
     const p = persona({ maglia: MAGLIE[i % MAGLIE.length], capelli: CAPELLI[i % CAPELLI.length], pantaloni: i % 2 ? 0x34495E : 0x2A2D3A, conZaino: true, zaino: MAGLIE[(i + 3) % MAGLIE.length] });
     siediti(p, sedia(f, c));
     p.casella = [f, c];
@@ -213,7 +222,7 @@ export function creaAula() {
       p.testa.rotation.set(0, 0, 0); p.corpo.rotation.set(0, 0, 0);
     }
     for (const p of compagni) { p.parla = 0; p.lancio = 0; }
-    for (const p of [...compagni, ...amici]) { siediti(p, sedia(...(p.casella ?? (amici.indexOf(p) === 0 ? [3, 0] : [3, 2])))); }
+    for (const p of [...compagni, ...amici]) siediti(p, sedia(...p.casella));
     for (const f of [...fRisata, ...fAmici, fRoberto, fCampana]) f.visible = false;
     for (const p of palline) { p.t = -1; p.m.visible = false; }
     // Panoramica dall'angolo della porta: cattedra e lavagna a destra, i banchi a sinistra.
@@ -228,15 +237,15 @@ export function creaAula() {
     roberto.espressione(esito === 'prima' ? 'triste' : 'sorriso');
     A.stato = 'cammina';
     A.t = 0;
-    seduta = esito === 'prima' ? sedia(0, 1) : sedia(3, 1);
+    seduta = esito === 'prima' ? sedia(0, 1) : sedia(3, 2);
     const f = esito === 'prima' ? 0 : 3;
     const accesso = new THREE.Vector3(FILE_X[f] - 1.5, 0, 3.7);
     percorso = [PORTA.clone(), new THREE.Vector3(PORTA.x, 0, 3.7), accesso, new THREE.Vector3(FILE_X[f] - 1.5, 0, seduta.z), seduta.clone()];
     tPercorso = 0;
     // Prima fila: dal lato della lavagna si vedono Roberto e i compagni che ridono dietro di lui.
-    // Ultima fila: dall'alto, davanti ai banchi, i tre amici in fila.
+    // Ultima fila: dall'alto, davanti ai banchi, Roberto accanto ai due amici.
     if (esito === 'prima') vaiVerso(4.6, 2.0, 1.6, 0.8, 1.0, -0.1, 64);
-    else vaiVerso(0.9, 2.7, 3.1, -3.8, 1.0, 0, 68);
+    else vaiVerso(1.0, 3.0, 0.3, -3.8, 0.9, -0.25, 66);
     A.durataVista = 1.3;
     A.tVista = 0;
   };
@@ -423,11 +432,11 @@ export function creaAula() {
     a1.radice.getWorldPosition(fAmico1.position); fAmico1.position.y += 1.7;
     a2.radice.getWorldPosition(fAmico2.position); fAmico2.position.y += 1.7;
     for (const f of fRisata) f.visible = false;
-    // Camera: parte larga e si stringe sul gruppetto, con un leggero dondolio.
+    // Camera: davanti all'ultima fila, sopra il banco vuoto; si stringe piano sui tre.
     const k = Math.min(1, t / 5);
-    vista.pos.set(0.9 - k * 0.5, 2.7 - k * 0.3, 3.1 - k * 0.2);
-    vista.mira.set(-3.8, 1.0, 0);
-    vista.fov = 68 - k * 6;
+    vista.pos.set(1.0 - k * 0.3, 3.0 - k * 0.1, 0.3 - k * 0.3);
+    vista.mira.set(-3.8, 0.9, -0.25);
+    vista.fov = 66 - k * 4;
   }
 
   // --- Uscita ----------------------------------------------------------------

@@ -589,3 +589,123 @@ export function creaAmico() {
   p.radice.scale.setScalar(0.8 * 1.06);
   return p;
 }
+
+// ---------------------------------------------------------------------------
+// Le persone del liceo: la ragazza nel corridoio e i due compagni in classe
+// ---------------------------------------------------------------------------
+
+// Volto di ragazza: ciglia lunghe, iride colorata con il riflesso, guance rosate, labbra.
+export function voltoRagazza(pelle, capelli, iride) {
+  return tela(256, 256, (g) => {
+    g.fillStyle = esa(pelle); g.fillRect(0, 0, 256, 256);
+    g.fillStyle = esa(capelli); g.fillRect(0, 0, 256, 38);
+    g.fillStyle = 'rgba(70,40,20,.75)';                      // sopracciglia sottili e arcuate
+    for (const [x, v] of [[80, 1], [176, -1]]) { g.save(); g.translate(x, 86); g.rotate(-0.12 * v); g.fillRect(-26, -4, 52, 7); g.restore(); }
+    for (const x of [82, 174]) {
+      g.fillStyle = '#ffffff'; g.beginPath(); g.ellipse(x, 116, 25, 15, 0, 0, Math.PI * 2); g.fill();
+      g.fillStyle = esa(iride); g.beginPath(); g.arc(x, 116, 13, 0, Math.PI * 2); g.fill();
+      g.fillStyle = '#1C1D2B'; g.beginPath(); g.arc(x, 116, 6, 0, Math.PI * 2); g.fill();
+      g.fillStyle = '#ffffff'; g.fillRect(x + 3, 108, 6, 6);
+      g.fillStyle = '#1C1D2B'; g.fillRect(x - 28, 99, 56, 6);                                 // ciglia
+      const fuori = x < 128 ? -1 : 1;
+      g.save(); g.translate(x + fuori * 27, 101); g.rotate(-fuori * 0.6); g.fillRect(-2, -12, 6, 14); g.restore();
+    }
+    g.fillStyle = 'rgba(240,120,130,.35)';
+    g.beginPath(); g.ellipse(62, 160, 20, 12, 0, 0, Math.PI * 2); g.ellipse(194, 160, 20, 12, 0, 0, Math.PI * 2); g.fill();
+    g.fillStyle = 'rgba(0,0,0,.08)'; g.fillRect(122, 130, 12, 34);
+    g.fillStyle = '#D85C6E'; g.beginPath(); g.ellipse(128, 194, 22, 8, 0, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#B8404F'; g.fillRect(106, 192, 44, 3);
+  });
+}
+
+// Volto rasato a zero: niente fascia di capelli in alto, sopracciglia folte, mezzo sorriso.
+function voltoPelato(pelle) {
+  return tela(256, 256, (g) => {
+    g.fillStyle = esa(pelle); g.fillRect(0, 0, 256, 256);
+    g.fillStyle = 'rgba(255,255,255,.18)'; g.fillRect(70, 12, 116, 26);          // lucido sulla fronte
+    g.fillStyle = '#2B1D14'; g.fillRect(54, 90, 54, 10); g.fillRect(148, 90, 54, 10);
+    g.fillStyle = '#ffffff'; g.fillRect(62, 110, 40, 22); g.fillRect(154, 110, 40, 22);
+    g.fillStyle = '#4A3222'; g.fillRect(74, 112, 18, 18); g.fillRect(166, 112, 18, 18);
+    g.fillStyle = 'rgba(0,0,0,.12)'; g.fillRect(118, 122, 20, 48);
+    g.fillStyle = 'rgba(40,30,20,.18)'; g.fillRect(70, 196, 116, 34);            // un'ombra di barba
+    g.fillStyle = '#8E4A3E'; g.fillRect(96, 190, 64, 9); g.fillRect(150, 184, 12, 8);
+  });
+}
+
+// Capelli lunghi e lisci: frangia di lato, ciocche ai lati del viso, massa dietro fino a metà schiena.
+function capelliLunghi(p, colore, lunghezza = 0.75) {
+  const t = p.testa;
+  t.add(blocco(0.5, lunghezza, 0.12, colore, 0, 0.13 - lunghezza, 0.19));
+  for (const s of [-1, 1]) {
+    t.add(blocco(0.09, lunghezza - 0.12, 0.3, colore, s * 0.25, 0.25 - lunghezza, 0.04));
+    t.add(blocco(0.1, 0.42, 0.08, colore, s * 0.22, -0.5, -0.13));              // ciocche davanti alle spalle
+  }
+  t.add(blocco(0.46, 0.1, 0.07, colore, 0.04, 0.12, -0.225));
+  t.add(blocco(0.16, 0.12, 0.07, colore, 0.16, 0.03, -0.225));
+}
+
+// La ragazza del corridoio: occhi azzurri, capelli biondi lunghi, sedere grande. Top rosa e jeans.
+export function creaRagazza() {
+  const PELLE = 0xF1D0B5, CAPELLI = 0xE8C872, JEANS = 0x4A6FA5;
+  const p = creaPersona({
+    pelle: PELLE, capelli: CAPELLI, maglia: 0xF29CB7, pantaloni: JEANS, scarpe: 0xF7F4EE,
+    corpulenza: 0.86, conZaino: false, volto: voltoRagazza(PELLE, CAPELLI, 0x3FA0E8),
+  });
+  capelliLunghi(p, CAPELLI, 0.8);
+  // Fianchi larghi e un sedere bello tondo, dietro (la schiena è verso +z).
+  const jeans = materiale(JEANS);
+  p.corpo.add(blocco(0.56, 0.22, 0.34, jeans, 0, 0.86));
+  for (const x of [-0.12, 0.12]) {
+    const gluteo = new THREE.Mesh(new THREE.SphereGeometry(0.2, 12, 9), jeans);
+    gluteo.scale.set(0.95, 1, 0.9);
+    gluteo.position.set(x, 0.93, 0.12);
+    gluteo.castShadow = true;
+    p.corpo.add(gluteo);
+  }
+  p.superiore.add(blocco(0.48, 0.05, 0.3, 0xF7C0D0, 0, 1.0));                   // orlo del top
+  p.radice.scale.setScalar(0.8 * 0.97);
+  return p;
+}
+
+// La compagna di banco: capelli castani, carina, felpa viola coi lacci neri del cappuccio.
+export function creaCompagnaFelpa() {
+  const PELLE = 0xEFCDB2, CAPELLI = 0x6B4226, VIOLA = 0x7A3E9D;
+  const p = creaPersona({
+    pelle: PELLE, capelli: CAPELLI, maglia: VIOLA, pantaloni: 0x2A2D3A, scarpe: 0xF2F2F2,
+    corpulenza: 0.9, conZaino: false, volto: voltoRagazza(PELLE, CAPELLI, 0x6B4A2B),
+  });
+  capelliLunghi(p, CAPELLI, 0.6);
+  // Cappuccio dietro il collo, tasca davanti, lacci neri che pendono, maniche lunghe.
+  p.superiore.add(blocco(0.5, 0.24, 0.16, 0x63307F, 0, 1.56, 0.2));
+  p.superiore.add(blocco(0.42, 0.18, 0.02, 0x63307F, 0, 1.06, -0.168));
+  for (const x of [-0.07, 0.07]) {
+    p.superiore.add(blocco(0.025, 0.3, 0.02, 0x111111, x, 1.36, -0.18));
+    p.superiore.add(blocco(0.04, 0.05, 0.03, 0x111111, x, 1.33, -0.18));
+  }
+  const manica = materiale(VIOLA);
+  for (const { gomito } of p.braccia) gomito.children[0].material = manica;
+  return p;
+}
+
+// Il compagno pelato, alto e secco.
+export function creaCompagnoPelato() {
+  const PELLE = 0xE6BC98;
+  return creaPersona({
+    pelle: PELLE, acconciatura: 'pelato', maglia: 0x2C2C34, pantaloni: 0x34495E, scarpe: 0x1C1D2B,
+    corpulenza: 0.82, conZaino: false, volto: voltoPelato(PELLE),
+  });
+}
+
+// Il suo casco da motorino, appoggiato sul banco: calotta rossa, visiera scura, mentoniera.
+export function creaCasco() {
+  const g = new THREE.Group();
+  const rosso = new THREE.MeshPhongMaterial({ color: 0xC0392B, shininess: 80, flatShading: true });
+  const calotta = new THREE.Mesh(new THREE.SphereGeometry(0.17, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.62), rosso);
+  calotta.scale.set(1, 1.05, 1.15);
+  calotta.position.y = 0.1;
+  g.add(calotta);
+  g.add(blocco(0.25, 0.09, 0.05, new THREE.MeshPhongMaterial({ color: 0x1C2633, shininess: 120 }), 0, 0.1, -0.17));
+  g.add(blocco(0.22, 0.05, 0.07, rosso, 0, 0.0, -0.16));
+  g.add(blocco(0.3, 0.025, 0.36, 0x1C1D2B, 0, 0.0, 0.0));
+  return g;
+}

@@ -10,7 +10,7 @@ import {
 } from './modelli.js';
 import {
   creaSemaforo, creaMetro, creaSegnaleSalita, creaAmico, creaMotorino, creaScuola, creaParete, creaSoffitto, creaCartelloAppeso, creaPortaAula,
-  creaPortone, creaMuroLungo,
+  creaPortone, creaMuroLungo, creaRagazza,
 } from './modelli-liceo.js';
 import {
   creaPareteStile, creaSoffittoStile, creaArredo, creaPortaCasa, creaLanciatore, creaBonus, creaScuolaDarmon, ICONA_BONUS,
@@ -21,7 +21,7 @@ import { CORSIE, PENDENZA_CROCIERA, generaLivello, distanzaPersona, distanzaLanc
 import { creaAula, fumetto } from './aula.js';
 import { creaAulaDarmon } from './aula-darmon.js';
 import { creaAulaEsame, creaFacolta } from './aula-esame.js';
-import { creaBossGelato, MALUS_COLPO } from './boss-gelato.js';
+import { creaBossGelato, MALUS_COLPO, MAX_GRASSO } from './boss-gelato.js';
 
 // L'etichetta mostra la versione del codice che sta davvero girando (dal ?v= con cui è caricato).
 {
@@ -412,7 +412,8 @@ function aggiornaSudore(dt, attivo, intensita) {
       // Gocce che schizzano dalle tempie verso l'alto e indietro, come nei fumetti (non sotto gli occhi).
       const lato = Math.random() < 0.5 ? -1 : 1;
       g.vita = 0.7 + Math.random() * 0.2;
-      g.x = lato * (0.2 + Math.random() * 0.1); g.y = 1.85 + Math.random() * 0.1; g.z = 0.05;
+      const sc = fisica().scala / 0.8;      // Roberto piccolo (boss alle medie): testa più in basso
+      g.x = lato * (0.2 + Math.random() * 0.1) * sc; g.y = (1.85 + Math.random() * 0.1) * sc; g.z = 0.05;
       g.vx = lato * (0.9 + Math.random() * 1.1); g.vy = 2.0 + Math.random() * 1.2; g.vz = 1.5 + Math.random() * 2;
     }
     prossimaGoccia = 0.22 - 0.12 * intensita;
@@ -1245,6 +1246,76 @@ function aggiornaAmico(dt) {
 }
 
 // ---------------------------------------------------------------------------
+// Nel corridoio del 3° piano del liceo una ragazza bionda viene incontro a Roberto: "Ciao amo!",
+// "Ciao!". Roberto non si ferma: la camera si avvicina un attimo per farla vedere bene, poi lei si
+// gira a salutarlo mentre lui passa (e la camera la sorpassa).
+// ---------------------------------------------------------------------------
+
+const ragazza = creaRagazza();
+ragazza.radice.visible = false;
+scena.add(ragazza.radice);
+const SEZ_RAGAZZA = TRATTI[LICEO].sezioni.find(s => s.ragazza);
+const RAGAZZA_M = SEZ_RAGAZZA.inizio + SEZ_RAGAZZA.ragazza;     // dove si incrociano
+const bollaAmo = fumetto('Ciao amo!', '#FFC9DA', '#1C1D2B', 1.35);
+const bollaCiao = fumetto('Ciao!', '#FFFFFF', '#1C1D2B', 0.75);
+scena.add(bollaAmo, bollaCiao);
+const rag = { lato: 0 };
+
+// Mentre si salutano Roberto rallenta appena, così la scena si legge.
+const rallentaRagazza = () => (G.mondo === LICEO
+  ? THREE.MathUtils.smoothstep(G.pos, RAGAZZA_M - 14, RAGAZZA_M - 8) * (1 - THREE.MathUtils.smoothstep(G.pos, RAGAZZA_M + 1, RAGAZZA_M + 5)) : 0);
+
+function aggiornaRagazza() {
+  const p = G.pos, M = RAGAZZA_M;
+  const attivo = G.mondo === LICEO && p > M - 36 && p < M + 7.5
+    && (G.stato === 'gioco' || G.stato === 'caduto' || G.stato === 'pausa');
+  ragazza.radice.visible = attivo;
+  bollaAmo.visible = bollaCiao.visible = false;
+  G.zoomRagazza = 0;
+  if (!attivo) { rag.lato = 0; return; }
+  // Passa di fianco a Roberto, dal lato dove c'è più spazio.
+  if (!rag.lato) rag.lato = G.x <= 0 ? 1 : -1;
+  // Incrociato Roberto, mentre si gira, si sposta dietro di lui: così la camera la riprende di spalle.
+  const gira = THREE.MathUtils.smoothstep(p, M - 0.6, M + 2.4);
+  const x = THREE.MathUtils.clamp(G.x + rag.lato * (1.25 - 0.35 * gira), -3.1, 3.1);
+  // Cammina verso Roberto; incrociato Roberto si gira e fa qualche passo dietro di lui.
+  // Dopo si incammina nella stessa direzione: la camera la sorpassa e la si vede anche da dietro.
+  const d = p < M ? M + (M - p) * 0.14 : M + (p - M) * 0.7;
+  azzeraPosa(ragazza);
+  posaCorsa(ragazza, G.tempo * (7.5 + 3 * gira), 0.4 + 0.25 * gira);
+  ragazza.corpo.rotation.z = Math.sin(G.tempo * 7.5) * 0.06;          // ancheggia
+  const amo = p > M - 11 && p < M - 2;
+  const ciao = p >= M - 2 && p < M + 7;
+  // Saluta con la mano dal lato di Roberto mentre parla, e di nuovo quando si gira.
+  if (amo || ciao) {
+    const i = rag.lato > 0 ? 1 : 0;
+    ragazza.braccia[i].spalla.rotation.set(0, 0, (i ? 1 : -1) * (2.5 + Math.sin(G.tempo * 10) * 0.25));
+  }
+  ragazza.testa.rotation.y = amo ? -rag.lato * 0.3 : gira * rag.lato * 0.6;   // poi si volta a guardarlo
+  perc.punto(d, tmp);
+  const c = Math.cos(tmp.psi), s = Math.sin(tmp.psi);
+  ragazza.radice.position.set(tmp.x + c * x, tmp.h, tmp.z + s * x);
+  ragazza.radice.rotation.set(0, -tmp.psi + Math.PI * (1 - gira), 0);
+  // La camera si stringe un po' su di lei mentre arriva.
+  G.zoomRagazza = THREE.MathUtils.smoothstep(p, M - 30, M - 20) * (1 - THREE.MathUtils.smoothstep(p, M + 2, M + 9));
+  G.latoRagazza = rag.lato;
+  if (amo) {
+    ragazza.radice.getWorldPosition(bollaAmo.position);
+    roberto.getWorldPosition(posAmico);
+    bollaAmo.position.lerp(posAmico, 0.15);
+    bollaAmo.position.y = ragazza.radice.position.y + 2.15;
+    bollaAmo.visible = true;
+  }
+  if (ciao) {
+    roberto.getWorldPosition(bollaCiao.position);
+    bollaCiao.position.y += 2.0;
+    bollaCiao.visible = true;
+    G.exprTemp = 0.2; G.exprNome = 'gioia';
+  }
+  G.guardaRagazza = ciao ? rag.lato : 0;
+}
+
+// ---------------------------------------------------------------------------
 // Il fratello all'Istituto Darmon: esce dalla classe accanto a Roberto con il suo creeper, corrono un po'
 // insieme, poi lui entra nella sua classe. Roberto gli chiede "Dove vai?" e tira dritto.
 // ---------------------------------------------------------------------------
@@ -1447,7 +1518,7 @@ const elBossBarra = document.getElementById('boss-barra');
 function aggiornaBoss(dt) {
   boss.aggiorna(dt, G, G.stato === 'gioco');
   // Roberto ingrassa e dimagrisce: si allarga il busto, con un sobbalzo a ogni colpo.
-  const c = (R.dim.corpo ?? 1) + 0.19 * boss.grassoVis + 0.08 * Math.sin(boss.scossa * Math.PI * 3) * boss.scossa;
+  const c = (R.dim.corpo ?? 1) + 0.3 * boss.grassoVis + 0.16 * Math.sin(boss.scossa * Math.PI * 3) * boss.scossa;
   if (boss.grassoVis > 0 || boss.scossa > 0) {
     if (corpoBoss === null || Math.abs(c - corpoBoss) > 0.001) { R.corporatura(c); corpoBoss = c; }
   } else if (corpoBoss !== null) { R.corporatura(R.dim.corpo ?? 1); corpoBoss = null; }
@@ -1536,16 +1607,21 @@ function animaRoberto(dt) {
     return;
   }
 
-  if (inCorsa) G.passo += dt * velocitaIn(G.pos) * 0.75 * (1 - 0.65 * avvicinamentoAula());
+  // Col grasso del boss le gambe vanno più piano, come la corsa.
+  if (inCorsa) G.passo += dt * velocitaIn(G.pos) * 0.75 * (1 - 0.65 * avvicinamentoAula()) * boss.fattore();
   R.testa.rotation.set(0, 0, 0);
   posaCorsa(R, G.passo, inAria ? 0.35 : 1);
   if (G.parlaAmico || amico.radice.visible) R.testa.rotation.y = -amicoStato.lato * (amico.radice.visible && !G.parlaAmico ? 0.2 : 0.5);
+  if (G.guardaRagazza) R.testa.rotation.y = -G.guardaRagazza * 0.6;
   if (inAria) for (const { ginocchio } of R.gambe) ginocchio.rotation.x = 1.1;
 
-  const piegato = G.scivola > 0 ? -1.15 : 0;
+  const gBoss = Math.min(1, boss.grassoVis / MAX_GRASSO);
+  const piegato = G.scivola > 0 ? -1.15 : 0.1 * gBoss;      // grasso: busto un po' all'indietro
   R.corpo.rotation.x += (piegato - R.corpo.rotation.x) * Math.min(1, dt * 18);
-  R.corpo.position.y = G.scivola > 0 ? 0.35 : (inAria ? 0 : Math.abs(Math.sin(G.passo)) * 0.06);
+  R.corpo.position.y = G.scivola > 0 ? 0.35 : (inAria ? 0 : Math.abs(Math.sin(G.passo)) * (0.06 + 0.03 * gBoss));
   roberto.rotation.z = (G.x - CORSIE[G.corsia]) * 0.12;
+  // Grasso: corre ciondolando da un lato all'altro.
+  if (gBoss > 0 && !inAria && G.scivola <= 0) roberto.rotation.z += Math.sin(G.passo) * 0.11 * gBoss;
   if (G.stato === 'caduto') { R.corpo.rotation.x = 1.3; R.corpo.position.y = 0.3; }
 }
 
@@ -1635,6 +1711,8 @@ function aggiornaCamera(dt) {
   const kAula = avvicinamentoAula();
   const kInt = perc.quantoInterno(G.pos, 6);
   const kFr = G.zoomFratello ?? 0;      // si avvicina quando il fratello mostra il creeper
+  // Con la ragazza del corridoio: la camera guarda un po' verso di lei e stringe appena l'inquadratura.
+  const kRag = G.zoomRagazza ?? 0, latRag = (G.latoRagazza ?? 0) * kRag;
   const indietro = camP.indietro * THREE.MathUtils.lerp(1, 0.84, kInt) - 2.4 * kAula - 1.6 * kFr;
   const alto = camP.alto * THREE.MathUtils.lerp(1, 0.88, kInt) - 1.2 * kAula - 0.7 * kFr;
   const lat = G.x * camP.segue;
@@ -1646,7 +1724,8 @@ function aggiornaCamera(dt) {
   perc.punto(G.pos + 10, tmp);
   // La visuale segue solo in parte la pendenza: in salita la strada si vede salire verso l'alto.
   const hMira = hQui + (tmp.h - hQui) * THREE.MathUtils.lerp(0.2, 0.85, kInt);
-  guarda.set(tmp.x + Math.cos(tmp.psi) * lat, hMira + camP.guarda + 0.25 * kAula, tmp.z + Math.sin(tmp.psi) * lat);
+  const latG = lat + 0.6 * latRag;
+  guarda.set(tmp.x + Math.cos(tmp.psi) * latG, hMira + camP.guarda + 0.25 * kAula - 0.2 * kRag, tmp.z + Math.sin(tmp.psi) * latG);
   if (colpoT > 0 || boomT > 0) {
     const k = Math.max(colpoT / DURATA_COLPO, boomT / 0.6 * 1.6);
     camera.position.x += Math.sin(G.tempo * 70) * 0.12 * k;
@@ -1654,7 +1733,7 @@ function aggiornaCamera(dt) {
   }
   camera.lookAt(guarda);
 
-  const fov = fovBase * camP.fov * (1 - 0.22 * kAula - 0.12 * kFr);
+  const fov = fovBase * camP.fov * (1 - 0.22 * kAula - 0.12 * kFr - 0.12 * kRag);
   if (Math.abs(camera.fov - fov) > 0.01) { camera.fov = fov; camera.updateProjectionMatrix(); }
 }
 
@@ -1701,7 +1780,7 @@ function ciclo(ora) {
     if (G.timer <= 0) G.stato = 'gioco';
   } else if (G.stato === 'gioco' || G.stato === 'aulaIn') {
     if (G.stato === 'gioco') G.tempo += dt;
-    G.pos += velocitaIn(G.pos) * (1 - 0.65 * avvicinamentoAula()) * boss.fattore() * dt;
+    G.pos += velocitaIn(G.pos) * (1 - 0.65 * avvicinamentoAula()) * boss.fattore() * (1 - 0.2 * rallentaRagazza()) * dt;
 
     const bersaglio = CORSIE[G.corsia];
     G.x += (bersaglio - G.x) * Math.min(1, dt * fisica().cambioCorsia);
@@ -1743,14 +1822,17 @@ function ciclo(ora) {
     aggiornaEntita(ora);
     aggiornaColori();
     aggiornaAmico(dt);
+    aggiornaRagazza();
     aggiornaFratello(dt);
     aggiornaBoss(dt);
     aggiornaCreeper(dt);
     animaRoberto(dt);
     aggiornaCamera(dt);
     aggiornaScintille(dt);
-    const sudore = G.mondo === LICEO && G.pos < SEZ_INGRESSO.inizio + 120 && (G.stato === 'gioco' || G.stato === 'aulaIn');
-    aggiornaSudore(dt, sudore, Math.min(1, G.pos / SEZ_INGRESSO.inizio));
+    // Suda nella salita del liceo e quando il gelato lo fa ingrassare (più è grasso, più suda).
+    const salita = G.mondo === LICEO && G.pos < SEZ_INGRESSO.inizio + 120 && (G.stato === 'gioco' || G.stato === 'aulaIn');
+    const gSudore = G.stato === 'gioco' ? boss.grassoVis / MAX_GRASSO : 0;
+    aggiornaSudore(dt, salita || gSudore > 0.15, salita ? Math.min(1, G.pos / SEZ_INGRESSO.inizio) : gSudore);
 
     // Il sole è fisso rispetto alla direzione di corsa; il riquadro è allungato lungo il percorso.
     perc.punto(G.pos, tmp);
@@ -1778,7 +1860,7 @@ requestAnimationFrame(ciclo);
 
 // Aiuto per i test automatici.
 window.__gioco = {
-  G, R, ENTITA, TRATTI, SEZIONI, CHECKPOINT, LUNGHEZZA, perc, aula, comando, velocitaIn, FISICA, impostaEta, avviaCrescita, camera, scena, boss,
+  G, R, ENTITA, TRATTI, ragazza, SEZIONI, CHECKPOINT, LUNGHEZZA, perc, aula, comando, velocitaIn, FISICA, impostaEta, avviaCrescita, camera, scena, boss,
   mostraAula(esito, secondi = 0, mondo = LICEO) {
     G.mondo = mondo; configuraScelta(EVENTO[mondo]);
     G.stato = 'aula'; G.esitoAula = esito; G.congela = true; G.immune = true; elSipario.classList.remove('nero');
