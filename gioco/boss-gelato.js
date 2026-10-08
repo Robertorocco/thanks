@@ -3,15 +3,16 @@
 //   pistacchio  coni gelato che cadono dal cielo (l'ombra a terra dice dove): si cambia corsia;
 //   fragola     palline di fragola lanciate che rotolano verso di te: si salta o si cambia corsia;
 //   cioccolato  onde di cioccolato: quelle alte si passano abbassandosi, quelle basse saltando.
-// Ogni colpo fa ingrassare Roberto (al massimo 5 volte), lo rallenta e costa 1 secondo; ogni 5 secondi
-// senza colpi dimagrisce di un passo, piano piano, fino alla forma di partenza.
+// Niente scritte: ogni colpo è uno schizzo di gelato del suo gusto, Roberto ingrassa (al massimo 5 volte),
+// rallenta del 20% a colpo (a 5 colpi va alla metà) e perde 1 secondo; ogni 5 secondi senza colpi
+// dimagrisce di un passo, piano piano, fino alla forma di partenza.
 
 import * as THREE from './lib/three.module.min.js';
 import { tela } from './modelli.js';
 
 export const MAX_GRASSO = 5;
 export const MALUS_COLPO = 1;            // secondi per ogni colpo
-const RALLENTA = 0.07;                   // velocità persa per ogni passo di grasso
+const RALLENTA = 0.2;                    // a ogni passo di grasso: velocità / (1 + 0.2 · passi)
 const DIMAGRISCE_DOPO = 5;               // secondi senza colpi per perdere un passo
 const INVULNERABILE = 1.0;
 
@@ -19,9 +20,9 @@ const L = c => new THREE.MeshLambertMaterial({ color: c, flatShading: true });
 const BAS = c => new THREE.MeshBasicMaterial({ color: c });
 
 export const GUSTI = {
-  pistacchio: { colore: 0x9CCB6A, scuro: 0x6E9E45, nome: 'Pistacchio', attacco: 'Coni dal cielo: cambia corsia!' },
-  fragola: { colore: 0xF29BB5, scuro: 0xD9638A, nome: 'Fragola', attacco: 'Palle che rotolano: salta!' },
-  cioccolato: { colore: 0x6B3E26, scuro: 0x4A2716, nome: 'Cioccolato', attacco: 'Onde di cioccolato: abbassati o salta!' },
+  pistacchio: { colore: 0x9CCB6A, scuro: 0x6E9E45, chiaro: 0xC4E39A },
+  fragola: { colore: 0xF29BB5, scuro: 0xD9638A, chiaro: 0xFBC9D8 },
+  cioccolato: { colore: 0x6B3E26, scuro: 0x4A2716, chiaro: 0x9A6644 },
 };
 // Fasi lungo la sezione (frazione percorsa).
 const FASI = [
@@ -50,7 +51,7 @@ const matCialda = new THREE.MeshLambertMaterial({ map: texCialda });
 
 function pallina(raggio, colore, scuro, colature = 7) {
   const g = new THREE.Group();
-  const m = new THREE.Mesh(new THREE.IcosahedronGeometry(raggio, 1), L(colore));
+  const m = new THREE.Mesh(new THREE.IcosahedronGeometry(raggio, raggio > 0.8 ? 2 : 1), L(colore));
   m.scale.y = 0.88;
   g.add(m);
   // Bordo irregolare e colature sotto la pallina.
@@ -70,7 +71,8 @@ function cono(alto, raggio) {
   return m;
 }
 
-// Il Gelato Gigante: cono con la faccia e tre palline (pistacchio, fragola, cioccolato), braccia di cialda.
+// Il Gelato Gigante: cono di cialda con il bordo, tre palline (pistacchio, fragola, cioccolato) con la
+// faccia sulla pallina grande, codette e cialda arrotolata in cima, braccia di cialda con i guanti.
 function creaGelato() {
   const g = new THREE.Group();
   const corpo = new THREE.Group();
@@ -78,48 +80,77 @@ function creaGelato() {
   const c = cono(3.0, 1.35);
   c.position.y = 1.5;
   corpo.add(c);
-  corpo.add(new THREE.Mesh(new THREE.CylinderGeometry(1.42, 1.38, 0.3, 14), L(0xC98C45)).translateY(3.0));
-  // Faccia sul cono: occhi grandi e cattivi, sopracciglia, bocca aperta con i denti.
-  const faccia = new THREE.Group();
-  faccia.position.set(0, 2.1, -0.95);
-  for (const s of [-1, 1]) {
-    const bianco = new THREE.Mesh(new THREE.SphereGeometry(0.3, 12, 10), BAS(0xFFFFFF));
-    bianco.scale.z = 0.5; bianco.position.set(s * 0.36, 0.18, 0); faccia.add(bianco);
-    const pupilla = new THREE.Mesh(new THREE.SphereGeometry(0.14, 10, 8), BAS(0x1C1D2B));
-    pupilla.position.set(s * 0.33, 0.14, -0.13); faccia.add(pupilla);
-    const ciglio = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.11, 0.08), BAS(0x3A1E0E));
-    ciglio.position.set(s * 0.36, 0.52, -0.1); ciglio.rotation.z = s * 0.4; faccia.add(ciglio);
-  }
-  const bocca = new THREE.Mesh(new THREE.BoxGeometry(0.75, 0.32, 0.1), BAS(0x5A1A12));
-  bocca.position.set(0, -0.38, 0.0); faccia.add(bocca);
-  for (let i = 0; i < 4; i++) {
-    const dente = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.13, 4), BAS(0xFFFFFF));
-    dente.rotation.x = Math.PI; dente.position.set(-0.24 + i * 0.16, -0.26, -0.06); faccia.add(dente);
-  }
-  corpo.add(faccia);
+  const bordo = new THREE.Mesh(new THREE.TorusGeometry(1.36, 0.17, 8, 22), L(0xC98C45));
+  bordo.rotation.x = Math.PI / 2; bordo.position.y = 3.0;
+  corpo.add(bordo);
   // Le tre palline, impilate.
   const palline = {};
-  const pila = [['pistacchio', 1.45, 3.55], ['fragola', 1.3, 5.0], ['cioccolato', 1.12, 6.25]];
+  const pila = [['pistacchio', 1.5, 3.6], ['fragola', 1.28, 5.05], ['cioccolato', 1.08, 6.25]];
   for (const [gusto, r, y] of pila) {
-    const p = pallina(r, GUSTI[gusto].colore, GUSTI[gusto].scuro, 9);
+    const p = pallina(r, GUSTI[gusto].colore, GUSTI[gusto].scuro, 10);
     p.position.y = y;
     corpo.add(p);
     palline[gusto] = p;
   }
-  // Ciliegina.
+  // Faccia sulla pallina di pistacchio (davanti è -z): occhi grandi e cattivi, sopracciglia, bocca aperta.
+  const faccia = new THREE.Group();
+  faccia.position.set(0, 3.7, -1.22);
+  const occhi = [];
+  for (const s of [-1, 1]) {
+    const occhio = new THREE.Group();
+    occhio.position.set(s * 0.46, 0.22, 0);
+    const bianco = new THREE.Mesh(new THREE.SphereGeometry(0.34, 14, 10), BAS(0xFFFFFF));
+    bianco.scale.z = 0.55; occhio.add(bianco);
+    const pupilla = new THREE.Mesh(new THREE.SphereGeometry(0.15, 10, 8), BAS(0x1C1D2B));
+    pupilla.position.set(-s * 0.04, -0.03, -0.17); occhio.add(pupilla);
+    const luce = new THREE.Mesh(new THREE.SphereGeometry(0.05, 6, 4), BAS(0xFFFFFF));
+    luce.position.set(-s * 0.08, 0.04, -0.3); occhio.add(luce);
+    faccia.add(occhio); occhi.push(occhio);
+    const ciglio = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.13, 0.12), BAS(0x2E4A1A));
+    ciglio.position.set(s * 0.44, 0.62, -0.12); ciglio.rotation.z = s * 0.42; faccia.add(ciglio);
+    const guancia = new THREE.Mesh(new THREE.CircleGeometry(0.16, 12), new THREE.MeshBasicMaterial({ color: 0xE77FA0, transparent: true, opacity: 0.6 }));
+    guancia.position.set(s * 0.82, -0.18, -0.02); guancia.rotation.y = Math.PI + s * 0.5; faccia.add(guancia);
+  }
+  const bocca = new THREE.Group();
+  bocca.position.set(0, -0.36, -0.02);
+  const cavo = new THREE.Mesh(new THREE.SphereGeometry(0.4, 14, 10), BAS(0x4A1410));
+  cavo.scale.set(1.15, 0.6, 0.35); bocca.add(cavo);
+  const lingua = new THREE.Mesh(new THREE.SphereGeometry(0.2, 10, 8), BAS(0xE0607E));
+  lingua.scale.set(1.3, 0.55, 0.5); lingua.position.set(0, -0.12, -0.08); bocca.add(lingua);
+  for (let i = 0; i < 5; i++) {
+    const dente = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.14, 4), BAS(0xFFFFFF));
+    dente.rotation.x = Math.PI; dente.position.set(-0.28 + i * 0.14, 0.17, -0.12); bocca.add(dente);
+  }
+  faccia.add(bocca);
+  corpo.add(faccia);
+  // Codette colorate sul cioccolato.
+  const colori = [0xFF5A5F, 0xFFD23F, 0x3EC1D3, 0xFFFFFF, 0x9B5DE5, 0x7BD389];
+  for (let i = 0; i < 26; i++) {
+    const t = i * 2.399, h = 0.25 + (i % 7) / 7 * 0.7;
+    const rr = Math.sqrt(1 - h * h) * 1.06;
+    const cod = new THREE.Mesh(new THREE.CapsuleGeometry(0.035, 0.14, 2, 4), BAS(colori[i % colori.length]));
+    cod.position.set(Math.cos(t) * rr, 6.25 + h * 1.06 * 0.88, Math.sin(t) * rr);
+    cod.rotation.set(t, t * 1.7, t * 0.6);
+    corpo.add(cod);
+  }
+  // Cialda arrotolata piantata in cima e ciliegina.
+  const cialdina = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.13, 1.4, 10), L(0xE2B36B));
+  cialdina.position.set(0.45, 7.2, 0.2); cialdina.rotation.z = -0.5; corpo.add(cialdina);
   const ciliegia = new THREE.Mesh(new THREE.SphereGeometry(0.35, 12, 10), L(0xD42A1F));
-  ciliegia.position.y = 7.45; corpo.add(ciliegia);
+  ciliegia.position.set(-0.15, 7.35, 0); corpo.add(ciliegia);
   const gambo = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.6), L(0x4F7F3A));
-  gambo.position.set(0.12, 7.85, 0); gambo.rotation.z = -0.4; corpo.add(gambo);
-  // Braccia di cialda (wafer) con le mani a guanto.
+  gambo.position.set(-0.03, 7.75, 0); gambo.rotation.z = -0.4; corpo.add(gambo);
+  // Braccia di cialda con i guanti bianchi.
   const braccia = [];
   for (const s of [-1, 1]) {
     const spalla = new THREE.Group();
-    spalla.position.set(s * 1.25, 2.6, 0);
-    const b = new THREE.Mesh(new THREE.BoxGeometry(0.28, 1.5, 0.28), matCialda);
+    spalla.position.set(s * 1.3, 2.75, 0);
+    const b = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.14, 1.5, 8), matCialda);
     b.position.y = -0.75; spalla.add(b);
-    const mano = new THREE.Mesh(new THREE.SphereGeometry(0.3, 10, 8), L(0xFFFFFF));
-    mano.position.y = -1.55; spalla.add(mano);
+    const mano = new THREE.Mesh(new THREE.SphereGeometry(0.32, 10, 8), L(0xFFFFFF));
+    mano.scale.set(1, 0.85, 0.8); mano.position.y = -1.6; spalla.add(mano);
+    const polsino = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.07, 6, 12), L(0xFFFFFF));
+    polsino.rotation.x = Math.PI / 2; polsino.position.y = -1.32; spalla.add(polsino);
     spalla.rotation.z = s * 0.9;
     corpo.add(spalla);
     braccia.push(spalla);
@@ -128,7 +159,7 @@ function creaGelato() {
   const ombra = new THREE.Mesh(new THREE.CircleGeometry(1.8, 24), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.25, depthWrite: false }));
   ombra.rotation.x = -Math.PI / 2;
   g.add(ombra);
-  g.userData = { corpo, palline, braccia, faccia, ombra };
+  g.userData = { corpo, palline, braccia, faccia, ombra, occhi, bocca };
   return g;
 }
 
@@ -159,36 +190,79 @@ function macchia(colore) {
   return m;
 }
 
+// Onde di cioccolato fuso. Quella bassa è un'onda che si arriccia verso Roberto e scorre sull'asfalto
+// (si salta); quella alta è un getto denso sospeso all'altezza della testa, con le colature (ci si abbassa).
+const CIOCC_LUCIDO = new THREE.MeshPhongMaterial({ color: 0x6B3E26, specular: 0x8A6048, shininess: 60, side: THREE.DoubleSide });
+const CIOCC_SCIA = new THREE.MeshPhongMaterial({ color: 0x4A2716, specular: 0x5A4030, shininess: 50, polygonOffset: true, polygonOffsetFactor: -8, polygonOffsetUnits: -8 });
 function ondaCioccolato(alta, larghezza) {
   const g = new THREE.Group();
-  const ciocc = L(GUSTI.cioccolato.colore), scuro = L(GUSTI.cioccolato.scuro);
+  const ciocc = CIOCC_LUCIDO, scuro = new THREE.MeshPhongMaterial({ color: GUSTI.cioccolato.scuro, specular: 0x6A4A38, shininess: 50 }), lucido = BAS(GUSTI.cioccolato.chiaro);
+  const parti = [];
   if (alta) {
-    // Un fiotto denso sospeso, con colature: ci si passa sotto abbassandosi.
-    const fascia = new THREE.Mesh(new THREE.BoxGeometry(larghezza, 0.9, 0.6), ciocc);
-    fascia.position.y = 0.45; g.add(fascia);
-    for (let x = -larghezza / 2 + 0.3; x < larghezza / 2; x += 0.55) {
-      const c = new THREE.Mesh(new THREE.ConeGeometry(0.13, 0.35 + Math.abs(Math.sin(x * 3)) * 0.25, 6), scuro);
-      c.rotation.x = Math.PI; c.position.set(x, -0.1, 0); g.add(c);
+    const punti = [];
+    for (let i = 0; i <= 8; i++) {
+      const x = -larghezza / 2 + (i / 8) * larghezza;
+      punti.push(new THREE.Vector3(x, 0.45 + Math.sin(i * 1.7) * 0.07, Math.sin(i * 2.3) * 0.12));
+    }
+    const curva = new THREE.CatmullRomCurve3(punti);
+    const getto = new THREE.Mesh(new THREE.TubeGeometry(curva, 40, 0.42, 9), ciocc);
+    g.add(getto);
+    const riflesso = new THREE.Mesh(new THREE.TubeGeometry(curva, 40, 0.1, 5), lucido);
+    riflesso.position.set(0, 0.26, 0.18); g.add(riflesso);
+    for (let x = -larghezza / 2 + 0.35; x < larghezza / 2 - 0.2; x += 0.62) {
+      const lung = 0.16 + Math.abs(Math.sin(x * 3.1)) * 0.12;
+      const goccia = new THREE.Group();
+      const c = new THREE.Mesh(new THREE.ConeGeometry(0.12, lung, 7), scuro);
+      c.rotation.x = Math.PI; c.position.y = -lung / 2; goccia.add(c);
+      const p = new THREE.Mesh(new THREE.SphereGeometry(0.1, 7, 5), scuro);
+      p.position.y = -lung; goccia.add(p);
+      goccia.position.set(x, 0.12, 0);
+      g.add(goccia); parti.push(goccia);
     }
   } else {
-    // Un'onda bassa che scorre sull'asfalto: si salta.
-    const onda = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, larghezza, 12, 1, false, 0, Math.PI), ciocc);
-    onda.rotation.z = Math.PI / 2;            // asse lungo x, metà superiore del cilindro
-    g.add(onda);
-    for (let x = -larghezza / 2 + 0.4; x < larghezza / 2; x += 0.8) {
-      const s = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 6), scuro);
-      s.position.set(x, 0.5 + Math.abs(Math.sin(x * 5)) * 0.15, 0); g.add(s);
+    // Profilo dell'onda (u verso Roberto, v in alto): sale piano da dietro, si arriccia in avanti e ricade.
+    const f = new THREE.Path();
+    f.moveTo(-1.2, 0);
+    f.quadraticCurveTo(-0.5, 0.12, -0.05, 0.55);
+    f.quadraticCurveTo(0.2, 0.84, 0.48, 0.72);
+    f.quadraticCurveTo(0.66, 0.6, 0.52, 0.47);
+    f.quadraticCurveTo(0.32, 0.4, 0.34, 0.26);
+    f.quadraticCurveTo(0.4, 0.06, 0.75, 0);
+    const profilo = f.getPoints(8);
+    // Superficie liscia lungo la strada: la cresta ondeggia e si abbassa a zero ai due capi.
+    const nx = 28, np = profilo.length, pos = [], idx = [];
+    for (let i = 0; i <= nx; i++) {
+      const x = -larghezza / 2 + (i / nx) * larghezza;
+      const bordo = THREE.MathUtils.smoothstep(larghezza / 2 - Math.abs(x), 0, 0.5);
+      const h = bordo * (0.92 + 0.16 * Math.sin(x * 2.3 + 0.5));
+      const avanti = Math.sin(x * 1.7) * 0.1;
+      for (const q of profilo) pos.push(x, q.y * h, (q.x - 0.15) * (0.55 + 0.45 * bordo) + avanti);
     }
+    for (let i = 0; i < nx; i++) for (let j = 0; j < np - 1; j++) {
+      const a0 = i * np + j, b0 = (i + 1) * np + j;
+      idx.push(a0, b0, a0 + 1, b0, b0 + 1, a0 + 1);
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    geo.setIndex(idx);
+    geo.computeVertexNormals();
+    g.add(new THREE.Mesh(geo, CIOCC_LUCIDO));
+    // La scia di cioccolato fuso sull'asfalto, dietro l'onda fino al gelato.
+    const scia = new THREE.Mesh(new THREE.PlaneGeometry(larghezza - 0.6, 7), CIOCC_SCIA);
+    scia.rotation.x = -Math.PI / 2; scia.position.set(0, 0.07, -4.6); g.add(scia);
   }
+  g.userData.parti = parti;
   return g;
 }
+
+// Schizzo di gelato quando Roberto viene colpito: palline del gusto che volano via e ricadono.
+const GEO_SCHIZZO = new THREE.IcosahedronGeometry(0.11, 0);
 
 // ---------------------------------------------------------------------------
 // Logica del combattimento
 // ---------------------------------------------------------------------------
 
-// ctx: { sez, daLocale(d, lx, ly, lz, out), psi(d), corsie, fisica(), velocita(pos), banner(html, durata),
-//        colpito(), fumetto(testo) }
+// ctx: { sez, daLocale(d, lx, ly, lz, out), psi(d), corsie, fisica(), velocita(pos), immune(), colpito() }
 export function creaBossGelato(scena, ctx) {
   const gelato = creaGelato();
   gelato.visible = false;
@@ -201,12 +275,27 @@ export function creaBossGelato(scena, ctx) {
 
   const B = {
     grasso: 0, grassoVis: 0, senzaColpi: 0, colpi: 0, invul: 0,
-    fase: -1, attesa: 1.0, proiettili: [], sciolto: 0, finito: false, lancio: 0, scossa: 0,
+    fase: -1, attesa: 1.0, proiettili: [], sciolto: 0, finito: false, lancio: 0, scossa: 0, schizzi: [],
   };
+
+  function schizza(G, gusto) {
+    const gu = GUSTI[gusto];
+    ctx.daLocale(G.pos, G.x, G.y + 1.1, 0, tmpV);
+    for (let i = 0; i < 16; i++) {
+      const m = new THREE.Mesh(GEO_SCHIZZO, L(i % 3 ? gu.colore : i % 2 ? gu.chiaro : gu.scuro));
+      m.position.copy(tmpV);
+      const a = r() * Math.PI * 2, su = 2 + r() * 3.5, fuori = 1.5 + r() * 2.5;
+      m.scale.setScalar(0.7 + r() * 0.9);
+      scena.add(m);
+      B.schizzi.push({ m, vx: Math.cos(a) * fuori, vy: su, vz: Math.sin(a) * fuori, t: 0 });
+    }
+  }
 
   function pulisci() {
     for (const p of B.proiettili) for (const m of p.mesh) scena.remove(m);
     B.proiettili = [];
+    for (const s of B.schizzi) scena.remove(s.m);
+    B.schizzi = [];
   }
   B.reset = () => {
     pulisci();
@@ -258,24 +347,26 @@ export function creaBossGelato(scena, ctx) {
     const f = ctx.fisica();
     if (alta) {
       // Tutta la strada: ci si deve abbassare.
-      aggiungi({ tipo: 'onda', alta, d: B.dBoss - 1, x: 0, larg: 7.2, vd: -8, da: f.altoDa, a: f.altoDa + 0.9, mesh: [ondaCioccolato(true, 7.2)] });
+      aggiungi({ tipo: 'onda', alta, d: B.dBoss - 1.5, x: 0, larg: 7.2, vd: -8, da: f.altoDa, a: f.altoDa + 0.9, mesh: [ondaCioccolato(true, 7.2)] });
     } else {
       // Due corsie su tre, bassa: si salta o si va nella corsia libera.
       const libera = Math.floor(r() * 3);
       const prese = [0, 1, 2].filter(c => c !== libera);
       const x = (corsie[prese[0]] + corsie[prese[1]]) / 2;
-      aggiungi({ tipo: 'onda', alta, d: B.dBoss - 1, x, larg: 4.6, vd: -8, da: 0, a: f.bassoMax * 0.95, mesh: [ondaCioccolato(false, 4.6)] });
+      aggiungi({ tipo: 'onda', alta, d: B.dBoss - 1.5, x, larg: 4.6, vd: -8, da: 0, a: f.bassoMax * 0.95, mesh: [ondaCioccolato(false, 4.6)] });
     }
     B.lancio = 0.5;
   }
 
-  function colpisci() {
+  function colpisci(G, gusto) {
     if (B.invul > 0) return;
+    schizza(G, gusto);
     B.invul = INVULNERABILE;
     B.colpi++;
     B.grasso = Math.min(MAX_GRASSO, B.grasso + 1);
     B.senzaColpi = 0;
     B.scossa = 1;
+    B.ride = 0.8;
     ctx.colpito(B);
   }
 
@@ -292,7 +383,7 @@ export function creaBossGelato(scena, ctx) {
   B.dentro = pos => pos >= sez.inizio && pos < sez.fine;
   B.gusto = () => (B.finito ? null : FASI[Math.max(0, B.fase)]?.gusto ?? null);
   // Fattore di velocità dovuto al grasso (1 = normale).
-  B.fattore = () => 1 - RALLENTA * B.grassoVis;
+  B.fattore = () => 1 / (1 + RALLENTA * B.grassoVis);
 
   B.aggiorna = (dt, G, inGioco) => {
     const pos = G.pos;
@@ -335,6 +426,11 @@ export function creaBossGelato(scena, ctx) {
         p.scale.setScalar(attiva ? 1 + 0.08 * Math.sin(t * 9) : 1);
       }
       B.lancio = Math.max(0, B.lancio - dt * 1.5);
+      B.ride = Math.max(0, (B.ride ?? 0) - dt);
+      u.bocca.scale.set(1, 0.6 + 1.1 * Math.sin(B.lancio * Math.PI) + (B.ride > 0 ? 0.5 + 0.4 * Math.sin(t * 30) : 0), 1);
+      const batte = (t % 3.2) < 0.12 ? 0.1 : 1;
+      for (const o of u.occhi) o.scale.y = batte;
+      u.faccia.rotation.x = B.ride > 0 ? -0.15 : 0;
       for (const [i, sp] of u.braccia.entries()) {
         const s = i ? 1 : -1;
         sp.rotation.z = s * (0.9 + Math.sin(t * 3 + i) * 0.15) + (i ? 1.6 * Math.sin(B.lancio * Math.PI) : 0);
@@ -350,11 +446,7 @@ export function creaBossGelato(scena, ctx) {
     if (fase !== B.fase && inGioco) {
       B.fase = fase;
       const F = FASI[fase];
-      if (F.gusto) ctx.banner(`${GUSTI[F.gusto].nome}!<small>${GUSTI[F.gusto].attacco}</small>`, 2.0);
-      if (F.fine && !B.finito) {
-        B.finito = true;
-        ctx.banner(`Gelato sciolto!<small>${B.colpi === 0 ? 'Nemmeno un colpo!' : B.colpi === 1 ? 'Colpito 1 volta' : `Colpito ${B.colpi} volte`}</small>`, 2.6);
-      }
+      if (F.fine) B.finito = true;
       B.attesa = 1.2;
     }
     if (B.finito) B.sciolto = Math.min(1, B.sciolto + dt * 0.7);
@@ -396,8 +488,8 @@ export function creaBossGelato(scena, ctx) {
           m.children[0].position.y = 1.1;
         }
         // In volo colpisce dall'alto; piantato è un ostacolo basso (si salta).
-        if (!p.atterrato && p.y < 2.2 && tocca(G, p.d, p.x, 0.95, p.y, p.y + 1.7)) colpisci();
-        if (p.atterrato && tocca(G, p.d, p.x, 0.9, 0, ctx.fisica().bassoMax * 0.9, 0.45)) colpisci();
+        if (!p.atterrato && p.y < 2.2 && tocca(G, p.d, p.x, 0.95, p.y, p.y + 1.7)) colpisci(G, 'pistacchio');
+        if (p.atterrato && tocca(G, p.d, p.x, 0.9, 0, ctx.fisica().bassoMax * 0.9, 0.45)) colpisci(G, 'pistacchio');
       } else if (p.tipo === 'palla') {
         const [m] = p.mesh;
         if (inGioco) {
@@ -408,17 +500,27 @@ export function creaBossGelato(scena, ctx) {
         const rimbalzo = Math.abs(Math.sin(p.salto * 6)) * p.salto * 2.5;
         piazza(m, p.d, p.x, p.raggio * 0.9 + rimbalzo);
         m.rotation.x = p.giro;
-        if (tocca(G, p.d, p.x, 0.95, rimbalzo, rimbalzo + p.raggio * 1.8, 0.55)) colpisci();
+        if (tocca(G, p.d, p.x, 0.95, rimbalzo, rimbalzo + p.raggio * 1.8, 0.55)) colpisci(G, 'fragola');
       } else if (p.tipo === 'onda') {
         const [m] = p.mesh;
         if (inGioco) p.d += p.vd * dt;
         piazza(m, p.d, p.x, p.da);
-        m.scale.y = 1 + Math.sin(performance.now() / 120 + p.d) * 0.06;
-        if (tocca(G, p.d, p.x, p.larg / 2 + 0.2, p.da, p.a, 0.5)) colpisci();
+        const t = performance.now() / 1000;
+        m.scale.y = 1 + Math.sin(t * 8 + p.d) * 0.05;
+        for (const [j, q] of m.userData.parti.entries()) q.position.y = (q.userData.y0 ??= q.position.y) + 0.06 * Math.sin(t * 9 + j * 1.3);
+        if (tocca(G, p.d, p.x, p.larg / 2 + 0.2, p.da, p.a, 0.5)) colpisci(G, 'cioccolato');
       }
       if (via) { for (const mm of p.mesh) scena.remove(mm); B.proiettili.splice(i, 1); }
     }
-    if (B.finito && B.proiettili.length) pulisci();
+    for (let i = B.schizzi.length - 1; i >= 0; i--) {
+      const s = B.schizzi[i];
+      s.t += dt;
+      s.vy -= 14 * dt;
+      s.m.position.x += s.vx * dt; s.m.position.y += s.vy * dt; s.m.position.z += s.vz * dt;
+      s.m.scale.multiplyScalar(1 - dt * 1.2);
+      if (s.t > 0.7) { scena.remove(s.m); B.schizzi.splice(i, 1); }
+    }
+    if (B.finito && B.proiettili.length) { for (const p of B.proiettili) for (const m of p.mesh) scena.remove(m); B.proiettili = []; }
   };
 
   return B;

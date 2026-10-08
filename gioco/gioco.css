@@ -98,8 +98,6 @@ h2 { font-size: 44px; }
 .dot { color: var(--tuff); }
 .indietro { justify-self: start; font-family: var(--mono); font-size: 13px; color: var(--muted); text-decoration: none; }
 
-.comandi { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; font-size: 15px; color: var(--muted); }
-.comandi b { display: inline-block; min-width: 40px; font-family: var(--mono); color: var(--ink); }
 
 form { display: grid; gap: 8px; }
 label { font-family: var(--mono); font-size: 12px; color: var(--muted); }
@@ -142,21 +140,18 @@ button { cursor: pointer; }
 /* I comandi, a schermo per i primi secondi di corsa (si possono provare intanto). */
 .comandi {
   position: fixed; left: 16px; right: 16px; bottom: max(16px, 2.5vh); margin: 0 auto; max-width: 340px;
-  padding: 9px 12px 10px; border-radius: 16px; pointer-events: none;
+  padding: 8px 12px 8px; border-radius: 16px; pointer-events: none;
   background: rgba(28,29,43,.8); color: #fff; box-shadow: 0 8px 24px rgba(0,0,0,.25);
   animation: comandi-entra .35s ease-out;
 }
 .comandi[hidden] { display: none; }
-.comandi h3 { margin: 0 0 6px; font: 500 12px var(--mono); letter-spacing: .08em; text-transform: uppercase; opacity: .8; }
-.comandi ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
-.comandi li { display: grid; grid-template-columns: 40px 1fr; align-items: center; gap: 10px; font-size: 14px; line-height: 1.2; }
+.comandi ul { list-style: none; margin: 0; padding: 0; display: flex; justify-content: center; gap: 14px; }
+.comandi li { display: flex; align-items: center; gap: 6px; font: 700 14px/1.2 var(--display); }
 .comandi .gesto {
-  display: grid; place-items: center; height: 26px; border-radius: 8px;
+  display: grid; place-items: center; height: 26px; min-width: 30px; padding: 0 5px; border-radius: 8px;
   background: rgba(255,255,255,.16); font: 700 16px var(--mono);
 }
-.comandi li small { font-size: 12px; opacity: .7; }
-.comandi li small::before { content: ' · '; }
-.comandi .resta { height: 3px; margin-top: 8px; border-radius: 2px; background: rgba(255,255,255,.25); overflow: hidden; }
+.comandi .resta { height: 3px; margin-top: 7px; border-radius: 2px; background: rgba(255,255,255,.25); overflow: hidden; }
 .comandi .resta div { height: 100%; width: 100%; background: var(--tuff, #F2C14E); transform-origin: left; }
 @keyframes comandi-entra { from { opacity: 0; transform: translateY(12px); } }
 .versione { justify-self: center; font: 11px var(--mono); color: var(--muted); }
@@ -170,18 +165,15 @@ button { cursor: pointer; }
 .orologio.urgente { background: rgba(200,40,40,.75); animation: lampeggia .5s steps(2) infinite; }
 .orologio[hidden] { display: none; }
 
-/* Boss del gelato: nome, gusto di turno, quanto manca alla fine della piazza e quanto è ingrassato Roberto. */
+/* Boss del gelato: solo quanto manca alla fine del combattimento, senza scritte. */
 .boss {
   position: fixed; left: 16px; right: 16px; top: calc(max(12px, env(safe-area-inset-top)) + 96px);
-  margin: 0 auto; max-width: 340px; padding: 8px 12px 9px; border-radius: 12px; pointer-events: none;
-  background: rgba(28,29,43,.72); color: #fff; font: 500 12px var(--mono);
+  margin: 0 auto; max-width: 260px; padding: 5px 10px; border-radius: 12px; pointer-events: none;
+  display: flex; align-items: center; gap: 8px; background: rgba(28,29,43,.55); font-size: 16px;
 }
 .boss[hidden] { display: none; }
-.boss-nome { font: 800 15px var(--display); letter-spacing: .01em; }
-.boss-nome span { font: 500 12px var(--mono); opacity: .85; margin-left: 6px; }
-.boss-barra { height: 7px; margin: 6px 0 5px; border-radius: 4px; background: rgba(255,255,255,.2); overflow: hidden; }
+.boss-barra { flex: 1; height: 7px; border-radius: 4px; background: rgba(255,255,255,.2); overflow: hidden; }
 .boss-barra div { height: 100%; width: 100%; background: linear-gradient(90deg, #9CCB6A, #F29BB5, #8A5A3C); transform-origin: right; }
-.boss-peso span { letter-spacing: 2px; }
 @keyframes lampeggia { 50% { opacity: .55; } }
 
 /* Dissolvenza tra gioco e scena in classe */

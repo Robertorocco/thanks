@@ -1,7 +1,7 @@
 import * as THREE from './lib/three.module.min.js';
 import {
   MONDI, TRAGUARDO, BONUS_CAFFE, SPINTA, CRESCITA, MALUS_PRIMA_FILA, TEMPO_SCELTA,
-  MODALITA_SVILUPPO, RESPAWN_INDIETRO, RESPAWN_INVULNERABILE, FISICA, ARCHI,
+  MODALITA_SVILUPPO, RESPAWN_INDIETRO, RESPAWN_INVULNERABILE, FISICA,
 } from './mondi.js';
 import { inviaTempo, leggiClassifica, formattaTempo } from './classifica.js';
 import {
@@ -20,7 +20,7 @@ import { costruisciPercorso } from './percorso.js';
 import { CORSIE, PENDENZA_CROCIERA, generaLivello, distanzaPersona, distanzaLancio } from './livello.js';
 import { creaAula, fumetto } from './aula.js';
 import { creaAulaDarmon } from './aula-darmon.js';
-import { creaBossGelato, MAX_GRASSO, MALUS_COLPO, GUSTI } from './boss-gelato.js';
+import { creaBossGelato, MALUS_COLPO } from './boss-gelato.js';
 
 // L'etichetta mostra la versione del codice che sta davvero girando (dal ?v= con cui è caricato).
 {
@@ -579,8 +579,6 @@ function nuovaPartita() {
 function iniziaCorsa() {
   G.stato = 'gioco';
   hud.radice.hidden = false;
-  const t = TRATTI[G.mondo];
-  banner(`Via!<small>${ARCHI[t.arco] ?? ''} · ${t.nome} · ${t.anni}</small>`, 1.8);
 }
 
 function avviaConto(sottotitolo) {
@@ -594,7 +592,6 @@ function caduta() {
   G.timer = 1.2;
   G.cadute++;
   G.posCaduta = G.pos;
-  banner(`Ahi!<small>${MODALITA_SVILUPPO ? 'Si riparte da qui (modalità sviluppo)' : 'Si riparte dall\'ultimo checkpoint'}</small>`, 1.2);
   if (navigator.vibrate) navigator.vibrate(120);
 }
 
@@ -626,7 +623,7 @@ function entraNelMondo(i) {
   G.mondo = i;
   const t = TRATTI[i];
   if (stessoGruppo(i)) return;
-  banner(`Mondo ${t.tappa + 1} di ${N_TAPPE}<small>${t.gruppo ?? t.nome} · ${anniTappa(t)}</small>`, 2.2);
+  banner(`${t.gruppo ?? t.nome}<small>${anniTappa(t)}</small>`, 1.8);
 }
 
 // ---------------------------------------------------------------------------
@@ -788,7 +785,6 @@ function aggiornaAula(dt) {
       G.stato = 'aulaRientro';
       G.timer = 0;
       elSipario.classList.remove('nero');
-      if (ev.fuori) banner(`${ev.fuori[0]}<small>${ev.fuori[1]}</small>`, 2.2);
     }
   } else if (G.stato === 'aulaRientro') {
     G.timer += dt;
@@ -892,11 +888,11 @@ const elComandi = document.getElementById('comandi');
 let durataComandi = 0, barraComandi = null;
 function mostraComandi() {
   const f = fisica();
-  const righe = [['← →', 'Scorri a sinistra o a destra', 'cambi corsia']];
-  if (f.senzaScivolata) righe.push(['↑', 'Scorri in su', 'un saltello']);
-  else righe.push(['↑', 'Scorri in su', 'salti'], ['↓', 'Scorri in giù', 'ti abbassi']);
-  elComandi.innerHTML = `<h3>Comandi · provali ora</h3><ul>${righe.map(([g, a, b]) =>
-    `<li><span class="gesto">${g}</span><span>${a}<small>${b}</small></span></li>`).join('')}</ul>`
+  // Una parola per gesto: le frecce dicono già da che parte scorrere.
+  const righe = [['← →', 'corsia']];
+  if (f.senzaScivolata) righe.push(['↑', 'saltello']);
+  else righe.push(['↑', 'salta'], ['↓', 'abbassati']);
+  elComandi.innerHTML = `<ul>${righe.map(([g, a]) => `<li><span class="gesto">${g}</span><span>${a}</span></li>`).join('')}</ul>`
     + '<div class="resta"><div></div></div>';
   barraComandi = elComandi.querySelector('.resta div');
   elComandi.hidden = false;
@@ -1128,15 +1124,16 @@ motorino.visible = false;
 scena.add(motorino);
 const SEZ_PORTONE = TRATTI[LICEO].sezioni.find(s => s.id === 'portone');
 const AMICO_INIZIO = EVENTO[LICEO].porta + 0.6;    // esce dall'aula con Roberto
-const AMICO_PARLA = SEZ_PORTONE.fine + 1;          // appena fuori dal portone comincia il dialogo
-const RIGA_DIALOGO = 1.7;                          // secondi per battuta
+const AMICO_PARLA = AMICO_INIZIO + 3;              // il dialogo parte appena usciti dall'aula e finisce sulle scale
+const AMICO_MOTO = SEZ_PORTONE.fine + 1;           // fuori dal portone va al suo motorino
+const RIGA_DIALOGO = 1.1;                          // secondi per battuta
 const DIALOGO = [
   ['amico', 'Oh, dopo mi mandi i compiti?'], ['roberto', 'Sì fra, te li mando'],
   ['amico', 'Allora ci sentiamo dopo'], ['roberto', 'Ciao fra'],
 ];
 const bolleAmico = DIALOGO.map(([chi, testo]) => {
   const largo = testo.length > 16 ? 1.9 : testo.length > 10 ? 1.4 : 1;
-  const f = fumetto(testo, chi === 'amico' ? '#FFE27A' : '#ffffff', '#1C1D2B', 1.7 * largo, largo);
+  const f = fumetto(testo, chi === 'amico' ? '#FFE27A' : '#ffffff', '#1C1D2B', 0.95 * largo, largo);
   scena.add(f);
   return f;
 });
@@ -1157,13 +1154,13 @@ function aggiornaAmico(dt) {
     return;
   }
 
-  // Le battute partono appena fuori dal portone, una ogni RIGA_DIALOGO secondi.
+  // Le battute partono appena usciti dall'aula, una ogni RIGA_DIALOGO secondi.
   if (G.pos >= AMICO_PARLA && G.stato === 'gioco') amicoStato.parla += dt;
   const riga = Math.floor(amicoStato.parla / RIGA_DIALOGO);
   const parlano = G.pos >= AMICO_PARLA && riga < DIALOGO.length && G.stato === 'gioco';
 
-  // Alla terza battuta compare il motorino sul marciapiede dal suo lato, poco più avanti.
-  if (riga >= 2 && amicoStato.dMoto === null) {
+  // Fuori dal portone compare il motorino sul marciapiede dal suo lato, poco più avanti.
+  if (G.pos >= AMICO_MOTO && amicoStato.dMoto === null) {
     amicoStato.latoMoto = amicoStato.x - G.x < 0 ? -1 : 1;
     amicoStato.dMoto = G.pos + 25;
     amicoStato.d3 = G.pos - 0.15; amicoStato.pos3 = G.pos;
@@ -1219,12 +1216,12 @@ function aggiornaAmico(dt) {
     const parlaRoberto = DIALOGO[riga][0] === 'roberto';
     roberto.getWorldPosition(posAmico);
     amico.radice.getWorldPosition(bolla.position);
-    // Finché sono vicini il fumetto sta a metà tra i due (così non esce dallo schermo), poi sopra chi parla.
+    // Finché sono vicini il fumetto sta tra i due, spostato verso Roberto (così non esce dallo schermo).
     const vicini = bolla.position.distanceTo(posAmico) < 4;
-    if (vicini) bolla.position.add(posAmico).multiplyScalar(0.5);
+    if (vicini) bolla.position.lerp(posAmico, 0.68);
     else if (parlaRoberto) bolla.position.copy(posAmico);
     else bolla.position.lerp(posAmico, 0.55);
-    bolla.position.y += 2.5;
+    bolla.position.y += 2.3;
     bolla.visible = true;
     G.parlaAmico = parlaRoberto ? 2 : 1;
   }
@@ -1315,26 +1312,21 @@ function aggiornaFratello(dt) {
 
 const SEZ_BOSS = TRATTI[LICEO].sezioni.find(s => s.boss === 'gelato');
 const tmpBoss = {};
-const bollaColpo = fumetto('+1 s · ingrassi!', '#FFE0EC', '#8A1F45', 2.4, 1.5);
-scena.add(bollaColpo);
+const DURATA_COLPO = 0.45;
 let colpoT = 0, corpoBoss = null;
 const boss = creaBossGelato(scena, {
   sez: SEZ_BOSS, mondo: LICEO, corsie: CORSIE, daLocale, fisica, velocita: velocitaIn,
   psi: d => { perc.punto(d, tmpBoss); return tmpBoss.psi; },
-  banner: (html, durata) => banner(html, durata),
   immune: () => Boolean(G.immune),
   colpito: () => {
     G.malus += MALUS_COLPO; G.malusBoss = (G.malusBoss ?? 0) + MALUS_COLPO;
-    G.invul = Math.max(G.invul ?? 0, 1.0);          // lampeggia: per un attimo non si viene ricolpiti
     G.exprNome = 'dolore'; G.exprTemp = 0.9;
-    colpoT = 1.1;
+    colpoT = DURATA_COLPO;
     if (navigator.vibrate) navigator.vibrate(70);
   },
 });
 const elBoss = document.getElementById('boss');
 const elBossBarra = document.getElementById('boss-barra');
-const elBossGusto = document.getElementById('boss-gusto');
-const elBossPeso = document.getElementById('boss-peso');
 
 function aggiornaBoss(dt) {
   boss.aggiorna(dt, G, G.stato === 'gioco');
@@ -1343,19 +1335,13 @@ function aggiornaBoss(dt) {
   if (boss.grassoVis > 0 || boss.scossa > 0) {
     if (corpoBoss === null || Math.abs(c - corpoBoss) > 0.001) { R.corporatura(c); corpoBoss = c; }
   } else if (corpoBoss !== null) { R.corporatura(R.dim.corpo ?? 1); corpoBoss = null; }
-  // "+1 s" sopra la testa dopo un colpo.
   colpoT = Math.max(0, colpoT - dt);
-  bollaColpo.visible = colpoT > 0;
-  if (colpoT > 0) { roberto.getWorldPosition(bollaColpo.position); bollaColpo.position.y += 2.4 + (1.1 - colpoT) * 0.6; }
   // Pannello del boss.
   const visibile = boss.dentro(G.pos) && !hud.radice.hidden && (G.stato === 'gioco' || G.stato === 'pausa' || G.stato === 'caduto');
   elBoss.hidden = !visibile;
   if (!visibile) return;
   const k = THREE.MathUtils.clamp((G.pos - SEZ_BOSS.inizio) / (SEZ_BOSS.fine - SEZ_BOSS.inizio), 0, 1);
   elBossBarra.style.transform = `scaleX(${1 - k})`;
-  const g = boss.gusto();
-  elBossGusto.textContent = g ? `· ${GUSTI[g].nome}` : '';
-  elBossPeso.textContent = '●'.repeat(boss.grasso) + '○'.repeat(MAX_GRASSO - boss.grasso);
 }
 
 function animaRoberto(dt) {
@@ -1364,6 +1350,12 @@ function animaRoberto(dt) {
   roberto.position.set(tmp.x + c * G.x, tmp.h + G.y, tmp.z + s * G.x);
   roberto.rotation.set(Math.atan(tmp.pend) * 0.5, -tmp.psi, 0);
   roberto.visible = !(G.invul > 0) || Math.floor(G.invul * 12) % 2 === 0;   // lampeggia dopo la ripartenza
+  // Colpito dal gelato: barcolla all'indietro e ondeggia di lato per un attimo.
+  if (colpoT > 0) {
+    const k = Math.sin((1 - colpoT / DURATA_COLPO) * Math.PI);
+    roberto.rotation.x -= 0.35 * k;
+    roberto.rotation.z = 0.18 * k * Math.sin(colpoT * 40);
+  }
   const f = fisica();
   G.exprTemp = Math.max(0, G.exprTemp - dt);
   R.aggiornaVolto(dt);
@@ -1532,6 +1524,11 @@ function aggiornaCamera(dt) {
   // La visuale segue solo in parte la pendenza: in salita la strada si vede salire verso l'alto.
   const hMira = hQui + (tmp.h - hQui) * THREE.MathUtils.lerp(0.2, 0.85, kInt);
   guarda.set(tmp.x + Math.cos(tmp.psi) * lat, hMira + camP.guarda + 0.25 * kAula, tmp.z + Math.sin(tmp.psi) * lat);
+  if (colpoT > 0) {
+    const k = colpoT / DURATA_COLPO;
+    camera.position.x += Math.sin(G.tempo * 70) * 0.12 * k;
+    camera.position.y += Math.cos(G.tempo * 55) * 0.1 * k;
+  }
   camera.lookAt(guarda);
 
   const fov = fovBase * camP.fov * (1 - 0.22 * kAula - 0.12 * kFr);
@@ -1553,8 +1550,6 @@ function controllaCheckpoint() {
   while (G.cp + 1 < CHECKPOINT.length && G.pos >= CHECKPOINT[G.cp + 1].pos) {
     salvaCheckpoint(G.cp + 1);
     const c = CHECKPOINT[G.cp];
-    if (c.nuovoMondo) continue;
-    banner(`${c.nome}${c.sotto ? `<small>${c.sotto}</small>` : ''}`, 2.2);
   }
 }
 
@@ -1644,7 +1639,7 @@ function ciclo(ora) {
   if (G.stato !== 'inizio' && G.stato !== 'fine' && G.stato !== 'pausa' && G.stato !== 'intro') {
     hud.tempo.textContent = formattaTempo(G.tempo + G.malus);
     hud.caffe.textContent = `${ICONA_BONUS[TRATTI[G.mondo].stile] ?? '☕'} ${G.caffe}`;
-    hud.mondo.textContent = `${TRATTI[G.mondo].tappa + 1}/${N_TAPPE} · ${TRATTI[G.mondo].nome}${MODALITA_SVILUPPO ? ' · DEV' : ''}`;
+    hud.mondo.textContent = `${TRATTI[G.mondo].tappa + 1}/${N_TAPPE} · ${TRATTI[G.mondo].gruppo ?? TRATTI[G.mondo].nome}${MODALITA_SVILUPPO ? ' · DEV' : ''}`;
     hud.barra.style.width = `${(G.pos / LUNGHEZZA) * 100}%`;
   }
   aggiornaOrologio();
