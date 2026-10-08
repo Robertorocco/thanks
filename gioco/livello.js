@@ -435,7 +435,9 @@ export function generaLivello(TRATTI, perc, velocitaIn) {
       ENTITA.push({ d: dMonumento, genere: 'monumento', lato: latoMonumento, mondo: t.indice });
       ENTITA.forEach(e => { if (e.genere === 'edificio' && e.mondo === t.indice && e.lato === latoMonumento && Math.abs(e.d - dMonumento) < 14) e.nascosto = true; });
     }
-    if (t.indice > 0) ENTITA.push({ d: t.inizio, genere: 'arco', testo: t.nome, colore: 0xC9962E });
+    // Un arco all'ingresso di ogni tappa: i mondi dello stesso gruppo (triennale e magistrale) ne hanno uno solo.
+    const stessoGruppo = t.gruppo && TRATTI[t.indice - 1]?.gruppo === t.gruppo;
+    if (t.indice > 0 && !stessoGruppo) ENTITA.push({ d: t.inizio, genere: 'arco', testo: t.gruppo ?? t.nome, colore: 0xC9962E });
   }
 
   // Nessun caffè deve restare dentro un ostacolo: se la sua corsia è chiusa (muri, auto, persone che

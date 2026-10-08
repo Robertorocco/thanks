@@ -36,6 +36,7 @@ export const FISICA = {
 export const ARCHI = {
   infanzia: 'Primi passi',
   scuole: 'Gli anni di scuola',
+  universita: 'Università',
 };
 
 export const MONDI = [
@@ -122,6 +123,9 @@ export const MONDI = [
       { id: 'rettilineo',    lung: 44,  amb: 'est' },
       { id: 'curva5',        lung: 58,  curva: -Math.PI / 2, amb: 'est' },
       { id: 'fine',          lung: 40,  amb: 'est' },
+      // Boss di fine liceo: il Gelato Gigante (vedi boss-gelato.js). Si sopravvive fino in fondo alla
+      // piazza; ogni colpo fa ingrassare e rallentare Roberto.
+      { id: 'boss-gelato',   lung: 450, amb: 'est', boss: 'gelato', checkpoint: 'Il Gelato Gigante', sottotitolo: 'Boss di fine liceo: sopravvivi!' },
     ],
     velocita: 12,
     cielo: 0xBFE3F5,
@@ -134,7 +138,9 @@ export const MONDI = [
   },
   {
     nome: 'Federico II · Triennale',
-    arco: 'scuole',
+    // Triennale e magistrale sono due mondi diversi ma un'unica tappa: un solo cartello all'ingresso.
+    arco: 'universita',
+    gruppo: 'Università Federico II',
     eta: 'liceo',
     ordine: 1,
     stile: 'triennale',
@@ -150,7 +156,8 @@ export const MONDI = [
   },
   {
     nome: 'Federico II · Magistrale',
-    arco: 'scuole',
+    arco: 'universita',
+    gruppo: 'Università Federico II',
     eta: 'liceo',
     ordine: 2,
     stile: 'magistrale',
@@ -165,26 +172,10 @@ export const MONDI = [
     ostacoli: { basso: 0xE07A2E, alto: 0x3A3F4A, muro: 0xF2C14E },
   },
   {
-    nome: 'ElRow Festival',
-    arco: 'scuole',
+    nome: 'Rennes',
+    arco: 'universita',
     eta: 'liceo',
     ordine: 3,
-    stile: 'festival',
-    anni: '2024 – 2025',
-    luogo: 'Campovolo, Emilia-Romagna',
-    lunghezza: 550,
-    velocita: 16,
-    cielo: 0x2A1640,
-    terreno: 0x3B2A52,
-    corsie: 0x6B4A8E,
-    edifici: [0xFF4FA3, 0x3EE0D0, 0xFFD23F],
-    ostacoli: { basso: 0x1A1A1A, alto: 0xFF4FA3, muro: 0x3EE0D0 },
-  },
-  {
-    nome: 'Rennes',
-    arco: 'scuole',
-    eta: 'liceo',
-    ordine: 4,
     stile: 'rennes',
     anni: '2026',
     luogo: 'Bretagna, Francia',

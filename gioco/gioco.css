@@ -169,6 +169,19 @@ button { cursor: pointer; }
 }
 .orologio.urgente { background: rgba(200,40,40,.75); animation: lampeggia .5s steps(2) infinite; }
 .orologio[hidden] { display: none; }
+
+/* Boss del gelato: nome, gusto di turno, quanto manca alla fine della piazza e quanto è ingrassato Roberto. */
+.boss {
+  position: fixed; left: 16px; right: 16px; top: calc(max(12px, env(safe-area-inset-top)) + 96px);
+  margin: 0 auto; max-width: 340px; padding: 8px 12px 9px; border-radius: 12px; pointer-events: none;
+  background: rgba(28,29,43,.72); color: #fff; font: 500 12px var(--mono);
+}
+.boss[hidden] { display: none; }
+.boss-nome { font: 800 15px var(--display); letter-spacing: .01em; }
+.boss-nome span { font: 500 12px var(--mono); opacity: .85; margin-left: 6px; }
+.boss-barra { height: 7px; margin: 6px 0 5px; border-radius: 4px; background: rgba(255,255,255,.2); overflow: hidden; }
+.boss-barra div { height: 100%; width: 100%; background: linear-gradient(90deg, #9CCB6A, #F29BB5, #8A5A3C); transform-origin: right; }
+.boss-peso span { letter-spacing: 2px; }
 @keyframes lampeggia { 50% { opacity: .55; } }
 
 /* Dissolvenza tra gioco e scena in classe */

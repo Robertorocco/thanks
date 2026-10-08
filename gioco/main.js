@@ -20,6 +20,7 @@ import { costruisciPercorso } from './percorso.js';
 import { CORSIE, PENDENZA_CROCIERA, generaLivello, distanzaPersona, distanzaLancio } from './livello.js';
 import { creaAula, fumetto } from './aula.js';
 import { creaAulaDarmon } from './aula-darmon.js';
+import { creaBossGelato, MAX_GRASSO, MALUS_COLPO, GUSTI } from './boss-gelato.js';
 
 // L'etichetta mostra la versione del codice che sta davvero girando (dal ?v= con cui è caricato).
 {
@@ -57,6 +58,17 @@ const TRATTI = MONDI.map((m, indice) => {
   return t;
 });
 const LUNGHEZZA = cursore;
+// Tappe: i mondi consecutivi dello stesso `gruppo` (triennale e magistrale) contano come una sola tappa,
+// con un solo cartello all'ingresso.
+const stessoGruppo = i => Boolean(TRATTI[i].gruppo) && TRATTI[i - 1]?.gruppo === TRATTI[i].gruppo;
+let nTappe = 0;
+for (const [i, t] of TRATTI.entries()) { if (!stessoGruppo(i)) nTappe++; t.tappa = nTappe - 1; }
+const N_TAPPE = nTappe;
+function anniTappa(t) {
+  if (!t.gruppo) return t.anni;
+  const membri = TRATTI.filter(x => x.gruppo === t.gruppo);
+  return `${membri[0].anni.split(' – ')[0]} – ${membri[membri.length - 1].anni.split(' – ').pop()}`;
+}
 const perc = costruisciPercorso(SEZIONI, 260);
 
 function mondoDi(pos) {
@@ -548,7 +560,7 @@ function salvaCheckpoint(i) {
 function nuovaPartita() {
   const m0 = MODALITA_SVILUPPO ? mondoDiPartenza() : 0;
   try { localStorage.setItem('gioco-laurea:dev-mondo', String(m0)); } catch {}
-  G.pos = TRATTI[m0].inizio; G.tempo = 0; G.malus = 0; G.caffe = 0; G.raccolti = new Set(); G.mondo = m0; G.cadute = 0;
+  G.pos = TRATTI[m0].inizio; G.tempo = 0; G.malus = 0; G.malusBoss = 0; G.caffe = 0; G.raccolti = new Set(); G.mondo = m0; G.cadute = 0;
   G.fatti = new Set(); G.comandiVisti = new Set(); G.esitoAula = null; G.invul = 0; G.posCaduta = null; G.bassa = 0; G.exprTemp = 0;
   impostaEta(TRATTI[m0].eta);
   salvaCheckpoint(CHECKPOINT.findIndex(c => c.mondo === m0 && c.nuovoMondo));
@@ -613,7 +625,8 @@ function ripartiDalCheckpoint() {
 function entraNelMondo(i) {
   G.mondo = i;
   const t = TRATTI[i];
-  banner(`Mondo ${i + 1} di ${TRATTI.length}<small>${t.nome} · ${t.anni}</small>`, 2.2);
+  if (stessoGruppo(i)) return;
+  banner(`Mondo ${t.tappa + 1} di ${N_TAPPE}<small>${t.gruppo ?? t.nome} · ${anniTappa(t)}</small>`, 2.2);
 }
 
 // ---------------------------------------------------------------------------
@@ -684,7 +697,8 @@ async function fine() {
   document.getElementById('fine-dettaglio').textContent =
     `Corsa ${formattaTempo(G.tempo)} · bonus ${G.caffe} su ${CAFFE_TOTALI} · ` +
     (G.cadute === 1 ? '1 caduta' : `${G.cadute} cadute`) +
-    (G.malus ? ` · prima fila +${G.malus} s` : '');
+    (G.malus - (G.malusBoss ?? 0) ? ` · penalità in classe +${G.malus - (G.malusBoss ?? 0)} s` : '') +
+    (G.malusBoss ? ` · gelato +${G.malusBoss} s` : '');
   mostraSchermo('fine');
   const arrotondato = Math.round(totale * 10) / 10;
   await inviaTempo(G.nome, arrotondato);
@@ -869,7 +883,7 @@ const hud = {
   barra: document.getElementById('hud-barra'),
 };
 document.getElementById('hud-tacche').innerHTML =
-  TRATTI.slice(1).map(t => `<span style="left:${(t.inizio / LUNGHEZZA) * 100}%"></span>`).join('');
+  TRATTI.slice(1).filter(t => !stessoGruppo(t.indice)).map(t => `<span style="left:${(t.inizio / LUNGHEZZA) * 100}%"></span>`).join('');
 
 // I comandi restano a schermo per i primi secondi di corsa, così si provano subito. Si rimostrano
 // quando cambiano (dai primi passi in casa al bambino che salta e si abbassa).
@@ -1295,6 +1309,55 @@ function aggiornaFratello(dt) {
   fratello.radice.rotation.set(0, -tmp.psi - sterza, 0);
 }
 
+// ---------------------------------------------------------------------------
+// Boss di fine liceo: il Gelato Gigante (vedi boss-gelato.js)
+// ---------------------------------------------------------------------------
+
+const SEZ_BOSS = TRATTI[LICEO].sezioni.find(s => s.boss === 'gelato');
+const tmpBoss = {};
+const bollaColpo = fumetto('+1 s · ingrassi!', '#FFE0EC', '#8A1F45', 2.4, 1.5);
+scena.add(bollaColpo);
+let colpoT = 0, corpoBoss = null;
+const boss = creaBossGelato(scena, {
+  sez: SEZ_BOSS, mondo: LICEO, corsie: CORSIE, daLocale, fisica, velocita: velocitaIn,
+  psi: d => { perc.punto(d, tmpBoss); return tmpBoss.psi; },
+  banner: (html, durata) => banner(html, durata),
+  immune: () => Boolean(G.immune),
+  colpito: () => {
+    G.malus += MALUS_COLPO; G.malusBoss = (G.malusBoss ?? 0) + MALUS_COLPO;
+    G.invul = Math.max(G.invul ?? 0, 1.0);          // lampeggia: per un attimo non si viene ricolpiti
+    G.exprNome = 'dolore'; G.exprTemp = 0.9;
+    colpoT = 1.1;
+    if (navigator.vibrate) navigator.vibrate(70);
+  },
+});
+const elBoss = document.getElementById('boss');
+const elBossBarra = document.getElementById('boss-barra');
+const elBossGusto = document.getElementById('boss-gusto');
+const elBossPeso = document.getElementById('boss-peso');
+
+function aggiornaBoss(dt) {
+  boss.aggiorna(dt, G, G.stato === 'gioco');
+  // Roberto ingrassa e dimagrisce: si allarga il busto, con un sobbalzo a ogni colpo.
+  const c = (R.dim.corpo ?? 1) + 0.19 * boss.grassoVis + 0.08 * Math.sin(boss.scossa * Math.PI * 3) * boss.scossa;
+  if (boss.grassoVis > 0 || boss.scossa > 0) {
+    if (corpoBoss === null || Math.abs(c - corpoBoss) > 0.001) { R.corporatura(c); corpoBoss = c; }
+  } else if (corpoBoss !== null) { R.corporatura(R.dim.corpo ?? 1); corpoBoss = null; }
+  // "+1 s" sopra la testa dopo un colpo.
+  colpoT = Math.max(0, colpoT - dt);
+  bollaColpo.visible = colpoT > 0;
+  if (colpoT > 0) { roberto.getWorldPosition(bollaColpo.position); bollaColpo.position.y += 2.4 + (1.1 - colpoT) * 0.6; }
+  // Pannello del boss.
+  const visibile = boss.dentro(G.pos) && !hud.radice.hidden && (G.stato === 'gioco' || G.stato === 'pausa' || G.stato === 'caduto');
+  elBoss.hidden = !visibile;
+  if (!visibile) return;
+  const k = THREE.MathUtils.clamp((G.pos - SEZ_BOSS.inizio) / (SEZ_BOSS.fine - SEZ_BOSS.inizio), 0, 1);
+  elBossBarra.style.transform = `scaleX(${1 - k})`;
+  const g = boss.gusto();
+  elBossGusto.textContent = g ? `· ${GUSTI[g].nome}` : '';
+  elBossPeso.textContent = '●'.repeat(boss.grasso) + '○'.repeat(MAX_GRASSO - boss.grasso);
+}
+
 function animaRoberto(dt) {
   perc.punto(G.pos, tmp);
   const c = Math.cos(tmp.psi), s = Math.sin(tmp.psi);
@@ -1520,7 +1583,7 @@ function ciclo(ora) {
     if (G.timer <= 0) G.stato = 'gioco';
   } else if (G.stato === 'gioco' || G.stato === 'aulaIn') {
     if (G.stato === 'gioco') G.tempo += dt;
-    G.pos += velocitaIn(G.pos) * (1 - 0.65 * avvicinamentoAula()) * dt;
+    G.pos += velocitaIn(G.pos) * (1 - 0.65 * avvicinamentoAula()) * boss.fattore() * dt;
 
     const bersaglio = CORSIE[G.corsia];
     G.x += (bersaglio - G.x) * Math.min(1, dt * fisica().cambioCorsia);
@@ -1563,6 +1626,7 @@ function ciclo(ora) {
     aggiornaColori();
     aggiornaAmico(dt);
     aggiornaFratello(dt);
+    aggiornaBoss(dt);
     animaRoberto(dt);
     aggiornaCamera(dt);
     aggiornaScintille(dt);
@@ -1580,7 +1644,7 @@ function ciclo(ora) {
   if (G.stato !== 'inizio' && G.stato !== 'fine' && G.stato !== 'pausa' && G.stato !== 'intro') {
     hud.tempo.textContent = formattaTempo(G.tempo + G.malus);
     hud.caffe.textContent = `${ICONA_BONUS[TRATTI[G.mondo].stile] ?? '☕'} ${G.caffe}`;
-    hud.mondo.textContent = `${G.mondo + 1}/${TRATTI.length} · ${TRATTI[G.mondo].nome}${MODALITA_SVILUPPO ? ' · DEV' : ''}`;
+    hud.mondo.textContent = `${TRATTI[G.mondo].tappa + 1}/${N_TAPPE} · ${TRATTI[G.mondo].nome}${MODALITA_SVILUPPO ? ' · DEV' : ''}`;
     hud.barra.style.width = `${(G.pos / LUNGHEZZA) * 100}%`;
   }
   aggiornaOrologio();
@@ -1595,7 +1659,7 @@ requestAnimationFrame(ciclo);
 
 // Aiuto per i test automatici.
 window.__gioco = {
-  G, R, ENTITA, TRATTI, SEZIONI, CHECKPOINT, LUNGHEZZA, perc, aula, comando, velocitaIn, FISICA, impostaEta, avviaCrescita, camera, scena,
+  G, R, ENTITA, TRATTI, SEZIONI, CHECKPOINT, LUNGHEZZA, perc, aula, comando, velocitaIn, FISICA, impostaEta, avviaCrescita, camera, scena, boss,
   mostraAula(esito, secondi = 0, mondo = LICEO) {
     G.mondo = mondo; configuraScelta(EVENTO[mondo]);
     G.stato = 'aula'; G.esitoAula = esito; G.congela = true; G.immune = true; elSipario.classList.remove('nero');

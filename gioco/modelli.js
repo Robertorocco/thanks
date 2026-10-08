@@ -841,13 +841,6 @@ export function creaPersona(o = {}) {
       matPelle.color.copy(pel);
       matPolsi.color.set(d.polsi ?? ETA_PELLE[eta]);
       grembiule.visible = d.grembiule;
-      // Corporatura: busto più largo e profondo, spalle e gambe un po' più distanti, pancia.
-      const c = d.corpo ?? 1, cz = 1 + (c - 1) * 0.9;
-      tronco.scale.set(c, 1, cz);
-      pancia.visible = c > 1;
-      for (const [i, { spalla }] of parti.braccia.entries()) spalla.position.x = (i ? 1 : -1) * 0.43 * c;
-      for (const [i, { anca }] of parti.gambe.entries()) anca.position.x = (i ? 1 : -1) * 0.14 * (1 + (c - 1) * 1.3);
-      zaino.position.z = (cz - 1) * 0.2;
       zaino.visible = d.zaino;
       cartellina.visible = Boolean(d.cartellina);
       // Il busto si accorcia con l'età (`busto`); la testa resta della misura `testa`.
@@ -856,10 +849,22 @@ export function creaPersona(o = {}) {
       testa.scale.setScalar(d.testa / busto);
       testa.position.y = 2.02 + (d.testa / busto - 1) * 0.17;
       superiore.position.y = d.gambe - busto;
+      for (const { spalla } of parti.braccia) spalla.scale.setScalar(d.arti);
+      parti.corporatura(d.corpo ?? 1);
+      azzeraPosa(parti);
+    };
+    // Corporatura: busto più largo e profondo, spalle e gambe un po' più distanti, pancia. Si può
+    // cambiare anche durante la corsa (il boss del gelato fa ingrassare Roberto).
+    parti.corporatura = (c) => {
+      const d = parti.dim, cz = 1 + (c - 1) * 0.9;
+      tronco.scale.set(c, 1, cz);
+      pancia.visible = c > 1;
+      pancia.scale.set(1, 1, 1 + Math.max(0, c - 1.2) * 1.2);    // oltre una certa misura la pancia sporge di più
+      for (const [i, { spalla }] of parti.braccia.entries()) spalla.position.x = (i ? 1 : -1) * 0.43 * c;
+      for (const [i, { anca }] of parti.gambe.entries()) anca.position.x = (i ? 1 : -1) * 0.14 * (1 + (c - 1) * 1.3);
+      zaino.position.z = (cz - 1) * 0.2;
       // Gambe più robuste solo in larghezza (x): non si mescola con il piegamento, che ruota attorno a x.
       for (const { anca } of parti.gambe) { anca.scale.set(d.gambe * (1 + (c - 1) * 0.9), d.gambe, d.gambe); anca.position.y = d.gambe; }
-      for (const { spalla } of parti.braccia) spalla.scale.setScalar(d.arti);
-      azzeraPosa(parti);
     };
     parti.braccia[0].gomito.add(cartellina);
     parti.vesti('liceo');
