@@ -599,8 +599,8 @@ function disegnoBambino() {
 // Proporzioni e abiti di Roberto nelle varie età: testa (scala), braccia e gambe (scala), colori, zaino, grembiule.
 export const ETA_ROBERTO = {
   neonato: { testa: 1.45, arti: 0.68, gambe: 0.6, maglia: 0xA9D6CC, polsi: 0xA9D6CC, pantaloni: 0xA9D6CC, scarpe: 0xF4F1E8, zaino: false, grembiule: false, anni: '0 anni' },
-  bimbo:   { testa: 1.14, arti: 0.92, gambe: 0.84, busto: 0.88, maglia: 0x233A73, polsi: 0x233A73, pantaloni: 0x3A3F52, scarpe: 0xF2F2F2, zaino: true, grembiule: true, cartellina: true, anni: '8 anni' },
-  liceo:   { testa: 1.0, arti: 1.0, gambe: 1.0, maglia: MAGLIA_R, polsi: null, pantaloni: PANTALONI_R, scarpe: SCARPE_R, zaino: true, grembiule: false, anni: '14 anni' },
+  bimbo:   { testa: 1.14, arti: 0.92, gambe: 0.84, busto: 0.88, corpo: 1.15, maglia: 0x233A73, polsi: 0x233A73, pantaloni: 0x3A3F52, scarpe: 0xF2F2F2, zaino: true, grembiule: true, cartellina: true, anni: '8 anni' },
+  liceo:   { testa: 1.0, arti: 1.0, gambe: 1.0, corpo: 1.13, maglia: MAGLIA_R, polsi: null, pantaloni: PANTALONI_R, scarpe: SCARPE_R, zaino: true, grembiule: false, anni: '14 anni' },
 };
 const VOLTO_ETA = { neonato: 'neonato', bimbo: 'bimbo', liceo: 'adulto' };
 const ETA_PELLE = { neonato: ETA_VOLTO.neonato.pelle, bimbo: ETA_VOLTO.bimbo.pelle, liceo: ETA_VOLTO.adulto.pelle };
@@ -622,11 +622,21 @@ export function creaPersona(o = {}) {
   const superiore = new THREE.Group();
   corpo.add(superiore);
 
-  // Busto: maglia leggermente rastremata, cintura, collo.
-  superiore.add(blocco(0.56, 0.08, 0.31, 0x1C1D2B, 0, 1.0));
-  superiore.add(blocco(0.58, 0.42, 0.3, matMaglia, 0, 1.04));
-  superiore.add(blocco(0.66, 0.32, 0.34, matMaglia, 0, 1.42));
+  // Busto: maglia leggermente rastremata, cintura, collo. Il `tronco` si allarga per Roberto più robusto.
+  const tronco = new THREE.Group();
+  superiore.add(tronco);
+  tronco.add(blocco(0.56, 0.08, 0.31, 0x1C1D2B, 0, 1.0));
+  tronco.add(blocco(0.58, 0.42, 0.3, matMaglia, 0, 1.04));
+  tronco.add(blocco(0.66, 0.32, 0.34, matMaglia, 0, 1.42));
   superiore.add(blocco(0.16, 0.1, 0.16, matPelle, 0, 1.72));
+  // Un po' di pancia (solo Roberto, quando l'età la prevede): due strati arrotondati sul davanti.
+  const pancia = new THREE.Group();
+  if (rob) {
+    pancia.add(blocco(0.52, 0.4, 0.1, matMaglia, 0, 0.9, -0.19));
+    pancia.add(blocco(0.4, 0.28, 0.07, matMaglia, 0, 0.95, -0.255));
+    pancia.visible = false;
+    tronco.add(pancia);
+  }
 
   // Grembiule da scolaro: gonna sopra i fianchi, colletto bianco e fiocco.
   const grembiule = new THREE.Group();
@@ -635,7 +645,7 @@ export function creaPersona(o = {}) {
     grembiule.add(blocco(0.5, 0.1, 0.2, 0xFFFFFF, 0, 1.76, -0.08));
     grembiule.add(blocco(0.22, 0.12, 0.06, 0xE3B23C, 0, 1.62, -0.19));
     grembiule.visible = false;
-    superiore.add(grembiule);
+    tronco.add(grembiule);
   }
 
   const testa = new THREE.Group();
@@ -831,6 +841,13 @@ export function creaPersona(o = {}) {
       matPelle.color.copy(pel);
       matPolsi.color.set(d.polsi ?? ETA_PELLE[eta]);
       grembiule.visible = d.grembiule;
+      // Corporatura: busto più largo e profondo, spalle e gambe un po' più distanti, pancia.
+      const c = d.corpo ?? 1, cz = 1 + (c - 1) * 0.9;
+      tronco.scale.set(c, 1, cz);
+      pancia.visible = c > 1;
+      for (const [i, { spalla }] of parti.braccia.entries()) spalla.position.x = (i ? 1 : -1) * 0.43 * c;
+      for (const [i, { anca }] of parti.gambe.entries()) anca.position.x = (i ? 1 : -1) * 0.14 * (1 + (c - 1) * 1.3);
+      zaino.position.z = (cz - 1) * 0.2;
       zaino.visible = d.zaino;
       cartellina.visible = Boolean(d.cartellina);
       // Il busto si accorcia con l'età (`busto`); la testa resta della misura `testa`.
@@ -839,7 +856,8 @@ export function creaPersona(o = {}) {
       testa.scale.setScalar(d.testa / busto);
       testa.position.y = 2.02 + (d.testa / busto - 1) * 0.17;
       superiore.position.y = d.gambe - busto;
-      for (const { anca } of parti.gambe) { anca.scale.setScalar(d.gambe); anca.position.y = d.gambe; }
+      // Gambe più robuste solo in larghezza (x): non si mescola con il piegamento, che ruota attorno a x.
+      for (const { anca } of parti.gambe) { anca.scale.set(d.gambe * (1 + (c - 1) * 0.9), d.gambe, d.gambe); anca.position.y = d.gambe; }
       for (const { spalla } of parti.braccia) spalla.scale.setScalar(d.arti);
       azzeraPosa(parti);
     };

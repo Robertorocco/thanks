@@ -373,7 +373,8 @@ export function generaLivello(TRATTI, perc, velocitaIn) {
         // Edifici, lampioni e alberi lungo la strada. Vicino alla scuola restano bassi e lontani.
         const vicinoScuola = sz.id === 'avvicinamento';
         // Agli incroci con semaforo la strada trasversale resta libera da edifici e alberi.
-        const incrocio = q => ENTITA.some(x => x.genere === 'semaforo' && x.mondo === t.indice && Math.abs(x.d - q) < 15);
+        const incrocio = q => ENTITA.some(x => x.genere === 'semaforo' && x.mondo === t.indice && Math.abs(x.d - q) < 15)
+          || (sz.id === 'cortile' && t.stile === 'darmon' && q > b - 48);   // davanti all'Istituto si vede la scuola intera
         for (let q = a - (a === o0 ? 28 : 0); q < b; q += 7) {
           if (t.sezioni && q > o0 + 596 && q < o0 + 700 && t.stile === 'liceo') continue;
           if (incrocio(q)) continue;

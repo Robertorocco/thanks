@@ -225,6 +225,19 @@ function texturaPavimento() {
   g.fillStyle = 'rgba(0,0,0,.18)'; g.fillRect(0, 0, 128, 3); g.fillRect(0, 0, 3, 128);
   return c;
 }
+// Cotto a quadrotti, come il pavimento del corridoio dell'Istituto Darmon (il colore arriva dai vertici).
+function texturaCotto() {
+  const c = document.createElement('canvas');
+  c.width = 128; c.height = 128;
+  const g = c.getContext('2d');
+  for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) {
+    const v = 236 + ((i * 7 + j * 13) % 5) * 4;
+    g.fillStyle = `rgb(${v},${v - 6},${v - 10})`; g.fillRect(i * 32, j * 32, 32, 32);
+  }
+  g.fillStyle = 'rgba(90,40,20,.35)';
+  for (let i = 0; i < 4; i++) { g.fillRect(i * 32, 0, 2, 128); g.fillRect(0, i * 32, 128, 2); }
+  return c;
+}
 function texDa(canvas, ripetiU = 1) {
   const t = new THREE.CanvasTexture(canvas);
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
@@ -302,6 +315,7 @@ function nastro(a, b, sinistra, destra, quota, colore, vTile, materiale, passo =
   const marciapiede = new THREE.MeshLambertMaterial({ vertexColors: true, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
   const pavimento = new THREE.MeshLambertMaterial({ map: texDa(texturaPavimento(), 2), vertexColors: true });
   const parquet = new THREE.MeshLambertMaterial({ map: texDa(texturaParquet(), 2), vertexColors: true });
+  const cotto = new THREE.MeshLambertMaterial({ map: texDa(texturaCotto(), 2), vertexColors: true });
   const gradini = new THREE.MeshLambertMaterial({ map: texDa(texturaGradini()), vertexColors: true });
   for (const iv of INTERVALLI) {
     if (iv.amb === 'est') {
@@ -314,7 +328,8 @@ function nastro(a, b, sinistra, destra, quota, colore, vTile, materiale, passo =
       // Dentro la scuola: pavimento a piastrelle, con i gradini sulle rampe di scale.
       const scale = SEZIONI.filter(s => s.amb === 'int' && s.id.startsWith('scale') && s.inizio >= iv.inizio && s.fine <= iv.fine);
       let da = iv.inizio;
-      const matPav = TRATTI[mondoDi(iv.inizio + 1)].stile === 'casa' ? parquet : pavimento;
+      const stilePav = TRATTI[mondoDi(iv.inizio + 1)].stile;
+      const matPav = stilePav === 'casa' ? parquet : stilePav === 'darmon' ? cotto : pavimento;
       const pezzo = (a, b, mat, tile) => { if (b > a) nastro(a, b, -4.4, 4.4, 0.0, (d, c) => coloreMondo('pavInt', d, c), tile, mat === pavimento ? matPav : mat, 1); };
       for (const s of scale) { pezzo(da, s.inizio, pavimento, TILE_PAV); pezzo(s.inizio, s.fine, gradini, PASSO_GRADINO); da = s.fine; }
       pezzo(da, iv.fine, pavimento, TILE_PAV);

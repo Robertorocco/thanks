@@ -32,15 +32,25 @@ const texCasa = tela(256, 256, (g, W, H) => {
 const matCasa = new THREE.MeshLambertMaterial({ map: texCasa });
 const matSoffittoCasa = new THREE.MeshLambertMaterial({ color: 0xFFF8EA });
 
-// Pareti dell'Istituto: sopra giallino, sotto una fascia colorata, con disegni dei bambini.
-const FASCE = ['#7FBF9C', '#8DB8E8', '#F2B766', '#E99AB0'];
-const texDarmon = FASCE.map(f => tela(256, 256, (g, W, H) => {
-  g.fillStyle = '#FBF1D3'; g.fillRect(0, 0, W, H);
-  g.fillStyle = f; g.fillRect(0, H * 0.55, W, H * 0.45);
-  g.fillStyle = 'rgba(255,255,255,.7)'; g.fillRect(0, H * 0.55 - 5, W, 5);
-  g.fillStyle = 'rgba(0,0,0,.18)'; g.fillRect(0, H - 14, W, 14);
-}));
-const matDarmon = texDarmon.map(t => new THREE.MeshLambertMaterial({ map: t }));
+// Pareti dell'Istituto, come nella foto del corridoio: zoccolatura verde acqua fino a 1,8 m, sopra rosa
+// salmone, e in mezzo una fascia di piastrelle decorate.
+const texDarmon = tela(256, 256, (g, W, H) => {
+  const fascia = Math.round(H * (1 - 1.8 / 4.2));
+  g.fillStyle = '#EBA796'; g.fillRect(0, 0, W, fascia);
+  g.fillStyle = '#86BFA4'; g.fillRect(0, fascia, W, H - fascia);
+  g.fillStyle = 'rgba(255,255,255,.08)'; for (let y = 0; y < fascia; y += 9) g.fillRect(0, y, W, 2);
+  // Piastrelle della fascia: quadrati crema con un rombo blu e bordi marroni.
+  const t = 16, y0 = fascia - t / 2;
+  for (let x = 0; x < W; x += t) {
+    g.fillStyle = '#EFE3C4'; g.fillRect(x, y0, t, t);
+    g.fillStyle = (x / t) % 2 ? '#3E6FA8' : '#B0623A';
+    g.beginPath(); g.moveTo(x + t / 2, y0 + 2); g.lineTo(x + t - 2, y0 + t / 2); g.lineTo(x + t / 2, y0 + t - 2); g.lineTo(x + 2, y0 + t / 2); g.fill();
+    g.fillStyle = '#7A4A2A'; g.fillRect(x, y0, 1, t);
+  }
+  g.fillStyle = '#7A4A2A'; g.fillRect(0, y0 - 2, W, 2); g.fillRect(0, y0 + t, W, 2);
+  g.fillStyle = '#8A5A36'; g.fillRect(0, H - 9, W, 9);       // battiscopa
+});
+export const matDarmon = [new THREE.MeshLambertMaterial({ map: texDarmon })];
 
 const disegni = Array.from({ length: 6 }, (_, i) => tela(128, 96, (g, W, H) => {
   g.fillStyle = '#FFFDF2'; g.fillRect(0, 0, W, H);
@@ -78,6 +88,28 @@ function parete(e, mats, altezza, decora) {
 
 const matFinestra = new THREE.MeshBasicMaterial({ color: 0xDDF1FF });
 
+// Termosifone a colonne giallo, come lungo il muro del corridoio della foto.
+export function termosifone(x, z) {
+  const g = new THREE.Group();
+  for (let i = 0; i < 10; i++) g.add(blocco(0.16, 0.86, 0.09, 0xF2C230, x, 0.16, z - 0.54 + i * 0.12));
+  g.add(blocco(0.12, 0.06, 1.25, 0xE0AE1E, x, 0.94, z));
+  g.add(blocco(0.12, 0.06, 1.25, 0xE0AE1E, x, 0.16, z));
+  g.add(blocco(0.05, 0.16, 0.05, 0xBFC3C8, x, 0, z - 0.6));
+  return g;
+}
+
+function estintore(x, fuori) {
+  const g = new THREE.Group();
+  g.add(cilindro(0.13, 0.62, 0xD42A1F, x + fuori * 0.16, 1.3, 0));
+  g.add(cilindro(0.05, 0.12, 0x2A2A2A, x + fuori * 0.16, 1.92, 0));
+  g.add(blocco(0.05, 0.05, 0.22, 0x2A2A2A, x + fuori * 0.16, 2.0, 0.08));
+  g.add(blocco(0.04, 0.34, 0.3, 0xD42A1F, x, 2.25, 0));                 // cartello rosso
+  g.add(blocco(0.05, 0.2, 0.06, 0xFFFFFF, x + fuori * 0.01, 2.32, 0));
+  g.add(blocco(0.05, 0.9, 0.7, 0xF4F1E8, x, 1.4, 1.05));                // avviso appeso
+  g.add(blocco(0.06, 0.08, 0.5, 0x3E6FA8, x + fuori * 0.01, 2.1, 1.05));
+  return g;
+}
+
 export function creaPareteStile(e) {
   if (e.stile === 'casa') {
     return parete(e, [matCasa], H_CASA, (g, x, e) => {
@@ -109,19 +141,24 @@ export function creaPareteStile(e) {
   if (e.stile === 'darmon') {
     return parete(e, matDarmon, 4.2, (g, x, e) => {
       const k = Math.abs(e.idx);
+      const fuori = -e.lato;          // verso il centro del corridoio
       if (e.lato < 0 && k % 2 === 0) {
-        g.add(blocco(0.06, 1.5, 1.7, matFinestra, x, 1.6, 0));
-        g.add(blocco(0.08, 0.08, 1.8, 0xFFFFFF, x, 1.5, 0));
+        g.add(termosifone(x + fuori * 0.12, 0));
       } else if (e.lato > 0 && k % 4 === 0) {
-        g.add(blocco(0.08, 2.9, 1.4, PALETTE[k % PALETTE.length], x, 0, 0));
-        g.add(blocco(0.1, 0.5, 0.7, 0xFFFFFF, x, 3.1, 0));
+        // Porta di un'aula: telaio marrone, uno rosso.
+        g.add(blocco(0.08, 2.7, 1.45, k % 8 === 4 ? 0xC23B2A : 0x6B4A2E, x, 0, 0));
+        g.add(blocco(0.1, 2.5, 1.2, 0xA6774A, x + fuori * 0.02, 0, 0));
+        g.add(blocco(0.12, 0.6, 0.45, 0xDCE9F0, x + fuori * 0.04, 1.6, 0));
+        g.add(blocco(0.14, 0.06, 0.18, 0xD8B85A, x + fuori * 0.06, 1.1, 0.42));
+      } else if (e.lato > 0 && k % 4 === 2) {
+        g.add(estintore(x, fuori));
       } else {
-        // Disegni dei bambini appesi al muro.
+        // Bacheca di sughero con i disegni dei bambini.
+        g.add(blocco(0.05, 1.2, 2.3, 0xC79A62, x, 1.55, 0));
         for (let i = 0; i < 2; i++) {
-          const z = -0.85 + i * 1.7;
-          const m = new THREE.Mesh(new THREE.PlaneGeometry(1.35, 1.0), matDisegni[(k * 2 + i + (e.lato > 0 ? 1 : 0)) % matDisegni.length]);
+          const m = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.7), matDisegni[(k * 2 + i + (e.lato > 0 ? 1 : 0)) % matDisegni.length]);
           m.rotation.y = e.lato > 0 ? -Math.PI / 2 : Math.PI / 2;
-          m.position.set(x - e.lato * 0.02, 1.5, z);
+          m.position.set(x + fuori * 0.04, 2.15, -0.5 + i * 1.0);
           g.add(m);
         }
       }
@@ -134,8 +171,11 @@ export function creaSoffittoStile(e) {
   if (e.stile === 'casa' || e.stile === 'darmon') {
     const h = e.stile === 'casa' ? H_CASA : 4.2;
     const g = new THREE.Group();
-    g.add(blocco(8.9, 0.35, 3.7, e.stile === 'casa' ? matSoffittoCasa : S(0xF5F0E2), 0, h));
-    if (e.luce) g.add(blocco(1.0, 0.06, 1.0, BASIC(0xFFF6D8), 0, h - 0.06));
+    g.add(blocco(8.9, 0.35, 3.7, e.stile === 'casa' ? matSoffittoCasa : S(0xF6F6F2), 0, h));
+    if (e.luce) {
+      g.add(blocco(1.1, 0.05, 1.1, 0xC9CDD2, 0, h - 0.05));
+      for (const dx of [-0.26, 0.26]) for (const dz of [-0.26, 0.26]) g.add(blocco(0.46, 0.06, 0.46, BASIC(0xFFFBEA), dx, h - 0.08, dz));
+    }
     return g;
   }
   return creaSoffitto(e);
@@ -936,19 +976,71 @@ export const ICONA_BONUS = { casa: '🍼', darmon: '🥪' };
 // La facciata dell'Istituto Darmon, vista da lontano e da vicino
 // ---------------------------------------------------------------------------
 
+// Facciata rosa salmone su due piani, finestre con cornice bianca e grata, come nella foto della scuola.
 const texFacciata = tela(512, 256, (g, W, H) => {
-  g.fillStyle = '#F2D79C'; g.fillRect(0, 0, W, H);
-  g.fillStyle = 'rgba(0,0,0,.05)';
-  for (let y = 0; y < H; y += 10) g.fillRect(0, y, W, 2);
-  for (const y of [28, 142]) {
-    for (let x = 22; x < W - 40; x += 82) {
-      g.fillStyle = '#FFFFFF'; g.fillRect(x - 5, y - 5, 54, 86);
-      g.fillStyle = '#6FA8CE'; g.fillRect(x, y, 44, 76);
-      g.fillStyle = '#FFFFFF'; g.fillRect(x + 20, y, 4, 76); g.fillRect(x, y + 34, 44, 4);
-      g.fillStyle = '#4C9A5F'; g.fillRect(x - 8, y + 80, 60, 8);
+  g.fillStyle = '#F5AC96'; g.fillRect(0, 0, W, H);
+  g.fillStyle = 'rgba(120,40,30,.05)';
+  for (let y = 0; y < H; y += 12) g.fillRect(0, y, W, 2);
+  g.fillStyle = '#D9806E'; g.fillRect(0, 122, W, 8);           // marcapiano
+  g.fillStyle = '#C97A68'; g.fillRect(0, H - 14, W, 14);        // zoccolo
+  for (const y of [22, 146]) {
+    for (let x = 26; x < W - 40; x += 100) {
+      g.fillStyle = '#F7F4EE'; g.fillRect(x - 5, y - 5, 66, 82);
+      g.fillStyle = '#5E7385'; g.fillRect(x, y, 56, 72);
+      g.fillStyle = '#F7F4EE';
+      for (let i = 1; i < 8; i++) g.fillRect(x + i * 7, y, 2, 72);   // grata
+      g.fillRect(x, y + 34, 56, 3);
+      g.fillStyle = '#EDE6DA'; g.fillRect(x - 8, y + 74, 72, 6);     // davanzale
     }
   }
 });
+
+// Tegole di cotto per la pensilina a destra.
+const texTegole = tela(128, 128, (g, W, H) => {
+  g.fillStyle = '#D0704E'; g.fillRect(0, 0, W, H);
+  for (let y = 0; y < H; y += 16) {
+    g.fillStyle = 'rgba(110,40,20,.35)'; g.fillRect(0, y, W, 3);
+    for (let x = (y / 16) % 2 ? 8 : 0; x < W; x += 16) { g.fillStyle = 'rgba(255,220,190,.18)'; g.fillRect(x + 2, y + 4, 9, 10); }
+  }
+});
+
+// Recinzione a barre verdi (texture trasparente ripetuta).
+const texSbarre = tela(64, 64, (g, W, H) => {
+  g.clearRect(0, 0, W, H);
+  g.fillStyle = '#2F7A5C';
+  for (let x = 4; x < W; x += 16) g.fillRect(x, 0, 4, H);
+  g.fillRect(0, 4, W, 4); g.fillRect(0, H - 10, W, 4);
+});
+
+function cartelloPedonale() {
+  const tex = tela(128, 128, (g, W, H) => {
+    g.fillStyle = '#FFFFFF'; g.fillRect(0, 0, W, H);
+    g.fillStyle = '#2F6DC4'; g.fillRect(6, 6, W - 12, H - 12);
+    g.fillStyle = '#FFFFFF'; g.beginPath(); g.moveTo(64, 18); g.lineTo(112, 108); g.lineTo(16, 108); g.fill();
+    g.fillStyle = '#111'; g.fillRect(28, 96, 72, 6);
+    for (let i = 0; i < 4; i++) g.fillRect(36 + i * 16, 88, 9, 6);
+    g.beginPath(); g.arc(66, 46, 7, 0, 7); g.fill();
+    g.lineWidth = 6; g.strokeStyle = '#111'; g.lineCap = 'round';
+    g.beginPath(); g.moveTo(64, 55); g.lineTo(60, 74); g.lineTo(50, 88); g.moveTo(60, 74); g.lineTo(72, 88); g.moveTo(52, 64); g.lineTo(74, 62); g.stroke();
+  });
+  const gr = new THREE.Group();
+  gr.add(blocco(0.1, 3.0, 0.1, 0x9AA3AD, 0, 0));
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(1.0, 1.0), new THREE.MeshLambertMaterial({ map: tex, fog: false }));
+  m.position.set(0, 2.6, 0.06); gr.add(m);
+  return gr;
+}
+
+function pino(h) {
+  const gr = new THREE.Group();
+  gr.add(cilindro(0.35, h * 0.35, new THREE.MeshLambertMaterial({ color: 0x5A3D28, fog: false }), 0, 0));
+  const verde = new THREE.MeshLambertMaterial({ color: 0x2C4A33, fog: false });
+  for (let i = 0; i < 5; i++) {
+    const r = (1 - i / 5) * h * 0.26 + 0.6;
+    const c = new THREE.Mesh(new THREE.ConeGeometry(r, h * 0.3, 8), verde);
+    c.position.y = h * 0.28 + i * h * 0.14; c.castShadow = true; gr.add(c);
+  }
+  return gr;
+}
 
 function cartelloDarmon() {
   const tex = tela(1024, 240, (g, W, H) => {
@@ -964,32 +1056,35 @@ function cartelloDarmon() {
 }
 
 // L'apertura al centro è l'ingresso: le ante di vetro scorrono ai lati quando ci si avvicina.
+// Ricostruzione semplificata della foto: blocco rosa su due piani con tetto quasi piatto, scala esterna
+// bianca, pensiline (verde scuro a sinistra, di tegole a destra), recinzione verde su muretto, pino e
+// cartello dell'attraversamento pedonale.
 export function creaScuolaDarmon() {
   const g = new THREE.Group();
-  const lat = new THREE.MeshLambertMaterial({ color: 0xE8CA8A, fog: false });
+  const L = c => new THREE.MeshLambertMaterial({ color: c, fog: false });
+  const lat = L(0xEFA28C);
   const front = new THREE.MeshLambertMaterial({ map: texFacciata, fog: false });
-  const M = (w, h, p, mat, x, y, z) => blocco(w, h, p, mat, x, y, z);
-  // Due corpi laterali e architrave sopra l'ingresso (largo 6,4 m).
+  const M = (w, h, p, mat, x, y, z) => blocco(w, h, p, typeof mat === 'number' ? L(mat) : mat, x, y, z);
+  const ALTO = 8.4;
   const corpo = (x, larg) => {
     const m = new THREE.Mesh(CUBO, [lat, lat, lat, lat, front, lat]);
-    m.scale.set(larg, 9.5, 3.2); m.position.set(x, 4.75, -1.4); m.castShadow = true; g.add(m);
+    m.scale.set(larg, ALTO, 3.2); m.position.set(x, ALTO / 2, -1.4); m.castShadow = true; g.add(m);
   };
   corpo(-3.2 - 9, 18); corpo(3.2 + 9, 18);
-  g.add(M(6.4, 5.3, 3.2, lat, 0, 4.2, -1.4));
-  const portale = new THREE.MeshLambertMaterial({ color: 0xD9553F, fog: false });
-  g.add(M(0.5, 4.2, 0.5, portale, -3.1, 0, 0.3)); g.add(M(0.5, 4.2, 0.5, portale, 3.1, 0, 0.3)); g.add(M(7.0, 0.5, 0.5, portale, 0, 4.2, 0.3));
+  g.add(M(6.4, ALTO - 4.2, 3.2, lat, 0, 4.2, -1.4));
+  const verdeScuro = L(0x2F6B4F);
+  g.add(M(0.35, 4.2, 0.35, verdeScuro, -3.15, 0, 0.3)); g.add(M(0.35, 4.2, 0.35, verdeScuro, 3.15, 0, 0.3));
+  g.add(M(6.8, 0.3, 0.4, verdeScuro, 0, 4.1, 0.3));
   const cartello = cartelloDarmon();
-  cartello.position.set(0, 7.2, 0.3); g.add(cartello);
-  // Tetto a spiovente e bandiere.
-  const tetto = new THREE.Mesh(new THREE.BoxGeometry(40, 0.6, 5), new THREE.MeshLambertMaterial({ color: 0xB05A3A, fog: false }));
-  tetto.position.set(0, 9.8, -1.4); g.add(tetto);
-  for (const [x, c1, c2, c3] of [[-2.0, 0x2e9d4a, 0xffffff, 0xd8352a]]) {
-    g.add(M(0.1, 5, 0.1, S(0x9aa3ad), x, 10, -1.0));
-    g.add(M(0.5, 0.9, 0.05, S(c1), x - 0.3, 14, -1.0)); g.add(M(0.5, 0.9, 0.05, S(c2), x, 14, -1.0)); g.add(M(0.5, 0.9, 0.05, S(c3), x + 0.3, 14, -1.0));
-  }
+  cartello.scale.setScalar(0.82);
+  cartello.position.set(0, 6.2, 0.3); g.add(cartello);
+  // Tetto a padiglione molto basso, con cornicione bianco.
+  g.add(M(43.6, 0.25, 4.4, 0xF2EEE8, 0, ALTO, -1.4));
+  g.add(M(43.2, 0.3, 4.2, 0xC0634A, 0, ALTO + 0.25, -1.4));
+  g.add(M(40, 0.35, 2.6, 0xB2573F, 0, ALTO + 0.55, -1.4));
   // Porta a vetri a due ante.
-  const vetro = new THREE.MeshLambertMaterial({ color: 0x9CC8E0, fog: false });
-  const telaio = new THREE.MeshLambertMaterial({ color: 0x2F5D9E, fog: false });
+  const vetro = L(0x9CC8E0);
+  const telaio = verdeScuro;
   const ante = [-1, 1].map(lato => {
     const anta = new THREE.Group();
     anta.add(M(3.1, 3.9, 0.12, vetro, 0, 0, 0));
@@ -1000,11 +1095,58 @@ export function creaScuolaDarmon() {
     return { anta, lato };
   });
   g.userData.apri = k => { for (const { anta, lato } of ante) anta.position.x = lato * (1.6 + 3.3 * k); };
-  // Cancello e recinzione colorata davanti.
-  for (const x of [-14, 14]) {
-    for (let i = 0; i < 7; i++) g.add(M(0.14, 1.6, 0.14, S(PALETTE[(i + (x > 0 ? 3 : 0)) % PALETTE.length]), x + (x > 0 ? 1 : -1) * (i * 1.3), 0, 6.0));
-    g.add(M(9.5, 0.12, 0.12, S(0x3A3F4A), x + (x > 0 ? 4 : -4), 1.2, 6.0));
+
+  // Scala esterna di metallo bianco verso il primo piano, sul corpo di destra.
+  const bianco = L(0xF4F4F2), grigio = L(0xC9CDD2);
+  const P1 = 4.2;
+  g.add(M(0.9, 2.3, 0.08, 0x5E7385, 8.2, P1, 0.24));                      // porta al primo piano
+  g.add(M(2.6, 0.16, 2.2, grigio, 8.2, P1 - 0.16, 1.3));                   // pianerottolo
+  for (const x of [7.0, 9.4]) for (const z of [0.4, 2.3]) g.add(M(0.14, P1 - 0.16, 0.14, bianco, x, 0, z));
+  g.add(M(2.6, 0.08, 0.08, bianco, 8.2, P1 + 1.0, 2.36));
+  g.add(M(0.08, 0.08, 2.2, bianco, 6.94, P1 + 1.0, 1.3));
+  for (let i = 0; i < 13; i++) g.add(M(0.05, 1.0, 0.05, bianco, 7.0 + i * 0.2, P1, 2.36));
+  const gradini = 11, alz = P1 / gradini, ped = 0.55;
+  for (let i = 0; i < gradini; i++) g.add(M(ped + 0.05, 0.08, 1.1, grigio, 9.5 + (i + 0.5) * ped, P1 - (i + 1) * alz, 1.8));
+  const lungo = Math.hypot(gradini * ped, P1), ang = Math.atan2(P1, gradini * ped);
+  for (const [z, dy] of [[2.4, 1.0], [1.25, 0], [2.4, 0]]) {
+    const b = M(lungo, 0.1, 0.08, dy ? bianco : grigio, 0, 0, 0);
+    b.position.set(9.5 + gradini * ped / 2, P1 / 2 + dy, z); b.rotation.z = -ang; g.add(b);
   }
+  g.add(M(0.14, 1.0, 0.14, bianco, 9.5 + gradini * ped, 0, 2.4));
+
+  // Pensilina verde scuro a sinistra.
+  const pens = M(11, 0.14, 3.6, 0x2E4438, 0, 0, 0);
+  pens.position.set(-14.5, 3.0, 3.6); pens.rotation.x = -0.1; g.add(pens);
+  for (const x of [-19.6, -14.5, -9.4]) for (const z of [2.2, 5.0]) g.add(M(0.1, 2.9, 0.1, 0x3A4A40, x, 0, z));
+  // Pensilina di tegole a destra, su pali verdi.
+  const tegole = new THREE.MeshLambertMaterial({ map: texTegole, fog: false });
+  texTegole.wrapS = texTegole.wrapT = THREE.RepeatWrapping; texTegole.repeat.set(5, 2);
+  const tetto = new THREE.Mesh(CUBO, [tegole, tegole, tegole, tegole, tegole, tegole]);
+  tetto.scale.set(10, 0.2, 3.8); tetto.position.set(19.5, 3.4, 4.2); tetto.rotation.x = -0.18; g.add(tetto);
+  g.add(M(10.2, 0.16, 0.16, verdeScuro, 19.5, 2.95, 5.95));
+  for (const x of [14.8, 19.5, 24.2]) for (const z of [2.6, 5.9]) g.add(M(0.14, 3.0, 0.14, verdeScuro, x, 0, z));
+
+  // Prato, muretto di cemento con recinzione a barre verdi, siepi.
+  const prato = L(0x7FA35A);
+  for (const s of [-1, 1]) {
+    g.add(M(22, 0.04, 5.6, prato, s * 15.6, 0.0, 3.1));
+    g.add(M(21.4, 0.7, 0.5, 0xC9C4B8, s * 15.3, 0, 6.2));
+    const sbarre = new THREE.MeshLambertMaterial({ map: texSbarre.clone(), transparent: true, alphaTest: 0.5, side: THREE.DoubleSide, fog: false });
+    sbarre.map.wrapS = THREE.RepeatWrapping; sbarre.map.repeat.set(21.4 / 0.9, 1); sbarre.map.needsUpdate = true;
+    const rete = new THREE.Mesh(new THREE.PlaneGeometry(21.4, 1.7), sbarre);
+    rete.position.set(s * 15.3, 0.7 + 0.85, 6.2); g.add(rete);
+    for (let x = 4.7; x < 26; x += 2.6) g.add(M(0.12, 1.8, 0.12, verdeScuro, s * x, 0.7, 6.2));
+    for (let x = 5.4; x < 25.5; x += 1.7 + ((x * 7) % 3) * 0.3) {
+      const h = 0.7 + ((x * 13) % 5) * 0.12;
+      g.add(M(1.6, h, 0.9, (x * 3) % 2 > 1 ? 0x4F7F3A : 0x5E8C42, s * x, 0, 6.95));
+    }
+  }
+  // Pino grande a sinistra, lampione verde alto e cartello dell'attraversamento pedonale.
+  const p = pino(14); p.position.set(-25.5, 0, 4.2); g.add(p);
+  g.add(M(0.16, 9.5, 0.16, verdeScuro, 7.0, 0, 6.6));
+  g.add(M(0.3, 0.2, 0.6, 0xDDE3E8, 7.0, 9.5, 6.4));
+  const ped_ = cartelloPedonale(); ped_.position.set(-5.2, 0, 7.4); g.add(ped_);
+
   const mats = [];
   g.traverse(o => {
     if (o.material && !Array.isArray(o.material)) mats.push(o.material);

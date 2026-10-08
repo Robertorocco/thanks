@@ -14,7 +14,7 @@ const esa = n => '#' + n.toString(16).padStart(6, '0');
 export const ETA_VOLTO = {
   neonato: { pelle: 0xD9A27C, guance: 'rgba(235,110,100,.35)', barba: 0, occhi: 1.28, sopracciglia: 0.55, naso: 0.7, riccioli: 9, ricciolo: 0.06, capelli: 0x2A1A10 },
   bimbo:   { pelle: 0xD29468, guance: 'rgba(225,105,90,.3)', barba: 0, occhi: 1.2, sopracciglia: 0.6, naso: 0.62, riccioli: 46, ricciolo: 0.066, capelli: 0x1B1009, cranio: [0.47, 0.46, 0.45], frangia: 0.8 },
-  adulto:  { pelle: 0xC48A62, guance: 'rgba(205,95,80,.18)', barba: 1, occhi: 1.0, sopracciglia: 1.0, naso: 1.0, riccioli: 46, ricciolo: 0.105, capelli: 0x17100A },
+  adulto:  { pelle: 0xC48A62, guance: 'rgba(205,95,80,.18)', barba: 0.2, occhi: 1.0, sopracciglia: 1.0, naso: 1.0, riccioli: 46, ricciolo: 0.105, capelli: 0x17100A },
 };
 const BARBA = '#2E1D13';
 
@@ -53,8 +53,10 @@ function disegnaFaccia(eta, espr, chiuso) {
   g.fillStyle = rosse ? 'rgba(225,90,80,.38)' : P.guance;
   for (const x of [0.2, 0.8]) { g.beginPath(); g.ellipse(W * x, W * 0.57, W * 0.1, W * 0.065, 0, 0, Math.PI * 2); g.fill(); }
 
-  // Barba piena: dalle basette alla mascella, attorno alla bocca, con barbetta sul mento.
+  // Barba dalle basette alla mascella, attorno alla bocca e sul mento. `barba` è l'intensità:
+  // 1 = barba piena, ~0.3 = barbetta appena visibile (Roberto al liceo).
   if (P.barba) {
+    g.save(); g.globalAlpha = P.barba;
     g.fillStyle = BARBA;
     g.beginPath();
     g.moveTo(0, W * 0.4);
@@ -71,6 +73,7 @@ function disegnaFaccia(eta, espr, chiuso) {
     // Puntini di barba più chiari.
     g.fillStyle = 'rgba(120,80,50,.35)';
     for (let i = 0; i < 160; i++) g.fillRect((i * 97 % W), W * 0.6 + ((i * 53) % (W * 0.4)), 2, 2);
+    g.restore();
   }
 
   // Attaccatura dei capelli: frangia di riccioli sulla fronte.
@@ -170,7 +173,7 @@ function disegnaFaccia(eta, espr, chiuso) {
 function disegnaBocca(g, W, tipo, P) {
   const cx = W * 0.5, cy = W * 0.745;
   const labbro = '#A24A45', labbroScuro = '#6E2A2A', dentro = '#3A0F10';
-  const conBarba = P.barba;
+  const conBarba = P.barba > 0.6;
   // Intorno alla bocca (con la barba: pelle chiara sotto i baffi).
   if (conBarba) {
     const patch = g.createRadialGradient(cx, cy, 4, cx, cy, W * 0.17);
@@ -264,9 +267,11 @@ function texturaLato(eta, lato) {
   g.fillStyle = 'rgba(70,30,10,.22)'; g.beginPath(); g.ellipse(64, 62, 11, 17, 0, 0, Math.PI * 2); g.fill();   // orecchio
   g.fillStyle = esa(P.capelli); g.fillRect(0, 0, 128, 34);
   if (P.barba) {
+    g.globalAlpha = P.barba;
     g.fillStyle = BARBA; g.beginPath();
     g.moveTo(lato > 0 ? 0 : 128, 46); g.lineTo(lato > 0 ? 38 : 90, 78); g.lineTo(lato > 0 ? 0 : 128, 128); g.lineTo(lato > 0 ? 128 : 0, 128); g.lineTo(lato > 0 ? 128 : 0, 80);
     g.lineTo(lato > 0 ? 128 : 0, 46); g.closePath(); g.fill();
+    g.globalAlpha = 1;
   }
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
   return t;
@@ -307,7 +312,7 @@ export function creaTestaRoberto(eta = 'adulto') {
   };
   const viso = new THREE.MeshLambertMaterial({ color: 0xffffff });
   // Ordine delle facce: +x, -x, +y, -y, +z, -z. Il viso guarda verso -z.
-  const cranio = new THREE.Mesh(GEO_TESTA, [lato(1), lato(-1), capelli, P.barba ? barba : pelle, capelli, viso]);
+  const cranio = new THREE.Mesh(GEO_TESTA, [lato(1), lato(-1), capelli, P.barba > 0.6 ? barba : pelle, capelli, viso]);
   cranio.scale.set(...(P.cranio ?? [0.47, 0.5, 0.45]));
   cranio.castShadow = true;
   gruppo.add(cranio);
@@ -346,8 +351,8 @@ export function creaTestaRoberto(eta = 'adulto') {
   }
   gruppo.add(riccioli);
 
-  // Barba: una massa sotto il mento e sulle guance, per darle volume.
-  if (P.barba) {
+  // Barba piena: una massa sotto il mento e sulle guance, per darle volume.
+  if (P.barba > 0.6) {
     const b = new THREE.Mesh(GEO_RICCIOLO, barba);
     b.scale.set(0.2, 0.1, 0.16);
     b.position.set(0, -0.2, -0.065);

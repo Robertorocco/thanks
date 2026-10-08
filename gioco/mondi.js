@@ -87,7 +87,7 @@ export const MONDI = [
     corsie: 0xCFC7B8,
     edifici: [0xF4D9A0, 0xE9B7A0, 0xCFE0C0],
     ostacoli: { basso: 0xE0533F, alto: 0x3A7CC4, muro: 0xF2C14E },
-    interno: { cielo: 0xE6E1D2, terreno: 0xD8D2C0, corsie: 0xD9D0BB, terra: 0xE0D6BC },
+    interno: { cielo: 0xE9DCD0, terreno: 0xD9925E, corsie: 0xE09A64, terra: 0xE0B48E },
   },
   {
     nome: 'Liceo Vittorini',

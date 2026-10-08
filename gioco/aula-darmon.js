@@ -9,6 +9,7 @@ import {
 } from './modelli.js';
 import { fumetto } from './aula.js';
 import { TEMPO_SCELTA } from './mondi.js';
+import { matDarmon, termosifone } from './modelli-infanzia.js';
 
 const S = n => new THREE.MeshLambertMaterial({ color: n });
 const BASIC = n => new THREE.MeshBasicMaterial({ color: n });
@@ -126,6 +127,12 @@ export function creaAulaDarmon() {
   scena.add(blocco(2.0, 0.8, 0.3, parete, -4.5, 2.8, 5.4));
   scena.add(blocco(2.0, 0.08, 0.3, 0xE0533F, -4.5, 2.72, 5.4));
   for (const z of [-3.2, 0, 3.2]) scena.add(blocco(0.06, 1.7, 1.8, BASIC(0xDDF1FF), -6.22, 1.3, z));
+  // Oltre la porta, il corridoio della scuola: verde acqua e rosa, pavimento in cotto, termosifone giallo.
+  scena.add(blocco(18, 0.2, 3.6, 0xD9925E, -1, -0.2, 7.3));
+  scena.add(blocco(18, 0.2, 3.6, BASIC(0xF6F6F2), -1, 3.6, 7.3));
+  scena.add(blocco(18, 3.6, 0.3, matDarmon[0], -1, 0, 9.0));
+  const rad = termosifone(0, 0);
+  rad.rotation.y = Math.PI / 2; rad.position.set(-4.5, 0, 8.75); scena.add(rad);
   scena.add(blocco(0.08, 1.4, 4.6, 0x2F5D3A, 6.2, 1.0, -0.8));
   const gesso = scritta('3ª B', 1.8, 0.5, 0x2F5D3A, 0xffffff);
   gesso.rotation.y = -Math.PI / 2; gesso.position.set(6.12, 1.8, -0.8);
