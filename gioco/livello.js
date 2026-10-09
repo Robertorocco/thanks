@@ -240,7 +240,7 @@ export function generaLivello(TRATTI, perc, velocitaIn) {
           break;
         case 'corridoio-d':
           for (let q = a + 6, i = 0; q < b - 8; q += 11, i++) metti(i % 3 === 0 ? 'appendiabiti' : i % 3 === 1 ? 'armadietto' : 'pianta', i % 2 ? -1 : 1, q);
-          ENTITA.push({ d: a + 4, genere: 'cartello', testo: '3ª B', mondo: t.indice, w: 2.6, colore: 0xE0533F, stile: 'darmon' });
+          ENTITA.push({ d: a + 4, genere: 'cartello', testo: '3ª A', mondo: t.indice, w: 2.6, colore: 0xE0533F, stile: 'darmon' });
           break;
         default: break;
       }
@@ -536,7 +536,7 @@ export function generaLivello(TRATTI, perc, velocitaIn) {
           riempi(a + 6, b - 8, { stile: 'darmonInt', tipi: ['basso', 'alto', 'muro'], corridoi: 0.1, spazio: 1.15 });
           compagni(a + 8, b - 14, 3, 'darmonInt');
           break;
-        case 'aula-d': break;                // la porta della 3ª B: qui c'è l'evento
+        case 'aula-d': break;                // la porta della 3ª A: qui c'è l'evento
         case 'uscita-d':
           // Prima un tratto libero con il fratello accanto e il creeper che lui lancia, poi gli ostacoli.
           riempi(a + sz.portaFratello + 36, b - 10, { stile: 'darmonInt', tipi: ['basso', 'alto', 'muro'], corridoi: 0.1, spazio: 1.2 });
@@ -600,7 +600,7 @@ export function generaLivello(TRATTI, perc, velocitaIn) {
         if (t.stile === 'casa' || t.stile === 'darmon') arreda(sz, a, b);
         if (sz.id === 'aula') ENTITA.push({ d: b, genere: 'portaAula', mondo: t.indice });
         if (sz.id === 'aula-d') ENTITA.push({ d: b, genere: 'portaAula', mondo: t.indice, stile: 'darmon' });
-        if (sz.id === 'corridoio-d') ENTITA.push({ d: b - 12, genere: 'cartello', testo: '3ª B', mondo: t.indice, w: 2.6, colore: 0xE0533F, stile: 'darmon' });
+        if (sz.id === 'corridoio-d') ENTITA.push({ d: b - 12, genere: 'cartello', testo: '3ª A', mondo: t.indice, w: 2.6, colore: 0xE0533F, stile: 'darmon' });
         if (sz.id === 'portone') ENTITA.push({ d: b - 1.2, genere: 'portone', mondo: t.indice });
         if (sz.id === 'soglia') ENTITA.push({ d: b - 1.2, genere: 'portone', mondo: t.indice, stile: 'casa' });
         if (sz.id === 'uscita-d') ENTITA.push({ d: b - 1.2, genere: 'portone', mondo: t.indice, stile: 'darmon' });

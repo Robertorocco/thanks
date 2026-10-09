@@ -11,7 +11,7 @@ import * as THREE from './lib/three.module.min.js';
 import { tela } from './modelli.js';
 
 export const MAX_GRASSO = 5;
-export const MALUS_COLPO = 1;            // secondi per ogni colpo
+export const MALUS_COLPO = 2;            // secondi per ogni colpo
 const RALLENTA = 0.2;                    // a ogni passo di grasso: velocità / (1 + 0.2 · passi)
 const DIMAGRISCE_DOPO = 5;               // secondi per perdere un passo di grasso, senza colpi
 const PAUSA_DIMAGRIRE = 1.2;             // dopo un colpo, per un attimo resta gonfio

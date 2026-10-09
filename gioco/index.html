@@ -11,7 +11,7 @@
 <link rel="stylesheet" href="gioco.css">
 <script>
 // Se questa pagina arriva dalla cache del browser ed è più vecchia dell'ultima versione, si ricarica da sola.
-(()=>{const V=38;try{fetch('../versione.json?t='+Date.now(),{cache:'no-store'}).then(r=>r.json()).then(d=>{if(d.v!==V){const k='ricarica-'+location.pathname+d.v;if(!sessionStorage.getItem(k)){sessionStorage.setItem(k,1);const u=new URL(location.href);u.searchParams.set('v',d.v);location.replace(u)}}}).catch(()=>{})}catch(e){}})();
+(()=>{const V=44;try{fetch('../versione.json?t='+Date.now(),{cache:'no-store'}).then(r=>r.json()).then(d=>{if(d.v!==V){const k='ricarica-'+location.pathname+d.v;if(!sessionStorage.getItem(k)){sessionStorage.setItem(k,1);const u=new URL(location.href);u.searchParams.set('v',d.v);location.replace(u)}}}).catch(()=>{})}catch(e){}})();
 </script>
 </head>
 <body>
@@ -59,13 +59,13 @@
     <a class="indietro" href="../">← Menù</a>
     <div class="eyebrow">Dalla culla alla laurea</div>
     <h1>Corri, Roberto<span class="dot">.</span></h1>
-    <p>Il cronometro non si ferma: ogni oggetto raccolto toglie 2 secondi.</p>
+    <p>Il cronometro non si ferma: ogni oggetto raccolto toglie 3 secondi.</p>
     <form id="modulo-nome">
       <label class="dev-mondo" hidden>Sviluppo: parti dal mondo<select id="dev-mondo"></select></label>
       <label for="nome">Il tuo nome, per la classifica</label>
       <input id="nome" name="nome" maxlength="24" autocomplete="given-name" required placeholder="Es. Zia Anna">
       <button type="submit" class="primario">Inizia</button>
-      <span class="versione">v38</span>
+      <span class="versione">v44</span>
     </form>
     <button type="button" class="link" data-apri="classifica">Guarda la classifica</button>
   </div>
@@ -106,7 +106,7 @@
 </section>
 
 <!-- Il numero di versione in fondo ai file (?v=) evita che il telefono usi codice vecchio in cache: va cambiato a ogni versione, insieme all'etichetta. -->
-<script type="importmap">{"imports":{"./aula.js":"./aula.js?v=38","./aula-darmon.js":"./aula-darmon.js?v=38","./aula-esame.js":"./aula-esame.js?v=38","./classifica.js":"./classifica.js?v=38","./config.js":"./config.js?v=38","./livello.js":"./livello.js?v=38","./modelli-liceo.js":"./modelli-liceo.js?v=38","./modelli-universita.js":"./modelli-universita.js?v=38","./modelli-rennes.js":"./modelli-rennes.js?v=38","./modelli.js":"./modelli.js?v=38","./mondi.js":"./mondi.js?v=38","./modelli-infanzia.js":"./modelli-infanzia.js?v=38","./volto.js":"./volto.js?v=38","./percorso.js":"./percorso.js?v=38","./boss-gelato.js":"./boss-gelato.js?v=38","./boss-pingpong.js":"./boss-pingpong.js?v=38","./boss-ragazza.js":"./boss-ragazza.js?v=38","./boss-triago.js":"./boss-triago.js?v=38","./volto-ragazza.js":"./volto-ragazza.js?v=38","./amici-uni.js":"./amici-uni.js?v=38","./scena-amici.js":"./scena-amici.js?v=38","./lib/three.module.min.js":"./lib/three.module.min.js?v=38"}}</script>
-<script type="module" src="main.js?v=38"></script>
+<script type="importmap">{"imports":{"./aula.js":"./aula.js?v=44","./aula-darmon.js":"./aula-darmon.js?v=44","./aula-esame.js":"./aula-esame.js?v=44","./classifica.js":"./classifica.js?v=44","./config.js":"./config.js?v=44","./livello.js":"./livello.js?v=44","./modelli-liceo.js":"./modelli-liceo.js?v=44","./modelli-universita.js":"./modelli-universita.js?v=44","./modelli-rennes.js":"./modelli-rennes.js?v=44","./modelli.js":"./modelli.js?v=44","./mondi.js":"./mondi.js?v=44","./modelli-infanzia.js":"./modelli-infanzia.js?v=44","./volto.js":"./volto.js?v=44","./percorso.js":"./percorso.js?v=44","./boss-gelato.js":"./boss-gelato.js?v=44","./boss-pingpong.js":"./boss-pingpong.js?v=44","./boss-ragazza.js":"./boss-ragazza.js?v=44","./boss-triago.js":"./boss-triago.js?v=44","./volto-ragazza.js":"./volto-ragazza.js?v=44","./amici-uni.js":"./amici-uni.js?v=44","./scena-amici.js":"./scena-amici.js?v=44","./lib/three.module.min.js":"./lib/three.module.min.js?v=44"}}</script>
+<script type="module" src="main.js?v=44"></script>
 </body>
 </html>

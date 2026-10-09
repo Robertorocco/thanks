@@ -80,8 +80,8 @@ export const MONDI = [
       { id: 'cortile',    lung: 80,  amb: 'est' },
       { id: 'atrio-d',    lung: 14,  amb: 'int', checkpoint: 'Ingresso all\'Istituto', sottotitolo: 'Si entra a scuola' },
       { id: 'corridoio-d', lung: 78, amb: 'int' },
-      { id: 'aula-d',     lung: 6,  amb: 'int', evento: 'darmon', checkpoint: 'La 3ª B', sottotitolo: 'Sta per arrivare il maestro' },
-      // All'uscita dalla 3ª B c'è il fratello di Roberto: corrono insieme, poi lui entra nella sua classe
+      { id: 'aula-d',     lung: 6,  amb: 'int', evento: 'darmon', checkpoint: 'La 3ª A', sottotitolo: 'Sta per arrivare il maestro' },
+      // All'uscita dalla 3ª A c'è il fratello di Roberto: corrono insieme, poi lui entra nella sua classe
       // (porta a `portaFratello` metri dall'inizio della sezione).
       { id: 'uscita-d',   lung: 110, amb: 'int', portaFratello: 58 },
       { id: 'piazzale',   lung: 110, pend: -0.02, amb: 'est' },
@@ -243,9 +243,11 @@ export const SPINTA = 1.25;
 export const CRESCITA = 0.25;
 
 // Ogni bonus raccolto (caffè, nutella, joystick...) toglie questo tempo dal timer (secondi).
-export const BONUS_CAFFE = 5;
+export const BONUS_CAFFE = 3;
 // Ogni colpo preso nel boss della fidanzata aggiunge questo tempo al timer (secondi).
 export const MALUS_BOSS_RAGAZZA = 3;
+// Ogni morte (caduta) aggiunge questo tempo al timer (secondi).
+export const MALUS_MORTE = 2;
 
 // Penalità se in aula ci si siede in prima fila (secondi), e tempo per scegliere.
 export const MALUS_PRIMA_FILA = 10;

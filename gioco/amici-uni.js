@@ -2,7 +2,7 @@
 // di sette), la ragazza che se ne va con il cugino e la porta dell'aula RWC.
 
 import * as THREE from './lib/three.module.min.js';
-import { blocco, materiale, tela, esa, creaPersona } from './modelli.js';
+import { blocco, materiale, tela, esa, creaPersona, FONT } from './modelli.js';
 import { capelliLunghi } from './modelli-liceo.js';
 import { targaAula } from './modelli-universita.js';
 
@@ -91,6 +91,18 @@ export const riccioli = (p, colore, punti, r = 0.09) => {
 // Chiara (quella che sembra Levi, ora con i capelli castani) e il ragazzo biondo cenere dal look all'antica
 // ---------------------------------------------------------------------------
 
+// Una lettera grande disegnata sulla schiena della maglia (la schiena guarda verso +z).
+function letteraSchiena(p, lettera, colore, y, z, dim) {
+  const tex = tela(128, 128, (g) => {
+    g.fillStyle = colore; g.font = `900 112px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(lettera, 64, 70);
+  });
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(dim, dim),
+    new THREE.MeshLambertMaterial({ map: tex, transparent: true, alphaTest: 0.35 }));
+  m.position.set(0, y, z);
+  p.superiore.add(m);
+}
+
 function voltoChiara() {
   return tela(256, 256, (g) => {
     g.fillStyle = '#F2D5C0'; g.fillRect(0, 0, 256, 256);
@@ -113,14 +125,16 @@ export function creaChiaraAmica() {
   });
   p.radice.scale.setScalar(0.8 * 0.9);
   for (const s of [-1, 1]) {
-    const ciocca = blocco(0.22, 0.17, 0.06, CAP, s * 0.115, 0.06, -0.228);
-    ciocca.rotation.z = s * 0.38;
+    // Riga in mezzo: due bande che scendono ai lati della fronte, sopra le sopracciglia (il viso resta scoperto).
+    const ciocca = blocco(0.2, 0.1, 0.07, CAP, s * 0.12, 0.12, -0.228);
+    ciocca.rotation.z = s * -0.25;
     p.testa.add(ciocca);
     p.testa.add(blocco(0.06, 0.2, 0.08, CAP, s * 0.205, -0.08, -0.19));
     p.testa.add(blocco(0.03, 0.14, 0.4, 0x3A2A20, s * 0.222, -0.16, 0.02));        // lati rasati
     p.superiore.add(blocco(0.16, 0.09, 0.05, 0xF1FBD2, s * 0.09, 1.64, -0.175));
   }
   for (const b of p.braccia) for (const dx of [-0.04, 0.035]) b.gomito.add(blocco(0.045, 0.035, 0.18, argento, dx, -0.39, 0));
+  letteraSchiena(p, 'C', '#2F4A12', 1.48, 0.172, 0.4);
   return p;
 }
 
@@ -132,6 +146,7 @@ export function creaAltoBiondo() {
   p.superiore.add(blocco(0.22, 0.14, 0.02, 0xEFE8D6, 0, 1.52, -0.19));               // colletto della camicia che spunta
   p.superiore.add(blocco(0.04, 0.66, 0.02, filo, 0, 1.0, -0.19));
   p.corpo.add(blocco(0.56, 0.2, 0.34, 0x6B5E4E, 0, 0.84));                          // cintura alta
+  letteraSchiena(p, 'W', '#F3E9CC', 1.34, 0.182, 0.46);
   return p;
 }
 
@@ -158,12 +173,11 @@ export function creaGruppoAmici() {
     }
     gruppo.push(p);
   }
-  // 3 · Stessa altezza del secondo, biondo più chiaro, occhi chiari, un po' più lunghi e molto mossi, tutti da un lato.
+  // 3 · Stessa altezza del secondo, biondo più chiaro, occhi azzurri, occhiali, capelli mossi e corti, tutti da un lato.
   {
     const CAP = 0xE9D9A2;
-    const p = amico({ pelle: 0xF2D6C0, capelli: CAP, iride: 0x6FB0E0, donna: false, maglia: 0x6F8E6A, pantaloni: 0x3B3A36, acconciatura: 'lato' }, 1.05);
-    p.testa.add(blocco(0.46, 0.3, 0.12, CAP, 0, -0.14, 0.2));
-    riccioli(p, CAP, [[-0.2, 0.22, -0.1], [-0.27, 0.1, -0.02], [-0.29, -0.05, -0.04], [-0.27, -0.2, 0.02], [-0.06, 0.28, -0.1], [0.12, 0.27, -0.04], [-0.18, 0.2, 0.08], [-0.26, -0.3, 0.06]], 0.085);
+    const p = amico({ pelle: 0xF2D6C0, capelli: CAP, iride: 0x6FB0E0, donna: false, maglia: 0x6F8E6A, pantaloni: 0x3B3A36, occhiali: true, acconciatura: 'lato' }, 1.05);
+    riccioli(p, CAP, [[-0.2, 0.22, -0.1], [-0.27, 0.1, -0.02], [-0.29, -0.05, -0.04], [-0.06, 0.28, -0.1], [0.12, 0.27, -0.04], [-0.18, 0.2, 0.08]], 0.085);
     gruppo.push(p);
   }
   // 4 · Occhiali, capelli castano chiaro, occhi verdi, alto quanto il terzo.
