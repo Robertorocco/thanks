@@ -1,6 +1,6 @@
 import * as THREE from './lib/three.module.min.js';
 import {
-  MONDI, TRAGUARDO, BONUS_CAFFE, SPINTA, CRESCITA, MALUS_PRIMA_FILA, TEMPO_SCELTA,
+  MONDI, TRAGUARDO, BONUS_CAFFE, MALUS_BOSS_RAGAZZA, SPINTA, CRESCITA, MALUS_PRIMA_FILA, TEMPO_SCELTA,
   MODALITA_SVILUPPO, RESPAWN_INDIETRO, RESPAWN_INVULNERABILE, FISICA,
 } from './mondi.js';
 import { inviaTempo, leggiClassifica, formattaTempo } from './classifica.js';
@@ -510,7 +510,7 @@ const dinamico = e => e.genere === 'caffe' || bucoInStrada(e) || (e.genere === '
 // lo si evita cambiando corsia all'ultimo, non prima (altrimenti ti segue).
 const MARGINE_PARCHEGGIATORE = 3.7;
 const PARCHEGGIATORE_DA = 34, PARCHEGGIATORE_FERMO = 9, PARCHEGGIATORE_VEL = 5.2;
-const bollaEuro = fumetto('Un euro a piacere', '#ffffff', '#1C1D2B', 1.75, 2);
+const bollaEuro = fumetto('Un euro a piacere', '#ffffff', '#1C1D2B', 2.19, 2.5, 65);
 scena.add(bollaEuro);
 function aggiornaParcheggiatore(e, ora) {
   const t = ora / 1000, dt = e.tPrec === null ? 0 : Math.min(0.1, t - e.tPrec);
@@ -760,7 +760,7 @@ async function fine() {
     `Corsa ${formattaTempo(G.tempo)} · bonus ${G.caffe} su ${CAFFE_TOTALI} · ` +
     (G.cadute === 1 ? '1 caduta' : `${G.cadute} cadute`) +
     (G.malus - (G.malusBoss ?? 0) ? ` · penalità in classe +${G.malus - (G.malusBoss ?? 0)} s` : '') +
-    (G.malusBoss ? ` · gelato +${G.malusBoss} s` : '');
+    (G.malusBoss ? ` · boss +${G.malusBoss} s` : '');
   mostraSchermo('fine');
   const arrotondato = Math.round(totale * 10) / 10;
   await inviaTempo(G.nome, arrotondato);
@@ -1143,6 +1143,19 @@ function aggiornaEntita(ora) {
   }
 }
 
+// Scritta che sale accanto al timer quando il tempo cambia: verde (-) per i bonus, rossa (+) per le penalità.
+function scrittaTempo(testo, colore) {
+  const r = hud.tempo.getBoundingClientRect();
+  const el = document.createElement('div');
+  el.textContent = testo;
+  el.style.cssText = `position:fixed;left:${Math.round(r.right + 8)}px;top:${Math.round(r.top)}px;z-index:30;pointer-events:none;`
+    + `font:800 ${Math.max(18, Math.round(r.height * 0.95))}px system-ui,sans-serif;color:${colore};text-shadow:0 2px 6px rgba(0,0,0,.55);`;
+  document.body.appendChild(el);
+  const fine = () => el.remove();
+  if (el.animate) el.animate([{ transform: 'translateY(0)', opacity: 1 }, { transform: 'translateY(-10px)', opacity: 1, offset: 0.6 }, { transform: 'translateY(-22px)', opacity: 0 }], { duration: 1500, easing: 'ease-out' }).onfinish = fine;
+  else setTimeout(fine, 1500);
+}
+
 function controllaUrti() {
   if (G.immune || G.invul > 0) return;
   const f = fisica();
@@ -1152,17 +1165,20 @@ function controllaUrti() {
     const e = attive[i];
     if (e.genere !== 'ostacolo' && e.genere !== 'caffe') continue;
     const d = distanza(e, G.pos);
-    if (Math.abs(d - G.pos) > mezzaLunghezza(e) + 0.4) continue;
+    // In casa si va piano e le persone sembrano già superate: hitbox più snelle (meno larghe e meno lunghe).
+    const snello = e.genere === 'ostacolo' && TRATTI[G.mondo].stile === 'casa';
+    if (Math.abs(d - G.pos) > (snello ? mezzaLunghezza(e) * 0.75 + 0.05 : mezzaLunghezza(e) + 0.4)) continue;
     if (e.tipo === 'crociera') {
       // L'auto è larga 4,2 m lungo x: colpisce chi sta nella sua corsia o in quella accanto.
       if (Math.abs(latoCrociera(e, G.pos) - G.x) < 2.1 + 0.5 && basso < 1.3) { caduta(); return; }
       continue;
     }
-    if (e.tipo === 'lancio') { if (!e.lanciato || Math.abs(e.xLat - G.x) > 1.0) continue; }
+    if (e.tipo === 'lancio') { if (!e.lanciato || Math.abs(e.xLat - G.x) > (snello ? 0.55 : 1.0)) continue; }
     else if (e.tipo === 'parcheggiatore') { if (Math.abs(e.xLat - G.x) > 0.95) continue; }
-    else if (Math.abs(CORSIE[e.corsia] - G.x) > 1.15) continue;
+    else if (Math.abs(CORSIE[e.corsia] - G.x) > (snello ? 0.6 : 1.15)) continue;
     if (e.genere === 'caffe') {
       G.caffe++;
+      scrittaTempo(`-${BONUS_CAFFE}`, '#7CE08A');
       G.exprNome = 'gioia'; G.exprTemp = 0.9;
       G.raccolti.add(e);
       rimuovi(e); attive.splice(i, 1);
@@ -1647,6 +1663,8 @@ const ragazzaBoss = creaBossRagazza(scena, {
   immune: () => Boolean(G.immune),
   orizzontale: () => fovBase < 70,
   colpito: () => {
+    G.malus += MALUS_BOSS_RAGAZZA; G.malusBoss = (G.malusBoss ?? 0) + MALUS_BOSS_RAGAZZA;
+    scrittaTempo(`+${MALUS_BOSS_RAGAZZA}`, '#FF4D40');
     G.exprNome = 'dolore'; G.exprTemp = 0.9;
     colpoT = DURATA_COLPO;
     if (navigator.vibrate) navigator.vibrate(70);
@@ -2049,7 +2067,7 @@ function ciclo(ora) {
   }
 
   if (G.stato !== 'inizio' && G.stato !== 'fine' && G.stato !== 'pausa' && G.stato !== 'intro') {
-    hud.tempo.textContent = formattaTempo(G.tempo + G.malus);
+    hud.tempo.textContent = formattaTempo(Math.max(0, G.tempo + G.malus - G.caffe * BONUS_CAFFE));
     hud.caffe.textContent = `${ICONA_BONUS[TRATTI[G.mondo].stile] ?? '☕'} ${G.caffe}`;
     hud.mondo.textContent = `${TRATTI[G.mondo].tappa + 1}/${N_TAPPE} · ${TRATTI[G.mondo].gruppo ?? TRATTI[G.mondo].nome}${MODALITA_SVILUPPO ? ' · DEV' : ''}`;
     hud.barra.style.width = `${(G.pos / LUNGHEZZA) * 100}%`;

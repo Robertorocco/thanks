@@ -231,8 +231,10 @@ export const TRAGUARDO = {
 export const SPINTA = 1.25;
 export const CRESCITA = 0.25;
 
-// Ogni caffè raccolto toglie questo tempo dal totale (secondi).
-export const BONUS_CAFFE = 2;
+// Ogni bonus raccolto (caffè, nutella, joystick...) toglie questo tempo dal timer (secondi).
+export const BONUS_CAFFE = 5;
+// Ogni colpo preso nel boss della fidanzata aggiunge questo tempo al timer (secondi).
+export const MALUS_BOSS_RAGAZZA = 3;
 
 // Penalità se in aula ci si siede in prima fila (secondi), e tempo per scegliere.
 export const MALUS_PRIMA_FILA = 10;

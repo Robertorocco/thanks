@@ -4,8 +4,8 @@
 //  · "ROBBETTOO": un urlo stridulo: le lettere stesse escono dalla bocca e arrivano in fila su tutte le corsie, si saltano.
 //  · Ciuffetto: una mano compare, strappa il ciuffetto (a sinistra del volto, che resta sempre al suo posto) e lo
 //    lancia come uno spuntone lungo una corsia.
-// Ogni attacco schivato avvicina la faccia (la distanza cala); se si viene colpiti la distanza aumenta e la
-// sequenza riparte da capo. Dopo 10 attacchi schivati di fila Roberto la raggiunge e le dà un bacetto.
+// Ogni attacco schivato avvicina la faccia (la distanza cala); un colpo preso non azzera niente (+3 s sul timer) e
+// la lista di 10 colpi si ripete finché non se ne superano 10 in tutto. Dopo 10 attacchi schivati in tutto (non di fila) Roberto la raggiunge e le dà un bacetto.
 
 import * as THREE from './lib/three.module.min.js';
 import { posaFerma, azzeraPosa } from './modelli.js';
@@ -147,7 +147,7 @@ function creaMarcatore(colore) {
 export function creaBossRagazza(scena, ctx) {
   const { sez, corsie } = ctx;
   const B = {
-    fase: 'fuori', ok: 0, idx: 0, tNext: 0, pausa: 0, dist: D_ENTRA, ride: 0, entra: 0, colpiti: 0,
+    fase: 'fuori', ok: 0, idx: 0, tNext: 0, pausa: 0, invul: 0, dist: D_ENTRA, ride: 0, entra: 0, colpiti: 0,
     attacchi: [], vel: 1, fx: 0, fy: CENTRO_Y, boccaY: 6, mx: 0, my: 16, punta: null, fatto: false, tb: 0, scossa: 0, cuori: [], t: 0,
   };
   const V = new THREE.Vector3(), V2 = new THREE.Vector3();
@@ -195,7 +195,7 @@ export function creaBossRagazza(scena, ctx) {
   }
   B.reset = () => {
     pulisci();
-    Object.assign(B, { fase: 'fuori', ok: 0, idx: 0, tNext: 0, pausa: 0, dist: D_ENTRA, ride: 0, entra: 0, colpiti: 0, vel: 1, punta: null, fatto: false, tb: 0, scossa: 0 });
+    Object.assign(B, { fase: 'fuori', ok: 0, idx: 0, tNext: 0, pausa: 0, invul: 0, dist: D_ENTRA, ride: 0, entra: 0, colpiti: 0, vel: 1, punta: null, fatto: false, tb: 0, scossa: 0 });
     gruppo.visible = false; mano.visible = false;
     gruppo.scale.setScalar(1);
   };
@@ -203,7 +203,7 @@ export function creaBossRagazza(scena, ctx) {
 
   // ---- attacchi ------------------------------------------------------------------------------
   function lancia() {
-    const def = SEQUENZA[B.idx++];
+    const def = SEQUENZA[B.idx++ % SEQUENZA.length];      // la lista di 10 colpi si ripete finché non ne superi 10 in tutto
     B.attacchi.push({ tipo: def.t, corsie: def.corsie, t: 0, W: ATTESA[def.t], F: 1.4, u: -1, mesh: [], risolto: false });
   }
 
@@ -224,19 +224,19 @@ export function creaBossRagazza(scena, ctx) {
 
   // Il corpo di Roberto contro l'attacco; true se lo prende.
   function colpisce(a, G, rel) {
-    if (ctx.immune() || Math.abs(rel) > 0.8) return false;
+    if (ctx.immune() || B.invul > 0 || Math.abs(rel) > (a.tipo === 'robbettoo' ? 0.3 : 0.8)) return false;
     const f = ctx.fisica();
     const alto = G.y + (G.scivola > 0 ? f.altezzaBassa : f.altezza);
-    if (a.tipo === 'robbettoo') return G.y < ALT_LETTERA + 0.08 - 0.16;
+    if (a.tipo === 'robbettoo') return G.y < 0.5;       // hitbox sottile: basta un saltello
     return a.corsie.some(l => Math.abs(corsie[l] - G.x) < 0.95) && (a.tipo === 'musetto' ? (alto > 0.35 && G.y < 2.7) : (alto > 0.55 && G.y < 1.5));
   }
 
-  function colpisci(G) {
-    for (const a of B.attacchi) togli(a);
-    B.attacchi = [];
-    B.ok = 0; B.idx = 0;
-    B.pausa = 1.9; B.ride = 1.5;
-    B.dist = Math.min(D_MAX + 6, B.dist + 7);      // il colpo ci spinge indietro: lei è più lontana
+  // Un colpo preso non azzera nulla: quell'attacco non conta come superato (+3 s sul timer, in ctx.colpito) e si
+  // passa al successivo; gli altri attacchi già in volo proseguono, con un attimo di invulnerabilità.
+  function colpisci(G, a) {
+    togli(a);
+    B.attacchi.splice(B.attacchi.indexOf(a), 1);
+    B.invul = 1.0; B.ride = 1.5;
     B.colpiti++;
     ctx.colpito();
   }
@@ -337,6 +337,7 @@ export function creaBossRagazza(scena, ctx) {
       return;
     }
     B.ride = Math.max(0, B.ride - dt);
+    if (inGioco) B.invul = Math.max(0, B.invul - dt);
     B.scossa = Math.max(0, B.scossa - dt);
     if (B.fase === 'fuori' && inGioco && pos >= sez.inizio + 30 && pos < sez.fine - 120) {
       B.fase = 'ingresso'; B.t = 0; B.dist = D_ENTRA; B.entra = 0;
@@ -357,13 +358,13 @@ export function creaBossRagazza(scena, ctx) {
       } else if (B.fase === 'finale') {
         B.dist += (D_MIN - B.dist) * Math.min(1, dt * 2.2);
       } else if (B.fase === 'combatte') {
-        // Distanza: cala a ogni attacco schivato; dopo un colpo torna al massimo.
+        // Distanza: cala a ogni attacco schivato (i colpi presi non la fanno risalire).
         const bersaglio = D_MAX - (D_MAX - D_MIN) * (B.ok / N_ATTACCHI);
         B.dist += (bersaglio - B.dist) * Math.min(1, dt * 2.2);
         if (B.pausa > 0) {
           B.pausa -= dt;
           if (B.pausa <= 0) B.tNext = 0.5;
-        } else if (B.idx < N_ATTACCHI) {
+        } else {
           B.tNext -= dt;
           if (B.tNext <= 0) { lancia(); B.tNext = SPAZIO; }
         }
@@ -407,7 +408,7 @@ export function creaBossRagazza(scena, ctx) {
         for (const l of a.corsie) {
           if (!danger[l] || forza > danger[l].forza) danger[l] = { forza, tipo: a.tipo };
         }
-        if (!a.risolto && colpisce(a, G, dd)) { colpisci(G); break; }
+        if (!a.risolto && colpisce(a, G, dd)) { colpisci(G, a); continue; }
         if (dd < -0.9) {
           a.risolto = true; togli(a);
           B.attacchi.splice(B.attacchi.indexOf(a), 1);

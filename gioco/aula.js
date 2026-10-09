@@ -26,12 +26,12 @@ const sediaDue = i => new THREE.Vector3(FILE_X[2] - 0.7, 0, DUE_Z[i]);
 const sedia = (f, c) => new THREE.Vector3(FILE_X[f] - 0.7, 0, f === 3 ? ULTIMA_Z[c] : COL_Z[c]);
 
 // `largo` allarga il fumetto (per le frasi lunghe) senza schiacciare il testo.
-export function fumetto(testo, colore = '#ffffff', inchiostro = '#1C1D2B', larghezza = 1.1, largo = 1) {
+export function fumetto(testo, colore = '#ffffff', inchiostro = '#1C1D2B', larghezza = 1.1, largo = 1, corpo = 54) {
   const tex = tela(Math.round(256 * largo), 128, (g, W, H) => {
     g.fillStyle = colore;
     g.beginPath(); if (g.roundRect) g.roundRect(8, 8, W - 16, H - 36, 26); else g.rect(8, 8, W - 16, H - 36); g.fill();
     g.beginPath(); g.moveTo(W / 2 - 14, H - 30); g.lineTo(W / 2, H - 6); g.lineTo(W / 2 + 14, H - 30); g.fill();
-    g.fillStyle = inchiostro; g.font = '800 54px "Bricolage Grotesque", system-ui, sans-serif';
+    g.fillStyle = inchiostro; g.font = `800 ${corpo}px "Bricolage Grotesque", system-ui, sans-serif`;
     g.textAlign = 'center'; g.textBaseline = 'middle';
     g.fillText(testo, W / 2, (H - 28) / 2 + 6, W - 40);
   });
