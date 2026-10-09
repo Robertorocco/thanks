@@ -87,7 +87,8 @@ function mondoDi(pos) {
 function velocitaIn(pos) {
   const t = TRATTI[mondoDi(Math.min(pos, LUNGHEZZA - 0.01))];
   const k = THREE.MathUtils.clamp((pos - t.inizio) / t.lunghezza, 0, 1);
-  return t.velocita * SPINTA * (1 + CRESCITA * k);
+  // A Rennes si cammina più piano (-25%), così si riconoscono i volti.
+  return t.velocita * SPINTA * (1 + CRESCITA * k) * (t.stile === 'rennes' ? 0.75 : 1);
 }
 
 const ENTITA = generaLivello(TRATTI, perc, velocitaIn);
@@ -180,7 +181,7 @@ const EVENTO = {
     domanda: 'Cosa fai?',
     opzioni: [{ id: 'copiare', etichetta: 'Copiare' }, { id: 'rispondere', etichetta: 'Rispondere' }],
     esiti: {
-      copiare: { titolo: 'Promosso con 27!', sotto: 'Grazie, Chiara', malus: 0, durata: 2.4 },
+      copiare: { titolo: 'Promosso con 27!', sotto: '', malus: 0, durata: 2.4 },
       rispondere: { titolo: 'Bocciato!', sotto: `+${MALUS_PRIMA_FILA} secondi di penalità`, malus: MALUS_PRIMA_FILA, durata: 2.6 },
     },
     esitoAllaFine: true,
@@ -832,7 +833,7 @@ function applicaEsito(esito) {
 function mostraEsito() {
   const r = EVENTO[G.mondo].esiti[G.esitoAula];
   G.esitoMostrato = true;
-  banner(`${r.titolo}<small>${r.sotto}</small>`, r.durata, 'in-basso');
+  banner(`${r.titolo}${r.sotto ? `<small>${r.sotto}</small>` : ''}`, r.durata, 'in-basso');
 }
 for (const b of bottoniScelta) {
   b.addEventListener('click', () => scegliInAula(b.dataset.scelta));
@@ -1148,7 +1149,7 @@ function aggiornaEntita(ora) {
       e.anima?.(ora / 1000);
       if (e.membro === 'abuso' && d - pos < ABUSO_DA && d - pos > 0.5 && G.stato === 'gioco') {
         bollaAbuso.visible = true;
-        daLocale(d, CORSIE[e.corsia], 2.35, 0, bollaAbuso.position);
+        daLocale(d, CORSIE[e.corsia], 2.95, 0, bollaAbuso.position);
       }
     } else if (e.tipo === 'lancio') {
       // Parte quando il giocatore è vicino, nella corsia in cui si trova in quel momento.
