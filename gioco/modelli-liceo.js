@@ -358,7 +358,7 @@ export function creaCartelloAppeso(testo, w = 3.4, colore = 0x2D7D4F, inchiostro
 
 // Parete di fondo con la porta dell'aula: l'anta si apre verso l'interno quando ci si avvicina.
 // Sparisce dopo la scena in classe.
-export function creaPortaAula(testo = '5ª H', colore = 0x1F58B8) {
+export function creaPortaAula(testo = '5ª H', colore = 0x1F58B8, targa = null) {
   const g = new THREE.Group();
   const H = ALTEZZA_INTERNO;
   g.add(blocco(3.15, H, 0.4, matParete, -2.875, 0));
@@ -374,7 +374,7 @@ export function creaPortaAula(testo = '5ª H', colore = 0x1F58B8) {
   perno.add(blocco(2.2, 3.0, 0.1, 0x8A5A34, 1.1, 0, 0));
   perno.add(blocco(0.12, 0.3, 0.12, 0xD8B85A, 1.9, 1.4, 0.1));
   g.add(perno);
-  const cartello = scritta(testo, 2.2, 0.8, 0xFFFFFF, colore);
+  const cartello = targa ?? scritta(testo, 2.2, 0.8, 0xFFFFFF, colore);
   cartello.position.set(0, 3.9, 0.22);
   g.add(cartello);
   g.userData.apri = k => { perno.rotation.y = k * 1.45; };

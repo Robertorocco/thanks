@@ -221,10 +221,10 @@ export function creaAulaEsame() {
   mano.position.y = -0.4;
   gomitoProf.add(mano);
 
-  // Chiara alla Levi: bassa, capelli neri con la riga in mezzo e i lati rasati, foulard bianco,
-  // giacca color sabbia con le cinghie, pantaloni chiari e stivali.
+  // Chiara alla Levi: bassa, capelli neri con la riga in mezzo e i lati rasati, polo verde lime chiaro,
+  // anelli d'argento su quattro dita, un orecchino piccolo a forma di coltello, pantaloni chiari e stivali.
   const chiara = persona({
-    pelle: 0xF2D5C0, capelli: 0x121216, maglia: 0xB89668, pantaloni: 0xEDE6D8, scarpe: 0x4A3020, conZaino: false,
+    pelle: 0xF2D5C0, capelli: 0x121216, maglia: 0xDDF7A0, pantaloni: 0xEDE6D8, scarpe: 0x4A3020, conZaino: false,
   }, 0.9);
   const testaC = chiara.testa;
   testaC.children[0].material[5] = new THREE.MeshLambertMaterial({ map: voltoLevi() });
@@ -235,10 +235,21 @@ export function creaAulaEsame() {
     testaC.add(blocco(0.06, 0.2, 0.08, 0x121216, s * 0.205, -0.08, -0.19));       // ciocche ai lati del viso
     testaC.add(blocco(0.03, 0.14, 0.4, 0x3A3A40, s * 0.222, -0.16, 0.02));          // lati rasati
   }
-  chiara.superiore.add(blocco(0.16, 0.2, 0.06, 0xFFFFFF, 0, 1.5, -0.18));            // foulard
-  chiara.superiore.add(blocco(0.24, 0.07, 0.06, 0xFFFFFF, 0, 1.66, -0.17));
-  for (const x of [-0.17, 0.17]) chiara.superiore.add(blocco(0.04, 0.5, 0.02, 0x3A2416, x, 1.12, -0.18));
-  chiara.superiore.add(blocco(0.5, 0.04, 0.02, 0x3A2416, 0, 1.3, -0.185));
+  // Polo: colletto chiaro e abbottonatura con due bottoni.
+  for (const s of [-1, 1]) { const c = blocco(0.16, 0.09, 0.05, 0xF1FBD2, s * 0.09, 1.64, -0.175); c.rotation.z = s * 0.45; chiara.superiore.add(c); }
+  chiara.superiore.add(blocco(0.07, 0.2, 0.02, 0xB8D766, 0, 1.46, -0.175));
+  for (const y of [1.5, 1.42]) chiara.superiore.add(blocco(0.025, 0.025, 0.02, 0xF4F4EC, 0, y, -0.188));
+  // Anelli d'argento: due per mano, sulle dita.
+  const argento = new THREE.MeshPhongMaterial({ color: 0xD8DCE2, shininess: 120, specular: 0xffffff });
+  for (const b of chiara.braccia) for (const dx of [-0.04, 0.035]) b.gomito.add(blocco(0.045, 0.035, 0.18, argento, dx, -0.39, 0));
+  // Orecchino a forma di coltellino, appeso all'orecchio dal lato che si vede dalla telecamera.
+  const orecchino = new THREE.Group();
+  orecchino.add(blocco(0.012, 0.012, 0.012, argento, 0, -0.02, 0));
+  orecchino.add(blocco(0.014, 0.035, 0.02, 0x1C1D22, 0, -0.06, 0));                  // manico
+  orecchino.add(blocco(0.01, 0.06, 0.024, argento, 0, -0.11, 0.002));                // lama
+  orecchino.position.set(0.24, -0.17, -0.02);
+  orecchino.scale.setScalar(2.1);
+  testaC.add(orecchino);
   const tablet = new THREE.Group();
   tablet.add(blocco(0.62, 0.44, 0.03, 0x1C1D24, 0, -0.22));
   const schermo = new THREE.Mesh(new THREE.PlaneGeometry(0.56, 0.38), new THREE.MeshBasicMaterial({ map: texTablet }));
@@ -251,7 +262,7 @@ export function creaAulaEsame() {
   const fDomanda = bolla('Mi ricava il guadagno ottimo K?', '#FFFFFF', '#1C1D2B', 1.55, 2.8);
   const fEhm = bolla('Ehm…', '#FFFFFF', '#1C1D2B', 0.65);
   const fRisposta = bolla('K = R⁻¹BᵀP', '#FFFFFF', '#1C1D2B', 1.0, 1.4);
-  const fTrenta = bolla('Perfetto, 30 e lode!', '#FFE27A', '#1C1D2B', 1.3, 2.0);
+  const fTrenta = bolla('Bene, 27!', '#FFE27A', '#1C1D2B', 1.0, 1.4);
   const fAppello = bolla("Ci vediamo al prossimo appello", "#FFFFFF", "#1C1D2B", 1.15, 2.8);
   const bolle = [fDomanda, fEhm, fRisposta, fTrenta, fAppello];
 

@@ -10,6 +10,7 @@
 import * as THREE from './lib/three.module.min.js';
 import {
   materiale, blocco, cilindro, sfera, tela, esa, scritta, fronte, OSTACOLI, CUBO, creaPersona, posaCorsa, azzeraPosa,
+  posaSeduto,
 } from './modelli.js';
 import { creaAuto } from './modelli-liceo.js';
 
@@ -214,8 +215,32 @@ function costruisciStadio() {
   return g;
 }
 
-export function creaStadio() {
-  return modello('stadio', costruisciStadio);
+// Tendoni azzurri del Napoli appesi alla struttura in acciaio, verso la strada.
+const texTendoni = ['FORZA NAPOLI', 'NAPOLI'].map(testo => tela(512, 168, (g, W, H) => {
+  g.fillStyle = '#1E9BD7'; g.fillRect(0, 0, W, H);
+  g.fillStyle = '#ffffff'; g.fillRect(0, 10, W, 8); g.fillRect(0, H - 18, W, 8);
+  g.font = '900 78px "Bricolage Grotesque", system-ui, sans-serif';
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText(testo, W / 2, H / 2 + 4, W - 40);
+}));
+const matTendoni = texTendoni.map(t => new THREE.MeshLambertMaterial({ map: t, side: THREE.DoubleSide }));
+const GEO_TENDONE = new THREE.PlaneGeometry(9.5, 3.1);
+
+export function creaStadio(v = 0) {
+  const g = modello('stadio', costruisciStadio);
+  const t = new THREE.Mesh(GEO_TENDONE, matTendoni[v % 2]);
+  t.rotation.y = Math.PI / 2;
+  t.position.set(-12.55, 15.4, 0);
+  g.add(t);
+  // Uno più piccolo sullo zoccolo, ogni tanto.
+  if (v % 3 === 0) {
+    const b = new THREE.Mesh(GEO_TENDONE, matTendoni[(v + 1) % 2]);
+    b.scale.setScalar(0.55);
+    b.rotation.y = Math.PI / 2;
+    b.position.set(-14.0, 4.3, 2.5);
+    g.add(b);
+  }
+  return g;
 }
 
 // ---------------------------------------------------------------------------
@@ -581,11 +606,68 @@ OSTACOLI.triennale = {
   alto: (p, e) => ((e.var ?? 0) % 3 === 0 ? striscione() : sbarra()),
   muro: (p, e) => (e.lungo || p > 4.5 ? autoInFila(p, e) : autoInCorsia(e)),
 };
+// Dentro la facoltà niente auto: fioriere di cemento con gli arbusti e, nei corridoi di corsie, siepi.
+function fioriera() {
+  return modello('fioriera', () => {
+    const k = new THREE.Group();
+    k.add(blocco(1.9, 0.9, 1.5, 0xBDB7AA, 0, 0));
+    k.add(blocco(1.75, 0.1, 1.35, 0x5A4632, 0, 0.88));
+    for (const [x, z, h] of [[-0.5, -0.3, 1.3], [0.45, 0.2, 1.1], [0.0, 0.35, 1.4], [-0.3, 0.3, 1.0]]) {
+      const c = new THREE.Mesh(new THREE.IcosahedronGeometry(0.55, 0), materiale(0x4F7D3A, { flatShading: true }));
+      c.position.set(x, 0.9 + h * 0.6, z); c.scale.set(1, h, 1); c.castShadow = true;
+      k.add(c);
+    }
+    return k;
+  });
+}
+function siepeLunga(p) {
+  const g = new THREE.Group();
+  g.add(blocco(1.9, 0.5, p, 0xBDB7AA, 0, 0));
+  g.add(blocco(1.75, 1.9, p - 0.15, 0x4C7A33, 0, 0.5));
+  return g;
+}
 OSTACOLI.magistrale = {
   proprio: true,
   basso: (p, e) => ((e.var ?? 0) % 2 ? bidoni() : jersey()),
   alto: () => sbarra(),
-  muro: (p, e) => (e.lungo || p > 4.5 ? autoInFila(p, e) : autoInCorsia(e)),
+  muro: (p, e) => (e.lungo || p > 4.5 ? siepeLunga(p) : fioriera()),
+};
+
+// Dentro l'edificio: pile di libri da saltare e distributori automatici da evitare.
+function pilaLibri() {
+  return modello('libri', () => {
+    const k = new THREE.Group();
+    const colori = [0x2C5F8A, 0xB03A2E, 0xC9962E, 0x2F5D3A, 0x6B4A8E, 0xE8E2D4];
+    for (const [j, cx] of [-0.45, 0.45].entries()) {
+      let y = 0;
+      for (let i = 0; i < 5; i++) {
+        const h = 0.13 + ((i + j) % 3) * 0.03;
+        const l = blocco(0.8 - (i % 2) * 0.1, h, 0.55, colori[(i + j * 2) % colori.length], cx, y);
+        l.rotation.y = ((i * 37 + j * 11) % 9 - 4) * 0.03;
+        k.add(l);
+        y += h;
+      }
+    }
+    return k;
+  });
+}
+function distributori() {
+  return modello('distributori', () => {
+    const k = new THREE.Group();
+    for (const [x, c] of [[-0.45, 0xC0392B], [0.45, 0x2C3E50]]) {
+      k.add(blocco(0.86, 2.0, 0.8, c, x, 0));
+      k.add(blocco(0.55, 1.1, 0.04, 0x9FC3D8, x - 0.08, 0.6, -0.41));
+      k.add(blocco(0.16, 0.5, 0.04, 0xD9D9D9, x + 0.3, 0.9, -0.41));
+      k.add(blocco(0.5, 0.12, 0.05, 0x1C1D22, x - 0.08, 0.25, -0.41));
+    }
+    return k;
+  });
+}
+OSTACOLI.magistraleInt = {
+  proprio: true,
+  basso: () => pilaLibri(),
+  alto: () => sbarra(),
+  muro: () => distributori(),
 };
 
 // ---------------------------------------------------------------------------
@@ -691,7 +773,7 @@ export function creaParcheggiatore(v = 0) {
 export function creaScenaUni(e) {
   let m;
   switch (e.tipo) {
-    case 'stadio': return creaStadio();
+    case 'stadio': return creaStadio(e.var ?? 0);
     case 'autoSpina': return creaAutoSpina(e.var);
     case 'autoFila': return creaAutoFila(e.var, e.lato);
     case 'motorini': return creaMotorini(e.var, e.lato, e.x0 ?? 4.6, e.file ?? 1);
@@ -702,6 +784,11 @@ export function creaScenaUni(e) {
     case 'targa': return creaTargaVia(e.lato);
     case 'lampione': return creaLampioneVerde(e.lato);
     case 'ingresso': return creaIngressoFacolta();
+    case 'bivio': return creaBivio();
+    case 'gradoni': return creaGradoni();
+    case 'fianchiScala': return creaFianchiScalinata();
+    case 'facciata': return creaFacciataEdificio();
+    case 'portaLat': return creaPortaLaterale(e.lato, e.testo);
     case 'jersey':
       m = jersey();
       m.position.x = e.lato * e.x; m.rotation.y = Math.PI / 2;
@@ -712,4 +799,183 @@ export function creaScenaUni(e) {
       return m;
     default: return new THREE.Group();
   }
+}
+
+// ---------------------------------------------------------------------------
+// Dentro la Facoltà di Ingegneria (magistrale)
+// ---------------------------------------------------------------------------
+
+const matAsfalto = new THREE.MeshLambertMaterial({ color: 0x96928A, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 });
+
+// Il bivio dopo il cancello: la strada prosegue dritta e a destra tra i palazzi, il percorso gira a
+// sinistra (la curva ha raggio ~25 m, centro a x = -25,5). Davanti, in fondo al rettilineo, un altro palazzo.
+export function creaBivio() {
+  const g = new THREE.Group();
+  const piano = (w, p, x, z) => {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, p), matAsfalto);
+    m.rotation.x = -Math.PI / 2; m.position.set(x, 0.03, z); m.receiveShadow = true;
+    g.add(m);
+  };
+  // Il terreno attorno ai rami (fuori dalla fascia del percorso), con i marciapiedi lungo le strade.
+  const suolo = new THREE.Mesh(new THREE.PlaneGeometry(140, 140), new THREE.MeshLambertMaterial({ color: 0x8F8B84 }));
+  suolo.rotation.x = -Math.PI / 2; suolo.position.set(30, -0.09, -50);
+  g.add(suolo);
+  const marc = new THREE.MeshLambertMaterial({ color: 0xBCB9B5 });
+  for (const [w, p, x, z] of [[3, 86, -4.8, -51], [3, 92, 4.8, -55], [86, 3, 51, -0.3], [82, 3, 49, -8.4]]) {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, 0.12, p), marc);
+    m.position.set(x, 0.06, z); m.receiveShadow = true;
+    g.add(m);
+  }
+  piano(6.6, 92, 0, -48);          // dritto
+  piano(90, 6.6, 48, -4.3);        // a destra
+  const pal = (larghezza, profondita, altezza, x, z) => {
+    const m = creaPalazzoFacolta({ larghezza, profondita, altezza, lato: 1, distanza: 0 });
+    m.position.set(x, 0, z);
+    g.add(m);
+  };
+  pal(26, 26, 20, 22, -26);         // tra il ramo dritto e quello a destra
+  pal(30, 12, 16, 24, 9);           // a destra, prima del bivio
+  pal(30, 14, 24, 0, -102);         // in fondo al ramo dritto
+  pal(24, 16, 18, 40, -50);
+  pal(14, 10, 12, -17, -7);         // nell'angolo interno della curva
+  for (const [x, z] of [[-5, -60], [5, -70], [12, -12], [30, -12]]) {
+    const a = creaAlberoFacolta(false, 1.1);
+    a.position.set(x, 0, z);
+    g.add(a);
+  }
+  return g;
+}
+
+// I cinque gradoni a sinistra, con gli studenti seduti che mangiano. Lunghi 22 m lungo la strada.
+const MAGLIE_STUDENTI = [0xE84393, 0x2980B9, 0xF39C12, 0x27AE60, 0xECF0F1, 0x8E44AD, 0x1C1D22, 0xC0392B, 0x16A085];
+const CAPELLI_STUDENTI = [0x2B1D14, 0x5A3A22, 0xC8A25A, 0x15110E, 0x7A4A2A];
+let gradoniPronti = null;
+function costruisciGradoni() {
+  const g = new THREE.Group();
+  const L = 22, ALZ = 0.45, PED = 1.0, X0 = 4.6;
+  const blocchi = new THREE.Group();
+  for (let i = 0; i < 5; i++) {
+    blocchi.add(blocco(PED, ALZ * (i + 1), L, i % 2 ? 0xC9C4B8 : 0xD3CEC2, -(X0 + PED * (i + 0.5)), 0, 0));
+    blocchi.add(blocco(0.04, 0.04, L, 0x9A958B, -(X0 + PED * i) - 0.02, ALZ * (i + 1) - 0.04, 0));
+  }
+  blocchi.add(blocco(2, ALZ * 5 + 0.6, L, 0xB9B3A6, -(X0 + PED * 5 + 1), 0, 0));
+  g.add(unisci(blocchi));
+  // Studenti seduti, rivolti verso la strada: alcuni mangiano un panino, altri chiacchierano.
+  const posti = [[0, -8, 1], [0, -6.8, 0], [1, -2, 1], [2, 4, 1], [2, 5.2, 0], [3, -5, 1], [3, 8.5, 1], [4, 0.5, 0], [1, 9, 1]];
+  posti.forEach(([i, z, mangia], k) => {
+    const p = creaPersona({
+      maglia: MAGLIE_STUDENTI[k % MAGLIE_STUDENTI.length], capelli: CAPELLI_STUDENTI[k % CAPELLI_STUDENTI.length],
+      pantaloni: k % 2 ? 0x34495E : 0x5B6B82, conZaino: false, acconciatura: k % 3 === 1 ? 'caschetto' : undefined,
+    });
+    posaSeduto(p, 0.3);
+    p.radice.scale.setScalar(0.8);
+    p.radice.rotation.y = -Math.PI / 2;        // guarda la strada (+x)
+    p.radice.position.set(-(X0 + PED * i) - 0.32, ALZ * (i + 1) - 0.52, z);
+    if (mangia) {
+      const b = p.braccia[k % 2];
+      b.spalla.rotation.x = -1.7; b.gomito.rotation.x = -1.3;
+      b.gomito.add(blocco(0.22, 0.1, 0.14, 0xE0B070, 0, -0.5, -0.04));            // panino
+      b.gomito.add(blocco(0.2, 0.03, 0.12, 0x6A9F3A, 0, -0.45, -0.04));
+    } else {
+      p.testa.rotation.y = (k % 2 ? 1 : -1) * 0.6;
+      p.braccia[1].spalla.rotation.x = -0.6;
+    }
+    g.add(p.radice);
+  });
+  return g;
+}
+export function creaGradoni() {
+  if (!gradoniPronti) gradoniPronti = costruisciGradoni();
+  return gradoniPronti.clone();
+}
+
+// I fianchi della scalinata di dieci gradini (6 m, sale di 1,7 m).
+export function creaFianchiScalinata() {
+  return modello('fianchiScala', () => {
+    const k = new THREE.Group();
+    for (const s of [-1, 1]) {
+      const m = trave([s * 4.6, 0.35, 0.3], [s * 4.6, 2.05, -6.2], 0.5, 0xC9C4B8);
+      m.scale.x = 0.4; m.scale.z = 0.9;      // spessore e altezza del parapetto
+      k.add(m);
+      k.add(trave([s * 4.4, 1.25, 0.3], [s * 4.4, 2.95, -6.2], 0.06, 0x8A9096));      // corrimano
+    }
+    return k;
+  });
+}
+
+// La facciata dell'edificio dove si entra: mattoni e fasce chiare, apertura larga quanto il corridoio.
+export function creaFacciataEdificio() {
+  const g = new THREE.Group();
+  const H = 15, APERTA = 4.3, PORTA = 4.6, W = 26;
+  const tex = (w, h) => { const t = texFacolta.clone(); t.needsUpdate = true; t.repeat.set(Math.max(1, Math.round(w / 3)), Math.max(1, Math.round(h / 3.3))); return new THREE.MeshLambertMaterial({ map: t }); };
+  const pezzo = (w, h, x, y) => {
+    const m = new THREE.Mesh(CUBO, [materiale(0xA85B3F), materiale(0xA85B3F), materiale(0x7C776F), materiale(0x7C776F), tex(w, h), tex(w, h)]);
+    m.scale.set(w, h, 0.8); m.position.set(x, y + h / 2, 0.4); m.castShadow = true; m.receiveShadow = true;
+    g.add(m);
+  };
+  for (const s of [-1, 1]) pezzo(W, H, s * (APERTA + W / 2), 0);
+  pezzo(APERTA * 2, H - PORTA, 0, PORTA);
+  g.add(unisci((() => {
+    const k = new THREE.Group();
+    k.add(blocco(APERTA * 2 + 0.6, 0.35, 2.2, 0xE4DED0, 0, PORTA, 1.1));              // pensilina sopra l'ingresso
+    for (const s of [-1, 1]) k.add(blocco(0.3, PORTA, 0.3, 0xE4DED0, s * (APERTA - 0.15), 0, 0.85));
+    k.add(blocco(W * 2 + APERTA * 2, 0.5, 1.0, 0xE4DED0, 0, H, 0.4));
+    return k;
+  })()));
+  return g;
+}
+
+// Targa delle aule di Ingegneria: "Ia3" con la I da numero romano (con le grazie), senza maiuscole.
+const cacheTarghe = new Map();
+export function targaAula(testo, w, h, colore = 0x1F58B8) {
+  if (!cacheTarghe.has(testo)) {
+    cacheTarghe.set(testo, new THREE.MeshBasicMaterial({ map: tela(Math.round(128 * w / h), 128, (g, W, H) => {
+      g.fillStyle = '#ffffff'; g.fillRect(0, 0, W, H);
+      g.fillStyle = '#' + colore.toString(16).padStart(6, '0');
+      g.font = `700 ${H * 0.7}px Georgia, "Times New Roman", serif`;
+      g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.fillText(testo, W / 2, H * 0.55, W * 0.9);
+    }) }));
+  }
+  return new THREE.Mesh(new THREE.PlaneGeometry(w, h), cacheTarghe.get(testo));
+}
+
+// Porta laterale di un'aula nel corridoio, con la targa (Ia1, Ia2).
+export function creaPortaLaterale(lato, testo) {
+  const g = new THREE.Group();
+  g.add(modello(`portaLat${lato}`, () => {
+    const k = new THREE.Group();
+    const x = lato * 4.2;
+    k.add(blocco(0.1, 2.9, 1.6, 0x6E4524, x, 0, 0));
+    k.add(blocco(0.12, 2.6, 1.3, 0x8A5A34, x - lato * 0.02, 0, 0));
+    k.add(blocco(0.14, 0.1, 0.22, 0xD8B85A, x - lato * 0.05, 1.15, 0.45));
+    return k;
+  }));
+  const targa = targaAula(testo, 0.9, 0.42);
+  targa.position.set(lato * 4.1, 3.25, 0);
+  targa.rotation.y = -lato * Math.PI / 2;
+  g.add(targa);
+  return g;
+}
+
+// Pareti del corridoio della facoltà: intonaco chiaro, zoccolo grigio, finestre a sinistra.
+const matParUni = new THREE.MeshLambertMaterial({ color: 0xEDE8DC });
+const matVetroUni = new THREE.MeshBasicMaterial({ color: 0xDDF1FF });
+export function creaPareteUni(e) {
+  const g = new THREE.Group();
+  const x = e.lato * 4.25;
+  const muro = new THREE.Mesh(CUBO, matParUni);
+  muro.scale.set(0.4, 4.6, 3.7); muro.position.set(e.lato * 4.45, 2.3, 0); muro.receiveShadow = true;
+  g.add(muro);
+  g.add(blocco(0.06, 0.3, 3.7, 0x8E8A82, x, 0, 0));
+  if (e.spoglia) return g;
+  if (e.lato < 0 && e.idx % 2 === 0) {
+    g.add(blocco(0.06, 1.5, 2.0, matVetroUni, x, 1.6, 0));
+    g.add(blocco(0.08, 0.08, 2.1, 0xBFC3C8, x, 1.55, 0));
+  } else if (e.lato > 0 && e.idx % 4 === 1) {
+    g.add(blocco(0.05, 1.0, 1.5, 0x3E6FA8, x, 1.4, 0));                    // bacheca degli avvisi
+    g.add(blocco(0.06, 0.4, 0.3, 0xFFFFFF, x, 1.75, -0.4));
+    g.add(blocco(0.06, 0.35, 0.3, 0xFFE27A, x, 1.6, 0.35));
+  }
+  return g;
 }

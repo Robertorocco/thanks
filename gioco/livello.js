@@ -58,7 +58,8 @@ const PROF = {
   darmon:     { basso: 0.6, alto: 0.6, muro: 4.2, persona: 0.6 },
   darmonInt:  { basso: 0.6, alto: 0.5, muro: 1.4, persona: 0.6 },
   triennale:  { basso: 0.65, alto: 0.4, muro: 4.2, parcheggiatore: 0.7 },
-  magistrale: { basso: 0.65, alto: 0.4, muro: 4.2 },
+  magistrale: { basso: 0.65, alto: 0.4, muro: 1.5 },
+  magistraleInt: { basso: 0.6, alto: 0.4, muro: 0.8 },
   _:          { basso: 0.8, alto: 0.4, muro: 0.9 },
 };
 const profondita = (stile, tipo, e = {}) => (PROF[stile] ?? PROF._)[tipo] ?? 0.9;
@@ -275,13 +276,32 @@ export function generaLivello(TRATTI, perc, velocitaIn) {
         case 'ingresso-ing':
           metti('ingresso', 0, a + 4);
           break;
-        case 'campus': case 'esame': case 'dopo-esame':
+        // Dentro la facoltà: i fabbricati sono i protagonisti, poche auto e niente motorini.
+        case 'viale-ing': case 'dopo-esame':
           for (const lato of [-1, 1]) {
-            palazzi(lato, a + (sz.id === 'campus' ? 26 : 2), b, 9, 12, 24);
-            for (let q = a + 8; q < b - 4; q += 12) if (r() > 0.25) metti('autoFila', lato, q);
+            palazzi(lato, a + 2, sz.id === 'viale-ing' ? b - 14 : b, 9, 12, 24);
+            for (let q = a + 8; q < b - 4; q += 12) if (r() > 0.82) metti('autoFila', lato, q);
             for (let q = a + 14 + (lato > 0 ? 0 : 13); q < b; q += 26) metti('albero', lato, q, { x: 7.2, rosso: r() < 0.35, scala: 0.8 + r() * 0.3 });
             for (let q = a + 20 + (lato > 0 ? 15 : 0); q < b; q += 30) metti('lampione', lato, q);
           }
+          break;
+        case 'bivio':
+          // La strada si divide: dritto e a destra tra i fabbricati, noi giriamo a sinistra.
+          metti('bivio', 0, a);
+          break;
+        case 'gradoni':
+          // A sinistra i cinque gradoni con gli studenti che mangiano, poi la scalinata e l'edificio.
+          metti('gradoni', -1, b - 18);
+          palazzi(-1, a + 8, b - 32, 9, 12, 20);
+          palazzi(1, a + 6, b - 4, 9, 14, 24);
+          metti('albero', -1, b - 34, { x: 6.8, rosso: true, scala: 1.1 });
+          metti('lampione', 1, a + 30);
+          break;
+        case 'scalinata':
+          metti('fianchiScala', 0, a);
+          break;
+        case 'davanti-ed':
+          metti('facciata', 0, b);
           break;
         default: break;
       }
@@ -438,13 +458,19 @@ export function generaLivello(TRATTI, perc, velocitaIn) {
           break;
         }
         case 'ingresso-ing': break;
-        // --- Magistrale: prima e dopo l'esame ---
-        case 'campus':
-          riempi(a + 45, b - 40, { stile: t.stile, tipi: ['basso', 'alto', 'muro'], corridoi: true });
+        // --- Magistrale: il viale, i gradoni, l'edificio con l'aula Ia3, poi di nuovo fuori ---
+        case 'viale-ing':
+          riempi(a + 16, b - 6, { stile: 'magistrale', tipi: ['basso', 'alto', 'muro'], corridoi: false, spazio: 1.1 });
+          break;
+        case 'gradoni':
+          riempi(a + 12, b - 8, { stile: 'magistrale', tipi: ['basso', 'alto', 'muro'], corridoi: false, spazio: 1.1 });
+          break;
+        case 'corridoio-uni': case 'uscita-uni':
+          riempi(a + 6, b - 5, { stile: 'magistraleInt', tipi: ['basso', 'alto', 'muro'], corridoi: 0.1, spazio: 1.15 });
           break;
         case 'esame': break;
         case 'dopo-esame':
-          riempi(a + 30, b - 30, { stile: t.stile, tipi: ['basso', 'alto', 'muro'], corridoi: true });
+          riempi(a + 30, b - 30, { stile: 'magistrale', tipi: ['basso', 'alto', 'muro'], corridoi: true });
           break;
         case 'piazzale':
           riempi(a + 10, b - 30, { stile: 'darmon', tipi: ['basso', 'alto', 'muro'], corridoi: 0.1, spazio: 1.2 });
@@ -459,7 +485,8 @@ export function generaLivello(TRATTI, perc, velocitaIn) {
         for (let q = primo, i = 0; q < b; q += 3, i++) {
           const k = Math.round(q / 3);
           for (const lato of [-1, 1]) {
-            const spoglia = lato > 0 && sz.portaFratello && Math.abs(q + 1.5 - a - sz.portaFratello) < 3.6;
+            const spoglia = (lato > 0 && sz.portaFratello && Math.abs(q + 1.5 - a - sz.portaFratello) < 3.6)
+              || (sz.id === 'corridoio-uni' && Math.abs(q + 1.5 - a - (lato < 0 ? 12 : 26)) < 2.6);
             ENTITA.push({ d: q + 1.5, genere: 'parete', lato, idx: k + (lato > 0 ? 1 : 0), mondo: t.indice, stile: t.stile, spoglia });
           }
           ENTITA.push({ d: q + 1.5, genere: 'soffitto', luce: k % 3 === 0, mondo: t.indice, stile: t.stile });
@@ -477,9 +504,15 @@ export function generaLivello(TRATTI, perc, velocitaIn) {
         if (sz.id === 'portone') ENTITA.push({ d: b - 1.2, genere: 'portone', mondo: t.indice });
         if (sz.id === 'soglia') ENTITA.push({ d: b - 1.2, genere: 'portone', mondo: t.indice, stile: 'casa' });
         if (sz.id === 'uscita-d') ENTITA.push({ d: b - 1.2, genere: 'portone', mondo: t.indice, stile: 'darmon' });
+        // Facoltà: le aule Ia1 e Ia2 lungo il corridoio, in fondo la Ia3 dove si fa l'esame.
+        if (sz.id === 'corridoio-uni') {
+          ENTITA.push({ d: a + 12, genere: 'uni', tipo: 'portaLat', lato: -1, testo: 'Ia1', mondo: t.indice });
+          ENTITA.push({ d: a + 26, genere: 'uni', tipo: 'portaLat', lato: 1, testo: 'Ia2', mondo: t.indice });
+        }
+        if (sz.id === 'esame' && t.stile === 'magistrale') ENTITA.push({ d: b, genere: 'portaAula', mondo: t.indice, stile: 'ia3' });
+        if (sz.id === 'portone-uni') ENTITA.push({ d: b - 1.2, genere: 'portone', mondo: t.indice });
       } else if (t.stile === 'triennale' || t.stile === 'magistrale') {
         scenaUni(sz, a, b);
-        if (sz.id === 'esame') ENTITA.push({ d: b, genere: 'portaAula', mondo: t.indice, stile: 'facolta' });
       } else {
         // Edifici, lampioni e alberi lungo la strada. Vicino alla scuola restano bassi e lontani.
         const vicinoScuola = sz.id === 'avvicinamento';

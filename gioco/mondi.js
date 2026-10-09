@@ -150,7 +150,7 @@ export const MONDI = [
     luogo: 'Napoli',
     // Via Claudio, fuori dallo stadio Maradona, fino all'ingresso della Facoltà di Ingegneria.
     sezioni: [
-      // Via Claudio gira attorno allo stadio: nella lunga curva a sinistra lo si vede davanti per tutto il tempo.
+      // Via Claudio gira attorno allo stadio: nella lunga curva (a destra, stadio sul lato esterno) lo si vede davanti per tutto il tempo.
       { id: 'via-claudio',   lung: 110, amb: 'est' },
       { id: 'curva-stadio',  lung: 270, amb: 'est', curva: Math.PI * 0.6 },
       { id: 'via-claudio2',  lung: 90,  amb: 'est' },
@@ -175,15 +175,27 @@ export const MONDI = [
     luogo: 'Napoli',
     // Il viale dentro la Facoltà di Ingegneria. A metà, l'esame: Roberto corre verso la facoltà ed entra
     // in aula (vedi aula-esame.js).
+    // Oltre il cancello la strada si divide (sinistra, dritto, destra): si va a sinistra. A sinistra i
+    // cinque gradoni con gli studenti che mangiano, davanti dieci scalini; poi dentro l'edificio, un breve
+    // corridoio con tre aule: si entra nella Ia3.
     sezioni: [
-      { id: 'campus',     lung: 300, amb: 'est' },
-      { id: 'esame',      lung: 6,   amb: 'est', evento: 'esame' },
-      { id: 'dopo-esame', lung: 294, amb: 'est' },
+      { id: 'viale-ing',     lung: 50,  amb: 'est' },
+      { id: 'bivio',         lung: 40,  amb: 'est', curva: -Math.PI / 2 },    // curva negativa = a sinistra
+      { id: 'gradoni',       lung: 70,  amb: 'est' },
+      { id: 'scalinata',     lung: 6,   amb: 'est', pend: 0.28, gradini: true },
+      { id: 'davanti-ed',    lung: 8,   amb: 'est' },
+      { id: 'atrio-uni',     lung: 8,   amb: 'int' },
+      { id: 'corridoio-uni', lung: 40,  amb: 'int' },
+      { id: 'esame',         lung: 6,   amb: 'int', evento: 'esame' },
+      { id: 'uscita-uni',    lung: 22,  amb: 'int' },
+      { id: 'portone-uni',   lung: 10,  amb: 'int' },
+      { id: 'dopo-esame',    lung: 340, amb: 'est' },
     ],
     velocita: 15,
     cielo: 0xA9D0F2,
     terreno: 0x8F8B84,
     corsie: 0x9E9A92,
+    interno: { cielo: 0xD8D4CA, terreno: 0xCFCAC0, corsie: 0xD6D1C6 },
     edifici: [0xE9EEF3, 0xB8C4D0, 0x6C7A89],
     ostacoli: { basso: 0xE07A2E, alto: 0x3A3F4A, muro: 0xF2C14E },
   },
@@ -220,7 +232,7 @@ export const BONUS_CAFFE = 2;
 
 // Penalità se in aula ci si siede in prima fila (secondi), e tempo per scegliere.
 export const MALUS_PRIMA_FILA = 10;
-export const TEMPO_SCELTA = 6;
+export const TEMPO_SCELTA = 9;
 
 // Modalità sviluppo: se si muore si riparte da dove si è morti (un po' prima dell'ostacolo),
 // invece che dall'ultimo checkpoint. I checkpoint restano calcolati ma non vengono usati.

@@ -21,7 +21,7 @@ import { CORSIE, PENDENZA_CROCIERA, generaLivello, distanzaPersona, distanzaLanc
 import { creaAula, fumetto } from './aula.js';
 import { creaAulaDarmon } from './aula-darmon.js';
 import { creaAulaEsame, creaFacolta } from './aula-esame.js';
-import { creaScenaUni, creaParcheggiatore } from './modelli-universita.js';
+import { creaScenaUni, creaParcheggiatore, creaPareteUni, targaAula } from './modelli-universita.js';
 import { creaBossGelato, MALUS_COLPO, MAX_GRASSO } from './boss-gelato.js';
 
 // L'etichetta mostra la versione del codice che sta davvero girando (dal ?v= con cui è caricato).
@@ -182,7 +182,7 @@ const EVENTO = {
     domanda: 'Cosa fai?',
     opzioni: [{ id: 'copiare', etichetta: 'Copiare' }, { id: 'rispondere', etichetta: 'Rispondere' }],
     esiti: {
-      copiare: { titolo: 'Promosso!', sotto: 'Grazie, Chiara', malus: 0, durata: 2.4 },
+      copiare: { titolo: 'Promosso con 27!', sotto: 'Grazie, Chiara', malus: 0, durata: 2.4 },
       rispondere: { titolo: 'Bocciato!', sotto: `+${MALUS_PRIMA_FILA} secondi di penalità`, malus: MALUS_PRIMA_FILA, durata: 2.6 },
     },
     esitoAllaFine: true,
@@ -352,6 +352,8 @@ function nastro(a, b, sinistra, destra, quota, colore, vTile, materiale, passo =
       const marc = (d, c) => coloreMondo('terreno', d, c).lerp(cC.setHex(0xffffff), 0.35);
       nastro(iv.inizio, iv.fine, -6.3, -3.3, 0.12, marc, 1000, marciapiede);
       nastro(iv.inizio, iv.fine, 3.3, 6.3, 0.12, marc, 1000, marciapiede);
+      // Scalinate all'aperto (davanti all'edificio dell'esame): gradini su tutta la larghezza.
+      for (const s of SEZIONI) if (s.gradini && s.amb === 'est' && s.inizio >= iv.inizio && s.fine <= iv.fine) nastro(s.inizio, s.fine, -4.6, 4.6, 0.14, (d, c) => c.setHex(0xD3CEC2), PASSO_GRADINO, gradini);
     } else {
       // Dentro la scuola: pavimento a piastrelle, con i gradini sulle rampe di scale.
       const scale = SEZIONI.filter(s => s.amb === 'int' && s.id.startsWith('scale') && s.inizio >= iv.inizio && s.fine <= iv.fine);
@@ -480,13 +482,13 @@ function creaMesh(e) {
   else if (e.genere === 'metro') m = creaMetro(e.lato);
   else if (e.genere === 'segnale') m = creaSegnaleSalita(e.lato, e.testo);
   else if (e.genere === 'camaldoli') m = creaCartelloCamaldoli(e.lato, e.testo);
-  else if (e.genere === 'parete') m = creaPareteStile(e);
+  else if (e.genere === 'parete') m = e.stile === 'magistrale' ? creaPareteUni(e) : creaPareteStile(e);
   else if (e.genere === 'soffitto') m = creaSoffittoStile(e);
   else if (e.genere === 'arredo') m = creaArredo(e);
   else if (e.genere === 'uni') m = creaScenaUni(e);
   else if (e.genere === 'lanciatore') m = creaLanciatore(e);
   else if (e.genere === 'cartello') m = creaCartelloAppeso(e.testo, e.w, e.colore);
-  else if (e.genere === 'portaAula') m = e.stile === 'darmon' ? creaPortaAula('3ª B', 0xE0533F) : e.stile === 'facolta' ? creaFacolta() : creaPortaAula();
+  else if (e.genere === 'portaAula') m = e.stile === 'darmon' ? creaPortaAula('3ª B', 0xE0533F) : e.stile === 'ia3' ? creaPortaAula('Ia3', 0x1F58B8, targaAula('Ia3', 2.2, 0.8)) : e.stile === 'facolta' ? creaFacolta() : creaPortaAula();
   else if (e.genere === 'portone') m = e.stile === 'casa' ? creaPortaCasa() : creaPortone();
   const involucro = new THREE.Group();
   involucro.add(m);
