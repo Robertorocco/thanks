@@ -126,6 +126,9 @@ export const MONDI = [
       { id: 'discesa',       lung: 90,  pend: -0.08, amb: 'est' },
       { id: 'curva4',        lung: 58,  pend: -0.04, curva: Math.PI / 2, amb: 'est' },
       { id: 'rettilineo',    lung: 44,  amb: 'est' },
+      // Boss di fine liceo: a ping pong con il cugino (vedi boss-pingpong.js). Il tavolo è a 30 m dall'inizio
+      // della sezione; dopo la curva non si vede già l'università.
+      { id: 'pingpong',      lung: 56,  amb: 'est', boss: 'pingpong', checkpoint: 'Il cugino' },
       { id: 'curva5',        lung: 58,  curva: -Math.PI / 2, amb: 'est' },
       { id: 'fine',          lung: 40,  amb: 'est' },
     ],

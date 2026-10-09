@@ -873,12 +873,12 @@ function costruisciGradoni() {
     p.radice.position.set(-(X0 + PED * i) - 0.32, ALZ * (i + 1) - 0.52, z);
     if (mangia) {
       const b = p.braccia[k % 2];
-      b.spalla.rotation.x = -1.7; b.gomito.rotation.x = -1.3;
+      b.spalla.rotation.x = 0.5; b.gomito.rotation.x = 2.4;              // il panino alla bocca
       b.gomito.add(blocco(0.22, 0.1, 0.14, 0xE0B070, 0, -0.5, -0.04));            // panino
       b.gomito.add(blocco(0.2, 0.03, 0.12, 0x6A9F3A, 0, -0.45, -0.04));
     } else {
       p.testa.rotation.y = (k % 2 ? 1 : -1) * 0.6;
-      p.braccia[1].spalla.rotation.x = -0.6;
+      p.braccia[1].spalla.rotation.x = 0.6;
     }
     g.add(p.radice);
   });

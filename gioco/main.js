@@ -23,6 +23,7 @@ import { creaAulaDarmon } from './aula-darmon.js';
 import { creaAulaEsame, creaFacolta } from './aula-esame.js';
 import { creaScenaUni, creaParcheggiatore, creaPareteUni, targaAula } from './modelli-universita.js';
 import { creaBossGelato, MALUS_COLPO, MAX_GRASSO } from './boss-gelato.js';
+import { creaPingPong } from './boss-pingpong.js';
 
 // L'etichetta mostra la versione del codice che sta davvero girando (dal ?v= con cui è caricato).
 {
@@ -620,6 +621,7 @@ function nuovaPartita() {
   const m0 = MODALITA_SVILUPPO ? mondoDiPartenza() : 0;
   try { localStorage.setItem('gioco-laurea:dev-mondo', String(m0)); } catch {}
   G.pos = TRATTI[m0].inizio; G.tempo = 0; G.malus = 0; G.malusBoss = 0; G.caffe = 0; G.raccolti = new Set(); G.mondo = m0; G.cadute = 0;
+  pingpong.reset();
   G.fatti = new Set(); G.comandiVisti = new Set(); G.esitoAula = null; G.invul = 0; G.posCaduta = null; G.bassa = 0; G.exprTemp = 0;
   impostaEta(TRATTI[m0].eta);
   salvaCheckpoint(CHECKPOINT.findIndex(c => c.mondo === m0 && c.nuovoMondo));
@@ -858,6 +860,7 @@ function aggiornaAula(dt) {
 // ---------------------------------------------------------------------------
 
 function comando(azione) {
+  if (G.stato === 'pingpong') { pingpong.comando(azione); return; }
   if (G.stato !== 'gioco') return;
   if (azione === 'sinistra') G.corsia = Math.max(0, G.corsia - 1);
   if (azione === 'destra') G.corsia = Math.min(2, G.corsia + 1);
@@ -964,7 +967,7 @@ function aggiornaComandi(dt) {
   if (G.stato === 'gioco' && !G.comandiVisti.has(chiave)) { G.comandiVisti.add(chiave); mostraComandi(); }
   if (durataComandi <= 0) return;
   if (G.stato === 'gioco') durataComandi -= dt;
-  if (G.stato === 'aula' || G.stato === 'crescita' || G.stato === 'fine') durataComandi = 0;
+  if (G.stato === 'aula' || G.stato === 'crescita' || G.stato === 'fine' || G.stato === 'pingpong') durataComandi = 0;
   barraComandi.style.transform = `scaleX(${Math.max(0, durataComandi / DURATA_COMANDI)})`;
   if (durataComandi <= 0) { elComandi.hidden = true; elComandi.innerHTML = ''; }
 }
@@ -1586,6 +1589,7 @@ function aggiornaBoss(dt) {
   if (G.pos < SEZ_BOSS.inizio - 60 || G.pos > SEZ_BOSS.fine) vsMostrato = false;
   if (!vsMostrato && G.stato === 'gioco' && G.pos >= SEZ_BOSS.inizio - 6 && G.pos < SEZ_BOSS.inizio + 40) {
     vsMostrato = true; vsT = 2.6;
+    nomiVs('Il Bulimico Roby', 'Cono Gelato');
     elVs.hidden = true; void elVs.offsetWidth; elVs.hidden = false;      // riparte l'animazione
   }
   if (vsT > 0 && G.stato !== 'pausa') { vsT -= dt; if (vsT <= 0) elVs.hidden = true; }
@@ -1595,6 +1599,39 @@ function aggiornaBoss(dt) {
   if (!visibile) return;
   const k = THREE.MathUtils.clamp((G.pos - SEZ_BOSS.inizio) / (SEZ_BOSS.fine - SEZ_BOSS.inizio), 0, 1);
   elBossBarra.style.transform = `scaleX(${1 - k})`;
+}
+
+// ---------------------------------------------------------------------------
+// Boss di fine liceo: a ping pong con il cugino (vedi boss-pingpong.js)
+// ---------------------------------------------------------------------------
+
+const SEZ_PINGPONG = TRATTI[LICEO].sezioni.find(s => s.boss === 'pingpong');
+const pingpong = creaPingPong(scena, SEZ_PINGPONG.inizio + 30, (o, d) => mettiSulPercorso(o, d, false));
+pingpong.reset();
+const elBossIcona = elBoss.querySelector('span');
+
+function nomiVs(a, b) {
+  elVs.querySelector('.vs-a span').textContent = a;
+  elVs.querySelector('.vs-b span').textContent = b;
+}
+
+function avviaPingPong() {
+  G.stato = 'pingpong';
+  G.corsia = 1; G.y = 0; G.vy = 0; G.scivola = 0;
+  pingpong.avvia(R, G);
+  // "Pallettaro VS Frat Chiu' mportant", come per il gelato.
+  nomiVs('Pallettaro', 'Frat Chiu\' mportant');
+  vsT = 2.6;
+  elVs.hidden = true; void elVs.offsetWidth; elVs.hidden = false;
+}
+
+// Il pannello in alto: la racchetta e quanti colpi mancano.
+function aggiornaPannelloPingPong() {
+  if (G.stato === 'pingpong' && !hud.radice.hidden) {
+    elBoss.hidden = false;
+    elBossIcona.textContent = '🏓';
+    elBossBarra.style.transform = `scaleX(${pingpong.rimasti})`;
+  } else if (elBossIcona.textContent !== '🍦') elBossIcona.textContent = '🍦';
 }
 
 function animaRoberto(dt) {
@@ -1628,6 +1665,11 @@ function animaRoberto(dt) {
   }
 
   if (G.stato === 'crescita') { animaCrescita(dt); return; }
+  if (G.stato === 'pingpong') {
+    if (G.exprTemp > 0) R.espressione(G.exprNome); else R.espressione('sforzo');
+    pingpong.posa(R, dt, G);
+    return;
+  }
 
   // Se lo stato precedente ha lasciato qualcosa di storto (intro saltata, caduta, ritorno dall'aula),
   // si riparte da una posa pulita.
@@ -1862,8 +1904,12 @@ function ciclo(ora) {
       controllaCheckpoint();
       if (G.pos >= LUNGHEZZA) { G.pos = LUNGHEZZA; fine(); }
       else if (EVENTO[G.mondo] && !G.fatti.has(G.mondo) && G.pos >= EVENTO[G.mondo].sez.inizio + 3) avviaAula();
+      else if (!pingpong.fatto && G.pos >= pingpong.inizio && G.pos < pingpong.posTavolo + 1) avviaPingPong();
       else controllaUrti();
     }
+  } else if (G.stato === 'pingpong') {
+    G.tempo += dt;
+    if (pingpong.aggiorna(dt, G) === 'fine') { G.stato = 'gioco'; G.statoPosa = null; }
   } else if (G.stato === 'crescita') {
     G.timer += dt;
     if (G.timer >= DURATA_CRESCITA) finisciCrescita();
@@ -1887,9 +1933,12 @@ function ciclo(ora) {
     aggiornaRagazza();
     aggiornaFratello(dt);
     aggiornaBoss(dt);
+    aggiornaPannelloPingPong();
+    if (G.stato !== 'pingpong') pingpong.aggiorna(dt, G);
     aggiornaCreeper(dt);
     animaRoberto(dt);
     aggiornaCamera(dt);
+    pingpong.camera(camera);
     aggiornaScintille(dt);
     // Suda nella salita del liceo e quando il gelato lo fa ingrassare (più è grasso, più suda).
     const salita = G.mondo === LICEO && G.pos < SEZ_INGRESSO.inizio + 120 && (G.stato === 'gioco' || G.stato === 'aulaIn');
@@ -1922,7 +1971,7 @@ requestAnimationFrame(ciclo);
 
 // Aiuto per i test automatici.
 window.__gioco = {
-  G, R, ENTITA, TRATTI, ragazza, SEZIONI, CHECKPOINT, LUNGHEZZA, perc, aula, comando, velocitaIn, FISICA, impostaEta, avviaCrescita, camera, scena, boss,
+  G, R, ENTITA, TRATTI, ragazza, SEZIONI, CHECKPOINT, LUNGHEZZA, perc, aula, comando, velocitaIn, FISICA, impostaEta, avviaCrescita, camera, scena, boss, pingpong,
   mostraAula(esito, secondi = 0, mondo = LICEO) {
     G.mondo = mondo; configuraScelta(EVENTO[mondo]);
     G.stato = 'aula'; G.esitoAula = esito; G.congela = true; G.immune = true; elSipario.classList.remove('nero');
@@ -1931,6 +1980,7 @@ window.__gioco = {
     for (let t = 0; t < secondi; t += 0.05) aulaAttiva.aggiorna(0.05);
   },
   teletrasporta(pos) {
+    if (pos > pingpong.posTavolo) pingpong.chiudi(); else pingpong.reset();
     G.pos = pos; G.mondo = mondoDi(pos); G.fatti = new Set(Object.entries(EVENTO).filter(([, ev]) => pos > ev.porta).map(([m]) => Number(m))); impostaEta(TRATTI[G.mondo].eta);
     G.cp = 0; while (G.cp + 1 < CHECKPOINT.length && pos >= CHECKPOINT[G.cp + 1].pos) G.cp++;
     G.checkpoint = { pos: CHECKPOINT[G.cp].pos, mondo: CHECKPOINT[G.cp].mondo, caffe: 0, raccolti: new Set() };
