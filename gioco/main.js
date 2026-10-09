@@ -1156,7 +1156,8 @@ const bolleAmico = DIALOGO.map(([chi, testo]) => {
   return f;
 });
 const MOTORINO_X = 3.75;                           // sul bordo del marciapiede, così resta in vista
-const AMICO_LATO = -1;                             // corre lungo il muro di sinistra
+const AMICO_LATO = -1;                             // corre sul lato sinistro
+const AMICO_X = 2.8;                               // appena fuori dalla corsia, dentro i pilastri del portone (3,1)
 const amicoStato = { x: 0, parla: 0, lato: 1, avviato: false, dMoto: null, latoMoto: -1, dFermo: null, d3: 0, pos3: 0, kCam: 0 };
 const posAmico = new THREE.Vector3();
 
@@ -1181,7 +1182,11 @@ function aggiornaAmico(dt) {
   // Fuori dal portone compare il motorino sul marciapiede dal suo lato, poco più avanti.
   if (G.pos >= AMICO_MOTO && amicoStato.dMoto === null) {
     amicoStato.latoMoto = AMICO_LATO;
-    amicoStato.dMoto = G.pos + 25;
+    // Il motorino non deve stare dietro a un bonus (lo nasconderebbe): se serve, qualche metro prima.
+    let dm = G.pos + 25;
+    const vicinoBonus = q => ENTITA.some(e => e.genere === 'caffe' && Math.abs(e.d - q) < 9);
+    while (vicinoBonus(dm) && dm > G.pos + 12) dm -= 2;
+    amicoStato.dMoto = dm;
     amicoStato.d3 = G.pos + 2.6; amicoStato.pos3 = G.pos;
     mettiSulPercorso(motorino, amicoStato.dMoto, false);
     motorinoMesh.position.set(amicoStato.latoMoto * MOTORINO_X, 0.12, 0);
@@ -1191,9 +1196,12 @@ function aggiornaAmico(dt) {
   let d, x, sterza = 0;
   azzeraPosa(amico);
   if (amicoStato.dMoto === null) {
-    // Lungo il muro di sinistra, fuori dalle corsie, un paio di metri davanti a Roberto: così non
+    // Sul lato sinistro, appena fuori dalle corsie, un paio di metri davanti a Roberto: così non
     // sembra un ostacolo e la camera (spostata verso di lui) li inquadra tutti e due.
-    if (!amicoStato.avviato) { amicoStato.x = AMICO_LATO * MARGINE; amicoStato.avviato = true; }
+    // Se Roberto è nella corsia di sinistra, l'amico si scosta un po' di più (senza toccare i pilastri).
+    const bersaglio = AMICO_LATO * Math.max(AMICO_X, Math.min(3.05, -AMICO_LATO * G.x + 0.85));
+    if (!amicoStato.avviato) { amicoStato.x = bersaglio; amicoStato.avviato = true; }
+    amicoStato.x += (bersaglio - amicoStato.x) * Math.min(1, dt * 4);
     x = amicoStato.x;
     d = G.pos + 2.6;
     posaCorsa(amico, G.passo + 0.9, 0.85);
@@ -1298,13 +1306,12 @@ function aggiornaRagazza() {
   ragazza.radice.rotation.set(0, -tmp.psi + Math.PI * (1 - gira), 0);
   // La camera si allarga verso di lei per tutta la scena, poi torna dietro a Roberto.
   aiutoCamera(lato, THREE.MathUtils.smoothstep(p, M - 34, M - 24) * (1 - THREE.MathUtils.smoothstep(p, M + 9, M + 15)));
-  // Quando è vicina la camera la inquadra da vicino: prima il viso, poi (di spalle) i fianchi.
+  // Quando è vicina la camera la inquadra da vicino sul viso.
   const sulViso = THREE.MathUtils.smoothstep(p, M - 17, M - 12) * (1 - THREE.MathUtils.smoothstep(p, M - 4, M - 1));
-  const diSpalle = THREE.MathUtils.smoothstep(p, M + 3, M + 5) * (1 - THREE.MathUtils.smoothstep(p, M + 9, M + 12));
-  if (sulViso > 0 || diSpalle > 0) {
+  if (sulViso > 0) {
     ragazza.radice.getWorldPosition(aiuto.mira);
-    aiuto.mira.y += sulViso > 0 ? 1.65 : 0.85;
-    aiuto.fuoco = 0.6 * Math.max(sulViso, diSpalle);
+    aiuto.mira.y += 1.65;
+    aiuto.fuoco = 0.6 * sulViso;
   }
   if (amo) {
     ragazza.radice.getWorldPosition(bollaAmo.position);

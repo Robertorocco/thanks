@@ -465,6 +465,28 @@ export function generaLivello(TRATTI, perc, velocitaIn) {
     if (t.indice > 0 && !stessoGruppo) ENTITA.push({ d: t.inizio, genere: 'arco', testo: t.gruppo ?? t.nome, colore: 0xC9962E });
   }
 
+  // Chi cammina nella stessa corsia di un bonus, poco oltre, resta nascosto dietro al bonus (e al suo
+  // numero) finché non ti è addosso: lo si sposta in una corsia senza bonus davanti e senza ostacoli dove lo raggiungi.
+  const bonus = ENTITA.filter(e => e.genere === 'caffe');
+  const copre = (c, o, corsia) => {
+    if (c.corsia !== corsia) return false;
+    const avanti = distanzaPersona(o, c.d) - c.d;
+    return avanti > 0 && avanti < 45;
+  };
+  const coperto = (o, corsia) => bonus.some(c => copre(c, o, corsia));
+  const irrisolte = [];
+  ENTITA.spostatePersone = [];
+  for (const o of ENTITA) {
+    if (o.tipo !== 'persona' || o.stile === 'casa' || !coperto(o, o.corsia)) continue;     // in casa la famiglia è voluta così
+    const dm = incontroPersona(o);
+    const occupata = c => ENTITA.some(x => x !== o && x.genere === 'ostacolo' && (x.tipo === 'persona' ? incontroPersona(x) : x.d) > dm - 10
+      && (x.tipo === 'persona' ? incontroPersona(x) : x.d) < dm + 10
+      && (x.corsia === c || (x.tipo === 'crociera' && (x.dir > 0 ? [0, 1] : [1, 2]).includes(c))));
+    const altra = [0, 1, 2].find(c => c !== o.corsia && !coperto(o, c) && !occupata(c));
+    ENTITA.spostatePersone.push([Math.round(o.d0), o.corsia, altra ?? null]);
+    if (altra !== undefined) o.corsia = altra; else irrisolte.push(o);
+  }
+
   // Nessun caffè deve restare dentro un ostacolo: se la sua corsia è chiusa (muri, auto, persone che
   // passano) lo si sposta in una corsia libera, altrimenti si toglie.
   const chiusa = (corsia, d) => ENTITA.some(o => {
@@ -478,6 +500,14 @@ export function generaLivello(TRATTI, perc, velocitaIn) {
     }
     return false;
   });
+  // Se la persona non può cambiare corsia, si sposta il bonus che la copre.
+  for (const o of irrisolte) {
+    for (const c of bonus) {
+      if (!copre(c, o, o.corsia)) continue;
+      const libera = [1, 0, 2].find(k => k !== o.corsia && !chiusa(k, c.d));
+      if (libera !== undefined) c.corsia = libera;
+    }
+  }
   ENTITA.spostati = [];
   for (const e of ENTITA) {
     if (e.genere !== 'caffe' || !chiusa(e.corsia, e.d)) continue;
@@ -490,5 +520,6 @@ export function generaLivello(TRATTI, perc, velocitaIn) {
   const lista = ENTITA.filter(e => !e.nascosto);
   lista.sort((a, b) => a.d - b.d);
   lista.spostati = ENTITA.spostati;
+  lista.spostatePersone = ENTITA.spostatePersone;
   return lista;
 }
