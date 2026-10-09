@@ -116,7 +116,7 @@ export const MONDI = [
       { id: 'curva1',        lung: 26,  curva: Math.PI / 2, amb: 'int' },
       { id: 'scale2',        lung: 34,  pend: 0.30, amb: 'int', piano: '2° piano' },
       { id: 'curva2',        lung: 26,  curva: -Math.PI / 2, amb: 'int' },
-      { id: 'corridoio',     lung: 52,  amb: 'int', piano: '3° piano', ragazza: 32 },   // "Ciao amo
+      { id: 'corridoio',     lung: 52,  amb: 'int', piano: '3° piano', ragazza: 1 },   // "Ciao amo
       { id: 'curva3',        lung: 26,  curva: Math.PI / 2, amb: 'int', verso5H: true },
       { id: 'corridoio5H',   lung: 44,  amb: 'int', verso5H: true },
       { id: 'aula',          lung: 6,   amb: 'int', evento: 'aula' },

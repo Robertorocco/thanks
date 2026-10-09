@@ -364,7 +364,7 @@ export function generaLivello(TRATTI, perc, velocitaIn) {
             const m = a + sz.ragazza;
             riempi(a + 6, m - 22, opz);
             riempi(m + 14, b - 4, opz);
-            compagni(a + 2, m - 26, 1);
+            if (m - 26 > a + 2) compagni(a + 2, m - 26, 1);
           } else {
             riempi(a + 6, b - 16, opz);
             compagni(a + 4, b - 12, 2);

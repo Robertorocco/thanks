@@ -12,12 +12,12 @@ import { fumetto } from './aula.js';
 
 // Il tavolo: il bordo dalla parte di Roberto è a z = 0, quello del cugino a z = -LUNGO.
 // Il tavolo è molto più largo di uno vero: le tre corsie occupano tutta la larghezza dello schermo.
-const LUNGO = 4.2, LARGO = 3.9, ALTO = 0.76, RAGGIO = 0.06;
+const LUNGO = 3.8, LARGO = 3.4, ALTO = 0.76, RAGGIO = 0.06;
 const PIANO = ALTO + RAGGIO;
 const ROBERTO_Z = 0.62;                     // dove sta Roberto, dietro al bordo
 const CUGINO_Z = -LUNGO - 0.62;
-const CORSIA = 1.25;                        // distanza tra le corsie del tavolo (anche lo spostamento di Roberto)
-const SPOSTA_CUGINO = 2.8;                  // `da` dei colpi → posizione laterale del cugino
+const CORSIA = 1.1;                         // distanza tra le corsie del tavolo (anche lo spostamento di Roberto)
+const SPOSTA_CUGINO = 2.5;                  // `da` dei colpi → posizione laterale del cugino
 
 // La sequenza dei colpi del cugino, sempre uguale. `a`: corsia d'arrivo (0 sinistra, 1 centro, 2 destra
 // per chi guarda da dietro Roberto); `T`: secondi di volo; `finta`: la palla punta prima su un'altra
@@ -31,11 +31,13 @@ const COLPI = [
   { a: 2, T: 1.0, da: 0, finta: 0 },
   { a: 1, T: 0.72, da: 0.3, frase: 'Pallettaro!' },
   { a: 0, T: 0.95, da: -0.2, finta: 2 },
-  // L'Hollow Purple: schiacciata velocissima che zigzaga (destra, poi sinistra) e finisce al centro, con la palla che sfarfalla.
-  { a: 1, T: 0.46, da: 0, hollow: true, via: [[0.3, 2], [0.62, 0]] },
+  // L'Hollow Purple: arriva dritta al centro a velocità normale e poi si spinge contro la racchetta (vedi 'duello').
+  { a: 1, T: 1.1, da: 0, hollow: true },
 ];
 export const N_COLPI = COLPI.length + 1;    // con il rovescio finale di Roberto
 const DURATA_HOLLOW = 2.6;
+// Il duello finale: bisogna toccare lo schermo (o un tasto) TAP_RICHIESTI volte entro TAP_TEMPO secondi.
+const TAP_RICHIESTI = 10, TAP_TEMPO = 3;
 
 const BASE = c => new THREE.MeshBasicMaterial({ color: c });
 
@@ -96,7 +98,8 @@ function creaCugino() {
 }
 
 // `d`: dove sta il bordo del tavolo dalla parte di Roberto; `metti(oggetto, d)` lo mette sul percorso.
-export function creaPingPong(scena, d, metti) {
+// `ui`: { banner(html, secondi), nascondi() } per il suggerimento "TOCCA!" durante il duello.
+export function creaPingPong(scena, d, metti, ui = {}) {
   const radice = new THREE.Group();
   scena.add(radice);
   metti(radice, d);
@@ -145,7 +148,7 @@ export function creaPingPong(scena, d, metti) {
 
   const S = {
     attivo: false, fatto: false, fase: 'ferma', t: 0,
-    colpo: 0, ripresi: 0,
+    colpo: 0, ripresi: 0, taps: 0, orbZ: 0.3,
     p: 0, pBersaglio: 0,                    // racchetta di Roberto: -1 sinistra, 0 centro, 1 destra
     swingR: 0, tipoSwingR: 1, swingC: 0,
     cuginoX: 0, cuginoBersaglio: 0,
@@ -242,7 +245,9 @@ export function creaPingPong(scena, d, metti) {
     racchettaCuginoLocale(v2);
     S.swingC = 0.28;
     const arrivo = S.punti[c.a];
-    lancia(v2, arrivo, c.T, -1.1, {
+    // Colpi normali un po' più veloci (+20%), quelli a giro (con finta) più lenti (-20%); l'Hollow resta a velocità normale.
+    const T = c.hollow ? c.T : c.finta !== undefined ? c.T * 1.25 : c.T / 1.2;
+    lancia(v2, arrivo, T, -1.1, {
       finta: c.finta !== undefined ? S.punti[c.finta].x : undefined, h1: c.hollow ? 0.0 : 0.3, hollow: c.hollow,
       via: c.via?.map(([u, lane]) => [u, S.punti[lane].x]),
     });
@@ -259,11 +264,19 @@ export function creaPingPong(scena, d, metti) {
     get fatto() { return S.fatto; },
     get fase() { return S.fase; },
     // Quanti colpi mancano (per la barra del pannello).
-    get rimasti() { return 1 - S.ripresi / N_COLPI; },
+    get rimasti() { return S.fase === 'duello' ? 1 - Math.min(1, S.taps / TAP_RICHIESTI) : 1 - S.ripresi / N_COLPI; },
+    // Un tocco sullo schermo o su un tasto: conta solo nel duello finale.
+    tocca() {
+      if (!S.attivo || S.fase !== 'duello') return;
+      S.taps++;
+      S.tipoSwingR = S.taps % 2 ? 1 : -1;
+      S.swingR = 0.3; S.scossa = 0.12;
+      if (navigator.vibrate) navigator.vibrate(15);
+    },
     get inquadra() { return S.inquadra; },
     reset() {
       S.attivo = false; S.fatto = false; S.fase = 'ferma'; S.colpo = 0; S.ripresi = 0; S.inquadra = 0;
-      S.cuginoX = 0; S.cuginoBersaglio = 0; S.volo = null;
+      S.cuginoX = 0; S.cuginoBersaglio = 0; S.volo = null; S.taps = 0;
       palla.visible = false; ombra.visible = false;
       for (const b of [bollaCugino, bollaPallettaro, bollaCherato]) b.visible = false;
       for (const s of [blu, rosso, viola, lampo, ...scia]) s.visible = false;
@@ -272,6 +285,7 @@ export function creaPingPong(scena, d, metti) {
     },
     // Per le prove automatiche: dove va il colpo in volo e dove sta la racchetta.
     _debug() { const c = COLPI[S.colpo]; return S.fase === 'volo' && S.volo ? { u: S.volo.u, a: c.a, finta: c.finta, p: S.p } : { u: 0, a: 1, p: S.p }; },
+    _duello() { S.colpo = COLPI.length - 1; S.fase = 'duello'; S.t = 0; S.taps = 0; S.orbZ = 0.3; S.pBersaglio = 0; ui.banner?.(`TOCCA!<small>${TAP_RICHIESTI} volte in ${TAP_TEMPO} secondi</small>`, TAP_TEMPO + 0.3); },
     _hollow() { S.colpo = COLPI.length - 1; S.ripresi = S.colpo; S.fase = 'hollow'; S.t = 0; palla.visible = false; },
     // Sfida già fatta (si riparte da più avanti).
     chiudi() { api.reset(); S.fatto = true; },
@@ -339,12 +353,12 @@ export function creaPingPong(scena, d, metti) {
             S.swingR = 0.3;
             if (S.colpo === 4) dici(bollaCherato, 1.3, 'roberto');
             if (c.hollow) {
-              // Il rovescio vincente: angolo lontano, il cugino non ci arriva.
-              S.ripresi = N_COLPI;
-              v.copy(palla.position);
-              lancia(v, v2.set(1.7, 0.5, -LUNGO - 1.6), 0.55, -LUNGO + 0.6, { h1: 0.18, h2: 0.25 });
-              S.fase = 'vincente'; S.t = 0;
-              S.cuginoBersaglio = 0.3;
+              // L'Hollow Purple non si rimanda con un colpo solo: la sfera spinge contro la racchetta e
+              // bisogna toccare tante volte per respingerla.
+              S.ripresi = COLPI.length - 1;
+              S.fase = 'duello'; S.t = 0; S.taps = 0; S.orbZ = 0.3;
+              palla.visible = false;
+              ui.banner?.(`TOCCA!<small>${TAP_RICHIESTI} volte in ${TAP_TEMPO} secondi</small>`, TAP_TEMPO + 0.3);
             } else {
               S.colpo++;
               const prossimo = COLPI[S.colpo];
@@ -385,6 +399,37 @@ export function creaPingPong(scena, d, metti) {
             esito = 'fine';
           }
         }
+      } else if (S.fase === 'duello') {
+        const prog = Math.min(1, S.taps / TAP_RICHIESTI);
+        // La sfera viola spinge contro la racchetta; a ogni tocco arretra verso il cugino.
+        S.orbZ = THREE.MathUtils.damp(S.orbZ, THREE.MathUtils.lerp(-0.1, -LUNGO * 0.9, prog), 14, dt);
+        const tremo = (1 - prog) * 0.05;
+        palla.position.set(S.punti[1].x + Math.sin(S.t * 70) * tremo, PIANO + 0.75 + Math.cos(S.t * 55) * tremo, S.orbZ);
+        viola.visible = true;
+        viola.position.copy(palla.position);
+        viola.scale.setScalar(1.35 + Math.sin(S.t * 30) * 0.12);
+        S.scossa = Math.max(S.scossa, 0.05);
+        if (S.taps >= TAP_RICHIESTI) {
+          // Respinta: il rovescio vincente va nell'angolo lontano, il cugino non ci arriva.
+          ui.nascondi?.();
+          S.ripresi = N_COLPI;
+          S.tipoSwingR = -1; S.swingR = 0.3;
+          palla.visible = true;
+          v.copy(palla.position);
+          lancia(v, v2.set(1.7, 0.5, -LUNGO - 1.6), 0.55, -LUNGO + 0.6, { h1: 0.18, h2: 0.25 });
+          S.fase = 'vincente'; S.t = 0;
+          S.cuginoBersaglio = 0.3;
+        } else if (S.t >= TAP_TEMPO) {
+          // Troppo pochi tocchi: la sfera travolge Roberto, punto del cugino.
+          ui.nascondi?.();
+          palla.visible = true;
+          v.copy(palla.position);
+          lancia(v, v2.set(0, 0.3, ROBERTO_Z + 2.4), 0.5, ROBERTO_Z - 0.4, { h1: 0.1, h2: 0.3 });
+          S.fase = 'punto'; S.t = 0;
+          dici(bollaCugino, 1.6, 'cugino');
+          G.exprNome = 'dolore'; G.exprTemp = 1.0;
+          if (navigator.vibrate) navigator.vibrate(80);
+        }
       } else if (S.fase === 'hollow') {
         const k = S.t / DURATA_HOLLOW;
         const centro = v.set(S.cuginoX, 2.15, CUGINO_Z + 0.2);
@@ -423,11 +468,9 @@ export function creaPingPong(scena, d, metti) {
       }
       // La palla viola dell'Hollow Purple: alone che la segue.
       const hollowInVolo = S.volo?.hollow && S.fase === 'volo';
-      viola.visible = viola.visible && (S.fase === 'hollow' || hollowInVolo);
-      if (hollowInVolo) { viola.visible = true; viola.position.copy(palla.position); viola.scale.setScalar(0.75 + Math.sin(S.t * 40) * 0.08); }
+      viola.visible = viola.visible && (S.fase === 'hollow' || S.fase === 'duello' || hollowInVolo);
+      if (hollowInVolo) { viola.visible = true; viola.position.copy(palla.position); viola.scale.setScalar(1.1 + Math.sin(S.t * 30) * 0.1); }
       palla.material.color.setHex(hollowInVolo ? 0xD9A6FF : 0xFF8C1A);
-      // Nel mezzo del tiro la palla viola sfarfalla: si vede a tratti.
-      if (hollowInVolo && S.volo.u > 0.2 && S.volo.u < 0.7 && Math.floor(S.volo.u * 22) % 2 === 1) { palla.visible = false; viola.visible = false; }
 
       // Ombra della palla sul tavolo (aiuta a capire dove arriva) e scia.
       ombra.visible = palla.visible && palla.position.z < 0 && palla.position.z > -LUNGO && Math.abs(palla.position.x) < LARGO / 2;
@@ -483,7 +526,7 @@ export function creaPingPong(scena, d, metti) {
       if (S.inquadra <= 0) return;
       const k = THREE.MathUtils.smoothstep(S.inquadra, 0, 1);
       radice.updateMatrixWorld(true);
-      camPos.set(0, 5.0, ROBERTO_Z + 2.8);
+      camPos.set(0, 4.7, ROBERTO_Z + 2.7);
       radice.localToWorld(camPos);
       camGuarda.set(0, 0, -LUNGO * 0.5);
       radice.localToWorld(camGuarda);

@@ -889,6 +889,7 @@ window.addEventListener('keydown', ev => {
   };
   if (G.stato === 'intro') saltaIntro();
   saltaCrescita();
+  if (G.stato === 'pingpong' && !ev.repeat) pingpong.tocca();
   if (G.stato === 'aula') {
     if (ev.code === 'ArrowUp' || ev.code === 'Digit1') scegliInAula(EVENTO[G.mondo].opzioni[0].id);
     if (ev.code === 'ArrowDown' || ev.code === 'Digit2') scegliInAula(EVENTO[G.mondo].opzioni[1].id);
@@ -896,6 +897,9 @@ window.addEventListener('keydown', ev => {
   if (tasti[ev.code] && G.stato === 'gioco') { ev.preventDefault(); comando(tasti[ev.code]); }
   if (ev.code === 'Escape' || ev.code === 'KeyP') metti_in_pausa();
 });
+
+// Il duello finale del ping pong si vince toccando lo schermo tante volte (un solo evento per tocco o clic).
+contenitore.addEventListener('pointerdown', () => { if (G.stato === 'pingpong') pingpong.tocca(); });
 
 let tocco = null;
 contenitore.addEventListener('touchstart', ev => {
@@ -1606,7 +1610,10 @@ function aggiornaBoss(dt) {
 // ---------------------------------------------------------------------------
 
 const SEZ_PINGPONG = TRATTI[LICEO].sezioni.find(s => s.boss === 'pingpong');
-const pingpong = creaPingPong(scena, SEZ_PINGPONG.inizio + 30, (o, d) => mettiSulPercorso(o, d, false));
+const pingpong = creaPingPong(scena, SEZ_PINGPONG.inizio + 30, (o, d) => mettiSulPercorso(o, d, false), {
+  banner: (html, s) => banner(html, s, 'in-basso'),
+  nascondi: () => { elBanner.hidden = true; durataBanner = 0; },
+});
 pingpong.reset();
 const elBossIcona = elBoss.querySelector('span');
 
@@ -1629,7 +1636,7 @@ function avviaPingPong() {
 function aggiornaPannelloPingPong() {
   if (G.stato === 'pingpong' && !hud.radice.hidden) {
     elBoss.hidden = false;
-    elBossIcona.textContent = '🏓';
+    elBossIcona.textContent = pingpong.fase === 'duello' ? '👆' : '🏓';
     elBossBarra.style.transform = `scaleX(${pingpong.rimasti})`;
   } else if (elBossIcona.textContent !== '🍦') elBossIcona.textContent = '🍦';
 }
