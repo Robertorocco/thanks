@@ -556,6 +556,8 @@ export function generaLivello(TRATTI, perc, velocitaIn) {
         case 'piazzale-ing': {
           const p3 = a + 34;
           parcheggiatore(p3, -1);
+          // Un passante sul marciapiede che guarda Roberto e dice "Opoure no" (non è un ostacolo).
+          ENTITA.push({ d: a + 70, genere: 'passanteUni', mondo: t.indice, lato: 1, profondita: 2 });
           riempi(p3 + 16, b - 18, { stile: 'triennale', tipi: ['basso', 'alto', 'muro'], corridoi: false, spazio: 1.1 });
           break;
         }

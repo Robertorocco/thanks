@@ -150,6 +150,15 @@ export function creaAltoBiondo() {
   return p;
 }
 
+// Il passante di Via Claudio: castano chiaro, secco ma muscoloso, un po' più alto di Roberto. Lo guarda e dice "Opoure no".
+export function creaPassanteOpoure() {
+  const CAP = 0xA97C4E, MAGLIA = 0x2E3A4F;
+  const p = amico({ pelle: 0xE6C09C, capelli: CAP, iride: 0x7A5A34, donna: false, maglia: MAGLIA, pantaloni: 0x3E4F6B, scarpe: 0xE9E5DC, acconciatura: 'ciuffo', corpulenza: 0.96 }, 1.1);
+  p.superiore.add(blocco(0.74, 0.2, 0.36, MAGLIA, 0, 1.5));                          // spalle larghe
+  for (const b of p.braccia) b.spalla.scale.set(1.35, 1, 1.35);                       // braccia muscolose
+  return p;
+}
+
 // ---------------------------------------------------------------------------
 // Il gruppo di amici (sette): un'unica lista in ordine di descrizione
 // ---------------------------------------------------------------------------

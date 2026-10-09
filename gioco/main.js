@@ -22,6 +22,7 @@ import { creaAula, fumetto } from './aula.js';
 import { creaAulaDarmon } from './aula-darmon.js';
 import { creaAulaEsame, creaFacolta } from './aula-esame.js';
 import { creaScenaUni, creaParcheggiatore, creaPareteUni, targaAula } from './modelli-universita.js';
+import { creaPassanteOpoure, espressioneAmico } from './amici-uni.js';
 import { creaScenaRennes, giaccone } from './modelli-rennes.js';
 import { creaBossGelato, MALUS_COLPO, MAX_GRASSO } from './boss-gelato.js';
 import { creaPingPong } from './boss-pingpong.js';
@@ -489,6 +490,14 @@ function creaMesh(e) {
     e.altBonus = t.stile === 'casa' ? 0.45 : t.stile === 'darmon' ? 0.7 : 0.85;
     m.position.set(CORSIE[e.corsia], e.altBonus, 0);
   }
+  else if (e.genere === 'passanteUni') {
+    const q = creaPassanteOpoure();
+    q.radice.traverse(o => { if (o.isMesh) o.castShadow = false; });
+    q.radice.rotation.y = Math.PI;              // guarda verso Roberto che arriva
+    m = new THREE.Group();
+    m.add(q.radice);
+    e.persona = q;
+  }
   else if (e.genere === 'edificio') m = creaEdificio(e, t);
   else if (e.genere === 'monumento') m = creaMonumento(e, t);
   else if (e.genere === 'lampione') m = creaLampione(e.lato);
@@ -516,7 +525,7 @@ function creaMesh(e) {
 }
 
 const bucoInStrada = e => e.genere === 'ostacolo' && e.tipo === 'buco' && e.stile === 'liceo';
-const dinamico = e => e.genere === 'caffe' || bucoInStrada(e) || (e.genere === 'ostacolo' && (e.tipo === 'persona' || e.tipo === 'crociera' || e.tipo === 'lancio' || e.tipo === 'parcheggiatore'));
+const dinamico = e => e.genere === 'caffe' || e.genere === 'passanteUni' || bucoInStrada(e) || (e.genere === 'ostacolo' && (e.tipo === 'persona' || e.tipo === 'crociera' || e.tipo === 'lancio' || e.tipo === 'parcheggiatore'));
 
 // Il parcheggiatore abusivo (Via Claudio): aspetta sul bordo della strada; quando Roberto è a
 // PARCHEGGIATORE_DA metri entra in strada e si sposta verso la sua corsia con la mano tesa ("Un euro a
@@ -530,6 +539,26 @@ scena.add(bollaEuro);
 const bollaAbuso = fumetto('Abuso!', '#ffffff', '#1C1D2B', 1.5, 1.2, 76);
 scena.add(bollaAbuso);
 const ABUSO_DA = 20;
+// "Opoure no": il ragazzo sul marciapiede di Via Claudio, quando Roberto gli passa vicino.
+const bollaOpoure = fumetto('Opoure no', '#ffffff', '#1C1D2B', 1.5, 1.2, 76);
+scena.add(bollaOpoure);
+const OPOURE_DA = 16;
+function aggiornaPassanteUni(e, d) {
+  const q = e.persona;
+  const xLat = e.lato * 3.7;
+  mettiSulPercorso(e.mesh, e.d, false);
+  e.mesh.position.x += Math.cos(tmp.psi) * xLat;
+  e.mesh.position.z += Math.sin(tmp.psi) * xLat;
+  // La testa segue Roberto mentre passa.
+  const dx = G.x - xLat, dz = Math.max(d - G.pos, 1.5);
+  q.testa.rotation.y = THREE.MathUtils.clamp(Math.atan2(dx, dz), -1.1, 1.1);
+  const vicino = d - G.pos < OPOURE_DA && d - G.pos > -3;
+  espressioneAmico(q, vicino ? 'sorriso' : 'neutro');
+  if (vicino && G.stato === 'gioco') {
+    bollaOpoure.visible = true;
+    daLocale(e.d, xLat, 2.5, 0, bollaOpoure.position);
+  }
+}
 function aggiornaParcheggiatore(e, ora) {
   const t = ora / 1000, dt = e.tPrec === null ? 0 : Math.min(0.1, t - e.tPrec);
   e.tPrec = t;
@@ -1115,6 +1144,7 @@ function aggiornaEntita(ora) {
   const pos = G.pos;
   bollaEuro.visible = false;
   bollaAbuso.visible = false;
+  bollaOpoure.visible = false;
   while (prossima < ENTITA.length && ENTITA[prossima].d - mezzaLunghezza(ENTITA[prossima]) < pos + VISTA) {
     const e = ENTITA[prossima++];
     if (distanza(e, pos) + mezzaLunghezza(e) < pos - DIETRO) continue;
@@ -1169,6 +1199,8 @@ function aggiornaEntita(ora) {
       const lat = latoCrociera(e, pos);
       e.mesh.position.x += Math.cos(tmp.psi) * lat;
       e.mesh.position.z += Math.sin(tmp.psi) * lat;
+    } else if (e.genere === 'passanteUni') {
+      aggiornaPassanteUni(e, d);
     } else if (e.genere === 'rennes') {
       e.anima?.(ora / 1000);
     } else if (e.interno.userData.apri) {
