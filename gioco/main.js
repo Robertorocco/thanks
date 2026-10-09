@@ -1156,7 +1156,8 @@ const bolleAmico = DIALOGO.map(([chi, testo]) => {
   return f;
 });
 const MOTORINO_X = 3.75;                           // sul bordo del marciapiede, così resta in vista
-const amicoStato = { x: 0, parla: 0, lato: 1, avviato: false, dMoto: null, latoMoto: -1, dFermo: null, d3: 0, pos3: 0 };
+const AMICO_LATO = -1;                             // corre lungo il muro di sinistra
+const amicoStato = { x: 0, parla: 0, lato: 1, avviato: false, dMoto: null, latoMoto: -1, dFermo: null, d3: 0, pos3: 0, kCam: 0 };
 const posAmico = new THREE.Vector3();
 
 function aggiornaAmico(dt) {
@@ -1168,7 +1169,7 @@ function aggiornaAmico(dt) {
   for (const b of bolleAmico) b.visible = false;
   G.parlaAmico = 0;
   if (!attivo) {
-    if (G.pos < AMICO_INIZIO || G.mondo !== LICEO) Object.assign(amicoStato, { parla: 0, avviato: false, dMoto: null, dFermo: null });
+    if (G.pos < AMICO_INIZIO || G.mondo !== LICEO) Object.assign(amicoStato, { parla: 0, avviato: false, dMoto: null, dFermo: null, kCam: 0 });
     return;
   }
 
@@ -1179,9 +1180,9 @@ function aggiornaAmico(dt) {
 
   // Fuori dal portone compare il motorino sul marciapiede dal suo lato, poco più avanti.
   if (G.pos >= AMICO_MOTO && amicoStato.dMoto === null) {
-    amicoStato.latoMoto = amicoStato.x - G.x < 0 ? -1 : 1;
+    amicoStato.latoMoto = AMICO_LATO;
     amicoStato.dMoto = G.pos + 25;
-    amicoStato.d3 = G.pos - 0.15; amicoStato.pos3 = G.pos;
+    amicoStato.d3 = G.pos + 2.6; amicoStato.pos3 = G.pos;
     mettiSulPercorso(motorino, amicoStato.dMoto, false);
     motorinoMesh.position.set(amicoStato.latoMoto * MOTORINO_X, 0.12, 0);
     motorinoMesh.rotation.y = -amicoStato.latoMoto * 0.35;
@@ -1190,12 +1191,11 @@ function aggiornaAmico(dt) {
   let d, x, sterza = 0;
   azzeraPosa(amico);
   if (amicoStato.dMoto === null) {
-    // Accanto a Roberto, alla sua sinistra (a destra se Roberto è nella corsia di sinistra).
-    const bersaglio = G.x > -1 ? G.x - 1.25 : G.x + 1.25;
-    if (!amicoStato.avviato) { amicoStato.x = bersaglio; amicoStato.avviato = true; }
-    amicoStato.x += (bersaglio - amicoStato.x) * Math.min(1, dt * 6);
+    // Lungo il muro di sinistra, fuori dalle corsie, un paio di metri davanti a Roberto: così non
+    // sembra un ostacolo e la camera (spostata verso di lui) li inquadra tutti e due.
+    if (!amicoStato.avviato) { amicoStato.x = AMICO_LATO * MARGINE; amicoStato.avviato = true; }
     x = amicoStato.x;
-    d = G.pos - 0.15 - Math.min(1, Math.abs(bersaglio - amicoStato.x) / 1.2) * 1.2;
+    d = G.pos + 2.6;
     posaCorsa(amico, G.passo + 0.9, 0.85);
   } else {
     // Va verso il motorino e si ferma lì accanto; Roberto tira dritto.
@@ -1224,6 +1224,9 @@ function aggiornaAmico(dt) {
 
   const lato = Math.sign(x - G.x) || 1;    // +1 = amico alla destra di Roberto
   amicoStato.lato = lato;
+  // Camera spostata verso di lui finché corrono insieme; quando va al motorino torna dietro a Roberto.
+  amicoStato.kCam += ((amicoStato.dMoto === null ? 1 : 0) - amicoStato.kCam) * Math.min(1, dt * 1.5);
+  aiutoCamera(AMICO_LATO, amicoStato.kCam);
   amico.testa.rotation.y = parlano ? lato * 0.55 : 0;
   if (parlano && DIALOGO[riga][0] === 'amico' && !fermo) {
     amico.braccia[0].spalla.rotation.set(-1.1 + Math.sin(G.tempo * 14) * 0.25, 0, -0.25);
@@ -1234,11 +1237,8 @@ function aggiornaAmico(dt) {
     const parlaRoberto = DIALOGO[riga][0] === 'roberto';
     roberto.getWorldPosition(posAmico);
     amico.radice.getWorldPosition(bolla.position);
-    // Finché sono vicini il fumetto sta tra i due, spostato verso Roberto (così non esce dallo schermo).
-    const vicini = bolla.position.distanceTo(posAmico) < 4;
-    if (vicini) bolla.position.lerp(posAmico, 0.68);
-    else if (parlaRoberto) bolla.position.copy(posAmico);
-    else bolla.position.lerp(posAmico, 0.55);
+    // Il fumetto sta tra i due, spostato verso chi parla (così non esce dallo schermo).
+    bolla.position.lerp(posAmico, parlaRoberto ? 0.62 : 0.35);
     bolla.position.y += 2.3;
     bolla.visible = true;
     G.parlaAmico = parlaRoberto ? 2 : 1;
@@ -1259,51 +1259,56 @@ const RAGAZZA_M = SEZ_RAGAZZA.inizio + SEZ_RAGAZZA.ragazza;     // dove si incro
 const bollaAmo = fumetto('Ciao amo!', '#FFC9DA', '#1C1D2B', 1.35);
 const bollaCiao = fumetto('Ciao!', '#FFFFFF', '#1C1D2B', 0.75);
 scena.add(bollaAmo, bollaCiao);
-const rag = { lato: 0 };
+// Spostamento della camera chiesto dai personaggi a margine (il più forte vince, si azzera a ogni frame).
+// Con `fuoco` (0..1) la camera guarda anche verso `aiuto.mira` e stringe l'inquadratura.
+const aiuto = { k: 0, lato: 0, fuoco: 0, mira: new THREE.Vector3() };
+function aiutoCamera(lato, k) { if (k > aiuto.k) { aiuto.k = k; aiuto.lato = lato; } }
 
-// Mentre si salutano Roberto rallenta appena, così la scena si legge.
+// Mentre si salutano Roberto rallenta, così la scena si legge.
 const rallentaRagazza = () => (G.mondo === LICEO
-  ? THREE.MathUtils.smoothstep(G.pos, RAGAZZA_M - 14, RAGAZZA_M - 8) * (1 - THREE.MathUtils.smoothstep(G.pos, RAGAZZA_M + 1, RAGAZZA_M + 5)) : 0);
+  ? 0.5 * THREE.MathUtils.smoothstep(G.pos, RAGAZZA_M - 20, RAGAZZA_M - 14) * (1 - THREE.MathUtils.smoothstep(G.pos, RAGAZZA_M + 6, RAGAZZA_M + 10)) : 0);
+const MARGINE = 3.35;          // fuori dalle corsie, lungo il muro: i personaggi non sembrano ostacoli
 
 function aggiornaRagazza() {
   const p = G.pos, M = RAGAZZA_M;
-  const attivo = G.mondo === LICEO && p > M - 36 && p < M + 7.5
+  const attivo = G.mondo === LICEO && p > M - 40 && p < M + 16
     && (G.stato === 'gioco' || G.stato === 'caduto' || G.stato === 'pausa');
   ragazza.radice.visible = attivo;
   bollaAmo.visible = bollaCiao.visible = false;
-  G.zoomRagazza = 0;
-  if (!attivo) { rag.lato = 0; return; }
-  // Passa di fianco a Roberto, dal lato dove c'è più spazio.
-  if (!rag.lato) rag.lato = G.x <= 0 ? 1 : -1;
-  // Incrociato Roberto, mentre si gira, si sposta dietro di lui: così la camera la riprende di spalle.
-  const gira = THREE.MathUtils.smoothstep(p, M - 0.6, M + 2.4);
-  const x = THREE.MathUtils.clamp(G.x + rag.lato * (1.25 - 0.35 * gira), -3.1, 3.1);
-  // Cammina verso Roberto; incrociato Roberto si gira e fa qualche passo dietro di lui.
-  // Dopo si incammina nella stessa direzione: la camera la sorpassa e la si vede anche da dietro.
-  const d = p < M ? M + (M - p) * 0.14 : M + (p - M) * 0.7;
+  if (!attivo) return;
+  // Cammina lungo il muro di destra, fuori dalle corsie. Incrociato Roberto si gira, lo supera
+  // saltellando lungo il muro (così la si vede bene da dietro) e sparisce in fondo al corridoio.
+  const lato = 1, x = lato * MARGINE;
+  const gira = THREE.MathUtils.smoothstep(p, M - 1, M + 2);
+  const d = p < M ? M + (M - p) * 0.25 : M + (p - M) * 1.35;
   azzeraPosa(ragazza);
-  posaCorsa(ragazza, G.tempo * (7.5 + 3 * gira), 0.4 + 0.25 * gira);
-  ragazza.corpo.rotation.z = Math.sin(G.tempo * 7.5) * 0.06;          // ancheggia
-  const amo = p > M - 11 && p < M - 2;
-  const ciao = p >= M - 2 && p < M + 7;
-  // Saluta con la mano dal lato di Roberto mentre parla, e di nuovo quando si gira.
+  posaCorsa(ragazza, G.tempo * (6.5 + 3 * gira), 0.38 + 0.2 * gira);
+  ragazza.corpo.rotation.z = Math.sin(G.tempo * 6.5) * 0.07;          // ancheggia
+  const amo = p > M - 16 && p < M - 4;
+  const ciao = p >= M - 4 && p < M + 3;
+  // Saluta con la mano verso Roberto mentre parla, e di nuovo quando lui risponde.
   if (amo || ciao) {
-    const i = rag.lato > 0 ? 1 : 0;
+    const i = gira < 0.5 ? 1 : 0;
     ragazza.braccia[i].spalla.rotation.set(0, 0, (i ? 1 : -1) * (2.5 + Math.sin(G.tempo * 10) * 0.25));
   }
-  ragazza.testa.rotation.y = amo ? -rag.lato * 0.3 : gira * rag.lato * 0.6;   // poi si volta a guardarlo
+  ragazza.testa.rotation.y = gira < 0.5 ? -0.35 : 0.6 * (1 - THREE.MathUtils.smoothstep(p, M + 3, M + 6));   // si volta a guardarlo
   perc.punto(d, tmp);
   const c = Math.cos(tmp.psi), s = Math.sin(tmp.psi);
   ragazza.radice.position.set(tmp.x + c * x, tmp.h, tmp.z + s * x);
   ragazza.radice.rotation.set(0, -tmp.psi + Math.PI * (1 - gira), 0);
-  // La camera si stringe un po' su di lei mentre arriva.
-  G.zoomRagazza = THREE.MathUtils.smoothstep(p, M - 30, M - 20) * (1 - THREE.MathUtils.smoothstep(p, M + 2, M + 9));
-  G.latoRagazza = rag.lato;
+  // La camera si allarga verso di lei per tutta la scena, poi torna dietro a Roberto.
+  aiutoCamera(lato, THREE.MathUtils.smoothstep(p, M - 34, M - 24) * (1 - THREE.MathUtils.smoothstep(p, M + 9, M + 15)));
+  // Quando è vicina la camera la inquadra da vicino: prima il viso, poi (di spalle) i fianchi.
+  const sulViso = THREE.MathUtils.smoothstep(p, M - 17, M - 12) * (1 - THREE.MathUtils.smoothstep(p, M - 4, M - 1));
+  const diSpalle = THREE.MathUtils.smoothstep(p, M + 3, M + 5) * (1 - THREE.MathUtils.smoothstep(p, M + 9, M + 12));
+  if (sulViso > 0 || diSpalle > 0) {
+    ragazza.radice.getWorldPosition(aiuto.mira);
+    aiuto.mira.y += sulViso > 0 ? 1.65 : 0.85;
+    aiuto.fuoco = 0.6 * Math.max(sulViso, diSpalle);
+  }
   if (amo) {
     ragazza.radice.getWorldPosition(bollaAmo.position);
-    roberto.getWorldPosition(posAmico);
-    bollaAmo.position.lerp(posAmico, 0.15);
-    bollaAmo.position.y = ragazza.radice.position.y + 2.15;
+    bollaAmo.position.y += 2.15;
     bollaAmo.visible = true;
   }
   if (ciao) {
@@ -1312,7 +1317,7 @@ function aggiornaRagazza() {
     bollaCiao.visible = true;
     G.exprTemp = 0.2; G.exprNome = 'gioia';
   }
-  G.guardaRagazza = ciao ? rag.lato : 0;
+  G.guardaRagazza = ciao || amo ? lato : 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -1359,16 +1364,20 @@ function aggiornaFratello(dt) {
   let d, x, sterza = 0, mostra = 0;
   azzeraPosa(fratello);
   if (G.pos < FRATELLO_GIRA) {
-    // Accanto a Roberto, dal lato della porta (a destra), a sinistra se Roberto è già nella corsia di destra.
-    const bersaglio = G.x < 1 ? G.x + 1.0 : G.x - 1.0;
-    if (!fr.avviato) { fr.x = bersaglio; fr.avviato = true; }
-    fr.x += (bersaglio - fr.x) * Math.min(1, dt * 6);
+    // Lungo il muro dal lato della sua porta (a destra), fuori dalle corsie, un po' davanti a Roberto.
+    fr.x = MARGINE; fr.avviato = true;
     // All'inizio si presenta: un po' più avanti, girato verso di noi, con il creeper alzato in mano.
     const pr = G.pos - FRATELLO_INIZIO;
     mostra = 1 - THREE.MathUtils.smoothstep(pr, FRATELLO_MOSTRA, FRATELLO_MOSTRA + 7);
-    G.zoomFratello = THREE.MathUtils.smoothstep(pr, 0, 3) * mostra;
-    x = THREE.MathUtils.lerp(fr.x, G.x + Math.sign(bersaglio - G.x) * 0.85, mostra);
-    d = G.pos - 0.2 - Math.min(1, Math.abs(bersaglio - fr.x) / 1.2) + 2.6 * mostra;
+    x = fr.x;
+    d = G.pos + 2.2 + 1.6 * mostra;
+    // La camera si sposta verso di lui e, mentre mostra il creeper, lo guarda un po' di più.
+    aiutoCamera(1, THREE.MathUtils.smoothstep(pr, 0, 3));
+    if (mostra > 0) {
+      perc.punto(d, tmp);
+      aiuto.mira.set(tmp.x + Math.cos(tmp.psi) * x, tmp.h + 0.8, tmp.z + Math.sin(tmp.psi) * x);
+      aiuto.fuoco = 0.35 * mostra * THREE.MathUtils.smoothstep(pr, 0, 3);
+    }
     fr.d0 = d; fr.x0 = x;
     posaCorsa(fratello, G.passo + 0.7, 0.75 - 0.35 * mostra);
     fratello.testa.rotation.y = -Math.sign(x - G.x) * 0.35 * (0.5 + 0.5 * Math.sin(G.tempo * 1.7)) * (1 - mostra);
@@ -1376,6 +1385,8 @@ function aggiornaFratello(dt) {
     sterza = -mostra * (Math.PI - Math.sign(x - G.x) * 0.45);
   } else {
     // Scatta avanti (più veloce di Roberto) e piega verso la porta, così si vede entrare in classe.
+    // Intanto la camera torna dietro a Roberto, in tempo per il creeper.
+    aiutoCamera(1, 1 - THREE.MathUtils.smoothstep(G.pos, FRATELLO_GIRA, FRATELLO_GIRA + 8));
     const u = Math.min(1, (G.pos - FRATELLO_GIRA) * 2.3 / Math.hypot(FRATELLO_PORTA - fr.d0, 4.6 - fr.x0));
     d = fr.d0 + (FRATELLO_PORTA - fr.d0) * (1 - (1 - u) * (1 - u) * 0.6 - 0.4 * (1 - u));
     x = fr.x0 + (4.6 - fr.x0) * Math.pow(u, 2.2);
@@ -1711,11 +1722,13 @@ function aggiornaCamera(dt) {
   const kAula = avvicinamentoAula();
   const kInt = perc.quantoInterno(G.pos, 6);
   const kFr = G.zoomFratello ?? 0;      // si avvicina quando il fratello mostra il creeper
-  // Con la ragazza del corridoio: la camera guarda un po' verso di lei e stringe appena l'inquadratura.
-  const kRag = G.zoomRagazza ?? 0, latRag = (G.latoRagazza ?? 0) * kRag;
-  const indietro = camP.indietro * THREE.MathUtils.lerp(1, 0.84, kInt) - 2.4 * kAula - 1.6 * kFr;
-  const alto = camP.alto * THREE.MathUtils.lerp(1, 0.88, kInt) - 1.2 * kAula - 0.7 * kFr;
-  const lat = G.x * camP.segue;
+  // Personaggi a margine (ragazza del corridoio, amico biondo): la camera si sposta verso di loro e si
+  // allarga, così si vedono loro e Roberto insieme.
+  const kAi = aiuto.k, latAi = aiuto.lato * kAi, fuoco = aiuto.fuoco;
+  aiuto.k = 0; aiuto.fuoco = 0;
+  const indietro = camP.indietro * THREE.MathUtils.lerp(1, 0.84, kInt) - 2.4 * kAula - 1.6 * kFr + 0.6 * kAi;
+  const alto = camP.alto * THREE.MathUtils.lerp(1, 0.88, kInt) - 1.2 * kAula - 0.7 * kFr - 0.3 * kAi;
+  const lat = G.x * camP.segue + 1.2 * latAi;
 
   perc.punto(G.pos - indietro, tmp);
   camera.position.set(tmp.x + Math.cos(tmp.psi) * lat, tmp.h + alto + G.y * 0.25, tmp.z + Math.sin(tmp.psi) * lat);
@@ -1724,16 +1737,17 @@ function aggiornaCamera(dt) {
   perc.punto(G.pos + 10, tmp);
   // La visuale segue solo in parte la pendenza: in salita la strada si vede salire verso l'alto.
   const hMira = hQui + (tmp.h - hQui) * THREE.MathUtils.lerp(0.2, 0.85, kInt);
-  const latG = lat + 0.6 * latRag;
-  guarda.set(tmp.x + Math.cos(tmp.psi) * latG, hMira + camP.guarda + 0.25 * kAula - 0.2 * kRag, tmp.z + Math.sin(tmp.psi) * latG);
+  const latG = lat + 0.25 * latAi;
+  guarda.set(tmp.x + Math.cos(tmp.psi) * latG, hMira + camP.guarda + 0.25 * kAula, tmp.z + Math.sin(tmp.psi) * latG);
   if (colpoT > 0 || boomT > 0) {
     const k = Math.max(colpoT / DURATA_COLPO, boomT / 0.6 * 1.6);
     camera.position.x += Math.sin(G.tempo * 70) * 0.12 * k;
     camera.position.y += Math.cos(G.tempo * 55) * 0.1 * k;
   }
+  if (fuoco > 0) guarda.lerp(aiuto.mira, fuoco);
   camera.lookAt(guarda);
 
-  const fov = fovBase * camP.fov * (1 - 0.22 * kAula - 0.12 * kFr - 0.12 * kRag);
+  const fov = fovBase * camP.fov * (1 - 0.22 * kAula - 0.12 * kFr - 0.4 * fuoco);
   if (Math.abs(camera.fov - fov) > 0.01) { camera.fov = fov; camera.updateProjectionMatrix(); }
 }
 
@@ -1780,7 +1794,7 @@ function ciclo(ora) {
     if (G.timer <= 0) G.stato = 'gioco';
   } else if (G.stato === 'gioco' || G.stato === 'aulaIn') {
     if (G.stato === 'gioco') G.tempo += dt;
-    G.pos += velocitaIn(G.pos) * (1 - 0.65 * avvicinamentoAula()) * boss.fattore() * (1 - 0.2 * rallentaRagazza()) * dt;
+    G.pos += velocitaIn(G.pos) * (1 - 0.65 * avvicinamentoAula()) * boss.fattore() * (1 - rallentaRagazza()) * dt;
 
     const bersaglio = CORSIE[G.corsia];
     G.x += (bersaglio - G.x) * Math.min(1, dt * fisica().cambioCorsia);
