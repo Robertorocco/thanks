@@ -80,8 +80,8 @@ export const MONDI = [
       { id: 'cortile',    lung: 80,  amb: 'est' },
       { id: 'atrio-d',    lung: 14,  amb: 'int', checkpoint: 'Ingresso all\'Istituto', sottotitolo: 'Si entra a scuola' },
       { id: 'corridoio-d', lung: 78, amb: 'int' },
-      { id: 'aula-d',     lung: 6,  amb: 'int', evento: 'darmon', checkpoint: 'La 3ª B', sottotitolo: 'Sta per arrivare il maestro' },
-      // All'uscita dalla 3ª B c'è il fratello di Roberto: corrono insieme, poi lui entra nella sua classe
+      { id: 'aula-d',     lung: 6,  amb: 'int', evento: 'darmon', checkpoint: 'La 3ª A', sottotitolo: 'Sta per arrivare il maestro' },
+      // All'uscita dalla 3ª A c'è il fratello di Roberto: corrono insieme, poi lui entra nella sua classe
       // (porta a `portaFratello` metri dall'inizio della sezione).
       { id: 'uscita-d',   lung: 110, amb: 'int', portaFratello: 58 },
       { id: 'piazzale',   lung: 110, pend: -0.02, amb: 'est' },

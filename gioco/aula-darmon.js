@@ -1,4 +1,4 @@
-// La scena in classe all'Istituto Darmon (3ª B). Il gioco si ferma: i bambini giocano in classe, arriva
+// La scena in classe all'Istituto Darmon (3ª A). Il gioco si ferma: i bambini giocano in classe, arriva
 // il maestro Rodolfo, vecchio e serioso, e Roberto deve scegliere: piangere (giusto: il casino fa uscire
 // tutti dalla classe) o salutare il maestro (sbagliato: si trasforma in un demonio infuocato).
 // Stessa interfaccia della scena del liceo (aula.js): avvia, scegli, aggiorna, stato, esito, residuo.
@@ -158,7 +158,7 @@ export function creaAulaDarmon() {
   const rad = termosifone(0, 0);
   rad.rotation.y = Math.PI / 2; rad.position.set(-4.5, 0, 8.75); scena.add(rad);
   scena.add(blocco(0.08, 1.4, 4.6, 0x2F5D3A, 6.2, 1.0, -0.8));
-  const gesso = scritta('3ª B', 1.8, 0.5, 0x2F5D3A, 0xffffff);
+  const gesso = scritta('3ª A', 1.8, 0.5, 0x2F5D3A, 0xffffff);
   gesso.rotation.y = -Math.PI / 2; gesso.position.set(6.12, 1.8, -0.8);
   scena.add(gesso);
   // Alfabeto colorato sul muro di fondo e disegni appesi.

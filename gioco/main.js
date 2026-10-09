@@ -150,7 +150,7 @@ const aulaD = creaAulaDarmon();
 const aulaE = creaAulaEsame();
 let aulaAttiva = aula;                      // la scena in classe in uso
 
-// Le scene in classe: la 5ª H al liceo, la 3ª B all'Istituto Darmon e l'esame alla magistrale. `esiti` dice cosa succede
+// Le scene in classe: la 5ª H al liceo, la 3ª A all'Istituto Darmon e l'esame alla magistrale. `esiti` dice cosa succede
 // con ogni scelta: penalità in secondi e testo del cartello.
 const EVENTO = {
   [LICEO]: {
@@ -504,7 +504,7 @@ function creaMesh(e) {
   else if (e.genere === 'rennes') m = creaScenaRennes(e);
   else if (e.genere === 'lanciatore') m = creaLanciatore(e);
   else if (e.genere === 'cartello') m = creaCartelloAppeso(e.testo, e.w, e.colore);
-  else if (e.genere === 'portaAula') m = e.stile === 'darmon' ? creaPortaAula('3ª B', 0xE0533F) : e.stile === 'ia3' ? creaPortaAula('Ia3', 0x1F58B8, targaAula('Ia3', 2.2, 0.8)) : e.stile === 'facolta' ? creaFacolta() : creaPortaAula();
+  else if (e.genere === 'portaAula') m = e.stile === 'darmon' ? creaPortaAula('3ª A', 0xE0533F) : e.stile === 'ia3' ? creaPortaAula('Ia3', 0x1F58B8, targaAula('Ia3', 2.2, 0.8)) : e.stile === 'facolta' ? creaFacolta() : creaPortaAula();
   else if (e.genere === 'portone') m = e.stile === 'casa' ? creaPortaCasa() : creaPortone();
   const involucro = new THREE.Group();
   involucro.add(m);
@@ -823,6 +823,7 @@ function applicaEsito(esito) {
   elScelta.hidden = true;
   const r = EVENTO[G.mondo].esiti[esito];
   G.malus += r.malus;
+  if (r.malus) scrittaTempo(`+${r.malus}`, '#FF4D40');
   if (!EVENTO[G.mondo].esitoAllaFine) mostraEsito();
 }
 function mostraEsito() {
