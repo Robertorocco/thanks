@@ -1,6 +1,6 @@
 import * as THREE from './lib/three.module.min.js';
 import {
-  MONDI, TRAGUARDO, BONUS_CAFFE, MALUS_BOSS_RAGAZZA, SPINTA, CRESCITA, MALUS_PRIMA_FILA, TEMPO_SCELTA,
+  MONDI, TRAGUARDO, BONUS_CAFFE, MALUS_BOSS_RAGAZZA, MALUS_MORTE, SPINTA, CRESCITA, MALUS_PRIMA_FILA, TEMPO_SCELTA,
   MODALITA_SVILUPPO, RESPAWN_DOVE_MORI, RESPAWN_INDIETRO, RESPAWN_INVULNERABILE, FISICA,
 } from './mondi.js';
 import { inviaTempo, leggiClassifica, formattaTempo } from './classifica.js';
@@ -639,7 +639,7 @@ function salvaCheckpoint(i) {
 function nuovaPartita() {
   const m0 = MODALITA_SVILUPPO ? mondoDiPartenza() : 0;
   try { localStorage.setItem('gioco-laurea:dev-mondo', String(m0)); } catch {}
-  G.pos = TRATTI[m0].inizio; G.tempo = 0; G.malus = 0; G.malusBoss = 0; G.caffe = 0; G.raccolti = new Set(); G.mondo = m0; G.cadute = 0;
+  G.pos = TRATTI[m0].inizio; G.tempo = 0; G.malus = 0; G.malusBoss = 0; G.malusMorti = 0; G.caffe = 0; G.raccolti = new Set(); G.mondo = m0; G.cadute = 0;
   pingpong.reset(); amici.reset(); ragazzaBoss.reset(); triago.reset();
   G.fatti = new Set(); G.comandiVisti = new Set(); G.esitoAula = null; G.invul = 0; G.posCaduta = null; G.bassa = 0; G.exprTemp = 0;
   impostaEta(TRATTI[m0].eta);
@@ -671,6 +671,8 @@ function caduta() {
   G.stato = 'caduto';
   G.timer = 1.2;
   G.cadute++;
+  G.malus += MALUS_MORTE; G.malusMorti = (G.malusMorti ?? 0) + MALUS_MORTE;
+  scrittaTempo(`+${MALUS_MORTE}`, '#FF4D40');
   G.posCaduta = G.pos;
   if (navigator.vibrate) navigator.vibrate(120);
 }
@@ -771,12 +773,13 @@ async function fine() {
   hud.radice.hidden = true;
   elOrologio.hidden = true;
   const totale = Math.max(0, G.tempo + G.malus - G.caffe * BONUS_CAFFE);
+  const penalitaClasse = G.malus - (G.malusBoss ?? 0) - (G.malusMorti ?? 0);
   document.getElementById('fine-data').textContent = `${TRAGUARDO.nome} · ${TRAGUARDO.data}`;
   document.getElementById('fine-tempo').textContent = formattaTempo(totale);
   document.getElementById('fine-dettaglio').textContent =
     `Corsa ${formattaTempo(G.tempo)} · bonus ${G.caffe} su ${CAFFE_TOTALI} · ` +
-    (G.cadute === 1 ? '1 caduta' : `${G.cadute} cadute`) +
-    (G.malus - (G.malusBoss ?? 0) ? ` · penalità in classe +${G.malus - (G.malusBoss ?? 0)} s` : '') +
+    (G.cadute === 1 ? '1 caduta' : `${G.cadute} cadute`) + (G.malusMorti ? ` (+${G.malusMorti} s)` : '') +
+    (penalitaClasse ? ` · penalità in classe +${penalitaClasse} s` : '') +
     (G.malusBoss ? ` · boss +${G.malusBoss} s` : '');
   mostraSchermo('fine');
   const arrotondato = Math.round(totale * 10) / 10;
@@ -1620,6 +1623,7 @@ const boss = creaBossGelato(scena, {
   immune: () => Boolean(G.immune),
   colpito: () => {
     G.malus += MALUS_COLPO; G.malusBoss = (G.malusBoss ?? 0) + MALUS_COLPO;
+    scrittaTempo(`+${MALUS_COLPO}`, '#FF4D40');
     G.exprNome = 'dolore'; G.exprTemp = 0.9;
     colpoT = DURATA_COLPO;
     if (navigator.vibrate) navigator.vibrate(70);

@@ -246,6 +246,8 @@ export const CRESCITA = 0.25;
 export const BONUS_CAFFE = 3;
 // Ogni colpo preso nel boss della fidanzata aggiunge questo tempo al timer (secondi).
 export const MALUS_BOSS_RAGAZZA = 3;
+// Ogni morte (caduta) aggiunge questo tempo al timer (secondi).
+export const MALUS_MORTE = 2;
 
 // Penalità se in aula ci si siede in prima fila (secondi), e tempo per scegliere.
 export const MALUS_PRIMA_FILA = 10;
