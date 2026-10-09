@@ -66,7 +66,7 @@ export function espressioneAmico(p, stato) {
 }
 
 // Il personaggio con il suo set di facce.
-function amico(o, scala, extra = {}) {
+export function amico(o, scala, extra = {}) {
   const f = facce(o);
   const p = creaPersona({
     pelle: o.pelle, capelli: o.capelli, maglia: o.maglia, pantaloni: o.pantaloni, scarpe: o.scarpe ?? 0xE9E5DC,
@@ -78,7 +78,7 @@ function amico(o, scala, extra = {}) {
   return p;
 }
 
-const riccioli = (p, colore, punti, r = 0.09) => {
+export const riccioli = (p, colore, punti, r = 0.09) => {
   const m = materiale(colore);
   for (const [x, y, z] of punti) {
     const b = new THREE.Mesh(new THREE.IcosahedronGeometry(r, 0), m);

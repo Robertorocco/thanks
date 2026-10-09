@@ -22,6 +22,7 @@ import { creaAula, fumetto } from './aula.js';
 import { creaAulaDarmon } from './aula-darmon.js';
 import { creaAulaEsame, creaFacolta } from './aula-esame.js';
 import { creaScenaUni, creaParcheggiatore, creaPareteUni, targaAula } from './modelli-universita.js';
+import { creaScenaRennes, giaccone } from './modelli-rennes.js';
 import { creaBossGelato, MALUS_COLPO, MAX_GRASSO } from './boss-gelato.js';
 import { creaPingPong } from './boss-pingpong.js';
 import { creaScenaAmici } from './scena-amici.js';
@@ -388,6 +389,10 @@ roberto.scale.setScalar(FISICA[TRATTI[0].eta].scala);   // 0,8 = alto circa 1,8 
 roberto.rotation.order = 'YXZ';
 scena.add(roberto);
 R.volto().prepara(['neutro', 'sorriso', 'gioia', 'sforzo', 'sorpresa', 'dolore', 'piange']);
+// A Rennes piove e fa freddo: Roberto indossa il giaccone e la sciarpa (si mostrano solo in quel mondo).
+const giaccaRoberto = giaccone(R, 0x3F4A3A, 0xD8CDB4);
+giaccaRoberto.imposta(false);
+let giaccaVisibile = false;
 
 // Cambia l'età di Roberto: aspetto, proporzioni e fisica (salto, quote degli ostacoli, camera).
 function impostaEta(eta) {
@@ -431,6 +436,39 @@ function aggiornaSudore(dt, attivo, intensita) {
     daLocale(G.pos, G.x + g.x, G.y + g.y, g.z, g.m.position);
     g.m.visible = g.vita > 0;
   }
+}
+
+// Pioggerella: righe sottili che cadono attorno alla telecamera, solo a Rennes (si sfuma con `coperto`).
+const N_PIOGGIA = 420, PIOGGIA_X = 15, PIOGGIA_ALTO = 13, PIOGGIA_Z = [-46, 5];
+const pioggiaGeo = new THREE.BufferGeometry();
+const pioggiaPos = new Float32Array(N_PIOGGIA * 6);
+const pioggiaGocce = Array.from({ length: N_PIOGGIA }, () => ({
+  x: (Math.random() * 2 - 1) * PIOGGIA_X, y: Math.random() * PIOGGIA_ALTO, z: PIOGGIA_Z[0] + Math.random() * (PIOGGIA_Z[1] - PIOGGIA_Z[0]),
+  v: 13 + Math.random() * 5,
+}));
+pioggiaGeo.setAttribute('position', new THREE.BufferAttribute(pioggiaPos, 3));
+const pioggiaMat = new THREE.LineBasicMaterial({ color: 0xD3DCE6, transparent: true, opacity: 0, fog: false, depthWrite: false });
+const pioggia = new THREE.LineSegments(pioggiaGeo, pioggiaMat);
+pioggia.frustumCulled = false;
+pioggia.visible = false;
+scena.add(pioggia);
+const dirCamera = new THREE.Vector3();
+
+function aggiornaPioggia(dt) {
+  pioggia.visible = coperto > 0.03;
+  if (!pioggia.visible) return;
+  pioggiaMat.opacity = 0.42 * coperto;
+  // Il gruppo di gocce segue la telecamera, girato come la corsa, ma resta a livello del suolo.
+  camera.getWorldDirection(dirCamera);
+  pioggia.position.set(camera.position.x, roberto.position.y, camera.position.z);
+  pioggia.rotation.y = Math.atan2(-dirCamera.x, -dirCamera.z);
+  for (let i = 0; i < N_PIOGGIA; i++) {
+    const g = pioggiaGocce[i];
+    g.y -= g.v * dt;
+    if (g.y < 0) g.y += PIOGGIA_ALTO;
+    pioggiaPos.set([g.x, g.y, g.z, g.x - 0.04, g.y + 0.55, g.z + 0.03], i * 6);
+  }
+  pioggiaGeo.attributes.position.needsUpdate = true;
 }
 
 // ---------------------------------------------------------------------------
@@ -489,6 +527,7 @@ function creaMesh(e) {
   else if (e.genere === 'soffitto') m = creaSoffittoStile(e);
   else if (e.genere === 'arredo') m = creaArredo(e);
   else if (e.genere === 'uni') m = creaScenaUni(e);
+  else if (e.genere === 'rennes') m = creaScenaRennes(e);
   else if (e.genere === 'lanciatore') m = creaLanciatore(e);
   else if (e.genere === 'cartello') m = creaCartelloAppeso(e.testo, e.w, e.colore);
   else if (e.genere === 'portaAula') m = e.stile === 'darmon' ? creaPortaAula('3ª B', 0xE0533F) : e.stile === 'ia3' ? creaPortaAula('Ia3', 0x1F58B8, targaAula('Ia3', 2.2, 0.8)) : e.stile === 'facolta' ? creaFacolta() : creaPortaAula();
@@ -512,6 +551,10 @@ const MARGINE_PARCHEGGIATORE = 3.7;
 const PARCHEGGIATORE_DA = 34, PARCHEGGIATORE_FERMO = 9, PARCHEGGIATORE_VEL = 5.2;
 const bollaEuro = fumetto('Un euro a piacere', '#ffffff', '#1C1D2B', 2.19, 2.5, 65);
 scena.add(bollaEuro);
+// "Abuso!": la ragazza del CROUS lo dice quando ti passa accanto.
+const bollaAbuso = fumetto('Abuso!', '#ffffff', '#1C1D2B', 1.5, 1.2, 76);
+scena.add(bollaAbuso);
+const ABUSO_DA = 20;
 function aggiornaParcheggiatore(e, ora) {
   const t = ora / 1000, dt = e.tPrec === null ? 0 : Math.min(0.1, t - e.tPrec);
   e.tPrec = t;
@@ -1057,17 +1100,22 @@ else mostraSchermo('inizio');
 const cInt = new THREE.Color();
 const cTerra = new THREE.Color(0x77736a), cTerraInt = new THREE.Color(0xC2BCB0);
 
+// Rennes: cielo coperto e pioggerella. `coperto` va da 0 a 1 con calma quando si entra o si esce dal mondo.
+let coperto = 0;
 function aggiornaColori() {
+  const inRennes = TRATTI[mondoDi(G.pos)].stile === 'rennes';
+  coperto += ((inRennes ? 1 : 0) - coperto) * 0.04;
+  if (inRennes !== giaccaVisibile) { giaccaVisibile = inRennes; giaccaRoberto.imposta(inRennes); }
   const k = perc.quantoInterno(G.pos + 3, 6);
   coloreMondo('intCielo', G.pos, cInt);
   coloreMondo('cielo', G.pos, cA).lerp(cInt, k);
   scena.background.copy(cA);
   scena.fog.color.copy(cA);
-  scena.fog.near = THREE.MathUtils.lerp(NEBBIA_EST[0], NEBBIA_INT[0], k);
-  scena.fog.far = THREE.MathUtils.lerp(NEBBIA_EST[1], NEBBIA_INT[1], k);
+  scena.fog.near = THREE.MathUtils.lerp(NEBBIA_EST[0] - 28 * coperto, NEBBIA_INT[0], k);
+  scena.fog.far = THREE.MathUtils.lerp(NEBBIA_EST[1] - 30 * coperto, NEBBIA_INT[1], k);
   const notte = TRATTI[mondoDi(G.pos)].stile === 'festival';
-  cielo.intensity += (THREE.MathUtils.lerp(notte ? 0.7 : 1.5, 1.9, k) - cielo.intensity) * 0.1;
-  sole.intensity += (THREE.MathUtils.lerp(notte ? 0.5 : 1.6, 0.1, k) - sole.intensity) * 0.1;
+  cielo.intensity += (THREE.MathUtils.lerp(notte ? 0.7 : 1.5 - 0.2 * coperto, 1.9, k) - cielo.intensity) * 0.1;
+  sole.intensity += (THREE.MathUtils.lerp(notte ? 0.5 : 1.6 - 0.75 * coperto, 0.1, k) - sole.intensity) * 0.1;
   coloreMondo('terraInt', G.pos, cTerraInt);
   cielo.groundColor.copy(cTerra).lerp(cTerraInt, k);
 
@@ -1087,6 +1135,7 @@ const aperturaPorta = distanza => THREE.MathUtils.smoothstep(18 - distanza, 0, 1
 function aggiornaEntita(ora) {
   const pos = G.pos;
   bollaEuro.visible = false;
+  bollaAbuso.visible = false;
   while (prossima < ENTITA.length && ENTITA[prossima].d - mezzaLunghezza(ENTITA[prossima]) < pos + VISTA) {
     const e = ENTITA[prossima++];
     if (distanza(e, pos) + mezzaLunghezza(e) < pos - DIETRO) continue;
@@ -1119,6 +1168,10 @@ function aggiornaEntita(ora) {
     } else if (e.tipo === 'persona') {
       mettiSulPercorso(e.mesh, d, true);
       e.anima?.(ora / 1000);
+      if (e.membro === 'abuso' && d - pos < ABUSO_DA && d - pos > 0.5 && G.stato === 'gioco') {
+        bollaAbuso.visible = true;
+        daLocale(d, CORSIE[e.corsia], 2.35, 0, bollaAbuso.position);
+      }
     } else if (e.tipo === 'lancio') {
       // Parte quando il giocatore è vicino, nella corsia in cui si trova in quel momento.
       if (pos < e.d0 - e.anticipo) e.lanciato = false;
@@ -1137,6 +1190,8 @@ function aggiornaEntita(ora) {
       const lat = latoCrociera(e, pos);
       e.mesh.position.x += Math.cos(tmp.psi) * lat;
       e.mesh.position.z += Math.sin(tmp.psi) * lat;
+    } else if (e.genere === 'rennes') {
+      e.anima?.(ora / 1000);
     } else if (e.interno.userData.apri) {
       e.interno.userData.apri(aperturaPorta(e.d - pos));
     }
@@ -2049,6 +2104,7 @@ function ciclo(ora) {
     aggiornaCreeper(dt);
     animaRoberto(dt);
     aggiornaCamera(dt);
+    aggiornaPioggia(dt);
     pingpong.camera(camera);
     amici.camera(camera);
     ragazzaBoss.camera(camera, G);

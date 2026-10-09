@@ -60,9 +60,17 @@ const PROF = {
   triennale:  { basso: 0.65, alto: 0.4, muro: 4.2, parcheggiatore: 0.7 },
   magistrale: { basso: 0.65, alto: 0.4, muro: 1.5 },
   magistraleInt: { basso: 0.6, alto: 0.4, muro: 0.8 },
+  rennes:     { basso: 0.7, alto: 0.5, muro: 4.2, persona: 0.7 },
   _:          { basso: 0.8, alto: 0.4, muro: 0.9 },
 };
-const profondita = (stile, tipo, e = {}) => (PROF[stile] ?? PROF._)[tipo] ?? 0.9;
+const profondita = (stile, tipo, e = {}) => {
+  // A Rennes il "muro" è un'auto (lunga), una coppia di passanti o un robot (corti): la lunghezza segue il modello.
+  if (stile === 'rennes' && tipo === 'muro') { const k = (e.var ?? 0) % 8; return k < 5 ? 4.2 : k < 7 ? 1.1 : 1.4; }
+  return (PROF[stile] ?? PROF._)[tipo] ?? 0.9;
+};
+// Rennes: chi passeggia cammina piano verso di te (così si vede bene) e le casette a schiera sono lunghe 14,4 m (modelli-rennes.js).
+const VEL_RENNES = 0.12;
+const LUNGO_SCHIERA = 14.4;
 
 export function generaLivello(TRATTI, perc, velocitaIn) {
   const ENTITA = [];
@@ -78,8 +86,9 @@ export function generaLivello(TRATTI, perc, velocitaIn) {
 
     // --- Elementi base -----------------------------------------------------
     const ostacolo = (d, corsia, tipo, stile, extra = {}) => {
-      const prof = extra.prof ?? profondita(stile, tipo);
-      ENTITA.push({ d, genere: 'ostacolo', tipo, corsia, profondita: prof, stile, mondo: t.indice, var: Math.floor(r() * 16), ...extra });
+      const v = Math.floor(r() * 16);
+      const prof = extra.prof ?? profondita(stile, tipo, { var: extra.var ?? v });
+      ENTITA.push({ d, genere: 'ostacolo', tipo, corsia, profondita: prof, stile, mondo: t.indice, var: v, ...extra });
     };
     const caffe = (d, corsia) => ENTITA.push({ d, genere: 'caffe', corsia, mondo: t.indice });
     const azione = permessi => {
@@ -164,14 +173,14 @@ export function generaLivello(TRATTI, perc, velocitaIn) {
     function compagni(a, b, n, stile = 'liceoInt', via = false, membri = null) {
       for (let i = 0; i < n; i++) {
         const d0 = a + (b - a) * ((i + 0.3 + r() * 0.5) / n);
-        const dMeet = incontroPersona({ d0, via });
+        const dMeet = incontroPersona({ d0, via, vel: stile === 'rennes' ? VEL_RENNES : undefined });
         if (dMeet < a - 4) continue;
         const bl = bloccate(dMeet, 10);
         const libere = [0, 1, 2].filter(c => !bl.has(c));
         if (libere.length < 2) continue;
         const corsia = libere[Math.floor(r() * libere.length)];
         const timida = stile === 'liceoInt' && !via && nCompagniInt++ % 2 === 1;
-        ostacolo(d0, corsia, 'persona', stile, { d0, via, membro: timida ? 'timida' : membri ? membri[i % membri.length] : undefined, vel: stile === 'casa' ? 0.6 : undefined });
+        ostacolo(d0, corsia, 'persona', stile, { d0, via, membro: timida ? 'timida' : membri ? membri[i % membri.length] : undefined, vel: stile === 'casa' ? 0.6 : stile === 'rennes' ? VEL_RENNES : undefined });
       }
     }
 
@@ -310,6 +319,54 @@ export function generaLivello(TRATTI, perc, velocitaIn) {
       }
     }
 
+    // Rennes: la strada tra le casette a schiera. Intervalli di casette ai due lati e, uno alla volta, il CROUS,
+    // la piazza con la chiesa gotica e la giostra, la Fitness Park (vedi modelli-rennes.js).
+    function scenaRennes(sz, a, b) {
+      const metti = (tipo, lato, d, extra = {}) => ENTITA.push({ d, genere: 'rennes', tipo, lato, mondo: t.indice, var: Math.floor(r() * 12), ...extra });
+      const fila = (lato, da, a2, x = 7.0) => {
+        const n = Math.floor((a2 - da) / LUNGO_SCHIERA);
+        const avanzo = (a2 - da) - n * LUNGO_SCHIERA;
+        for (let i = 0; i < n; i++) metti('schiera', lato, da + avanzo / 2 + LUNGO_SCHIERA * (i + 0.5), { x });
+      };
+      switch (sz.id) {
+        case 'rennes-via':
+          fila(-1, a - 14, b); fila(1, a - 14, b);
+          break;
+        case 'rennes-crous':
+          fila(-1, a, b);
+          fila(1, a, a + 47); metti('crous', 1, a + 60); fila(1, a + 73, b);
+          break;
+        case 'rennes-incrocio':
+          fila(-1, a, b); fila(1, a, b);
+          break;
+        case 'rennes-piazza':
+          // Il selciato chiaro ai lati e, tutto intorno, le casette: a sinistra la chiesa, a destra la giostra.
+          metti('selciato', -1, (a + b) / 2, { lungo: b - a, profondita: b - a }); metti('selciato', 1, (a + b) / 2, { lungo: b - a, profondita: b - a });
+          fila(-1, a, a + 52, 11); metti('chiesa', -1, a + 68); fila(-1, a + 86, b, 11);
+          fila(1, a, a + 34); metti('giostra', 1, a + 66, { x: 14 }); fila(1, a + 34, a + 100, 24); fila(1, a + 100, b);
+          break;
+        case 'rennes-fitness':
+          fila(-1, a, b);
+          fila(1, a, a + 24); metti('fitness', 1, a + 36); fila(1, a + 48, b);
+          break;
+        case 'rennes-fine':
+          fila(-1, a, b); fila(1, a, b);
+          break;
+        default: break;
+      }
+      // Lampioni su entrambi i lati e qualche albero lungo il marciapiede.
+      for (let q = a + 6; q < b; q += 24) for (const lato of [-1, 1]) ENTITA.push({ d: q, genere: 'lampione', lato, mondo: t.indice });
+      for (let q = a + 14; q < b; q += 34) ENTITA.push({ d: q, genere: 'albero', lato: Math.round(q / 34) % 2 ? -1 : 1, scala: 0.8 + r() * 0.4, mondo: t.indice });
+    }
+
+    // Le sette persone da incontrare (modelli-rennes.js): camminano piano verso di te, in una corsia stabilita.
+    // `incontro` è la posizione del giocatore in cui le incroci.
+    const personaRennes = (membro, incontro, corsia) => {
+      const d0 = incontro + VEL_RENNES * ANTICIPO_COMPAGNI / (1 + VEL_RENNES);
+      ostacolo(d0, corsia, 'persona', 'rennes', { d0, via: false, membro, vel: VEL_RENNES });
+    };
+    const opzRennes = { stile: 'rennes', tipi: ['basso', 'alto', 'muro'], corridoi: false, spazio: 1.3, evita: true };
+
     // Il parcheggiatore abusivo: aspetta a lato della strada e ti viene incontro nella tua corsia, con la
     // mano tesa (main.js). Attorno a lui la strada resta libera da altri ostacoli.
     const parcheggiatore = (d, lato) => ostacolo(d, 1, 'parcheggiatore', 'triennale', { lato, prof: 0.7 });
@@ -387,6 +444,39 @@ export function generaLivello(TRATTI, perc, velocitaIn) {
           break;
         case 'fine':
           riempi(a + 4, b - 18, { stile: 'liceo', tipi: ['muro', 'basso', 'buco'], corridoi: false, spazio: 1.2 });
+          break;
+        // --- Rennes: strada corta, le persone da incontrare, auto, semafori e pochi robot ---
+        case 'rennes-via':
+          riempi(a + 24, b - 4, opzRennes);
+          compagni(a + 20, b, 1, 'rennes');
+          break;
+        case 'rennes-crous':
+          // Le prime quattro vicino al CROUS: prima la ragazza che dice "Abuso!".
+          personaRennes('abuso', a + 22, 1);
+          personaRennes('levi', a + 50, 2);
+          personaRennes('bionda', a + 78, 0);
+          personaRennes('moda', a + 106, 1);
+          riempi(a + 6, b - 4, opzRennes);
+          break;
+        case 'rennes-incrocio':
+          ENTITA.push({ d: a + 26, genere: 'semaforo', rosso: false, mondo: t.indice, stile: 'rennes' });
+          personaRennes('alto', a + 34, 0);
+          riempi(a + 4, a + 18, opzRennes);
+          riempi(a + 40, b - 2, opzRennes);
+          break;
+        case 'rennes-piazza':
+          personaRennes('rasato', a + 28, 2);
+          personaRennes('rosso', a + 88, 1);
+          riempi(a + 6, b - 6, opzRennes);
+          compagni(a + 6, b - 10, 2, 'rennes');
+          break;
+        case 'rennes-fitness':
+          ENTITA.push({ d: a + 50, genere: 'semaforo', rosso: false, mondo: t.indice, stile: 'rennes' });
+          riempi(a + 6, a + 42, opzRennes);
+          riempi(a + 58, b - 6, opzRennes);
+          compagni(a + 6, b - 10, 2, 'rennes');
+          break;
+        case 'rennes-fine':
           break;
         // --- Casa (neonato): niente salto né scivolata, gli ostacoli si schivano e basta ---
         case 'culla': break;
@@ -514,6 +604,8 @@ export function generaLivello(TRATTI, perc, velocitaIn) {
         if (sz.id === 'portone-uni') ENTITA.push({ d: b - 1.2, genere: 'portone', mondo: t.indice });
       } else if (t.stile === 'triennale' || t.stile === 'magistrale') {
         scenaUni(sz, a, b);
+      } else if (t.stile === 'rennes') {
+        scenaRennes(sz, a, b);
       } else {
         // Edifici, lampioni e alberi lungo la strada. Vicino alla scuola restano bassi e lontani.
         const vicinoScuola = sz.id === 'avvicinamento';

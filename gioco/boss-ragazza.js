@@ -100,10 +100,12 @@ const FONT = {
 const geoLettere = {};
 function geoLettera(ch) {
   if (geoLettere[ch]) return geoLettere[ch];
-  const pos = [], nor = [], idx = [];
+  const pos = [], nor = [], col = [], idx = [];
+  // Arancione: la faccia davanti è chiara, i lati e il sopra in ombra, così si vede lo spessore.
   const faccia = (n, a, b, c, d) => {
     const i0 = pos.length / 3;
-    for (const v of [a, b, c, d]) { pos.push(...v); nor.push(...n); }
+    const tinta = n[2] > 0 ? [1.0, 0.56, 0.1] : n[1] > 0 ? [0.8, 0.38, 0.05] : n[1] < 0 ? [0.4, 0.17, 0.02] : n[2] < 0 ? [0.5, 0.22, 0.03] : [0.62, 0.28, 0.04];
+    for (const v of [a, b, c, d]) { pos.push(...v); nor.push(...n); col.push(...tinta); }
     idx.push(i0, i0 + 1, i0 + 2, i0, i0 + 2, i0 + 3);
   };
   FONT[ch].forEach((riga, r) => {
@@ -121,14 +123,15 @@ function geoLettera(ch) {
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
   g.setIndex(idx);
   return (geoLettere[ch] = g);
 }
 let matLettere = null;
 function creaParola() {
-  matLettere ??= [0xFF4F8B, 0x66D8FF].map(c => new THREE.MeshLambertMaterial({ color: c, emissive: c, emissiveIntensity: 0.45 }));
+  matLettere ??= new THREE.MeshLambertMaterial({ vertexColors: true, emissive: 0x4A2208 });
   const lettere = [...PAROLA].map((ch, i) => {
-    const m = new THREE.Mesh(geoLettera(ch), matLettere[i % 2]);
+    const m = new THREE.Mesh(geoLettera(ch), matLettere);
     m.rotation.order = 'YXZ';
     m.userData.x = (i - (PAROLA.length - 1) / 2) * PASSO_LETTERA;
     return m;
