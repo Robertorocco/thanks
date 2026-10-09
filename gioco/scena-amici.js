@@ -57,7 +57,7 @@ export function creaScenaAmici(scena, perc, A, gradoniD) {
 
   const S = { attivo: false, t: 0, fatto: false };
   // Richieste alla camera (come per i personaggi a margine in main.js): il valore più alto vince.
-  const ai = { lato: 0, k: 0, fuoco: 0, mira: new THREE.Vector3() };
+  const ai = { lato: 0, k: 0, fuoco: 0, largo: false, mira: new THREE.Vector3() };
   const chiedi = (lato, k) => { if (k > ai.k) { ai.k = k; ai.lato = lato; } };
 
   // ---- utilità ----------------------------------------------------------
@@ -132,8 +132,8 @@ export function creaScenaAmici(scena, perc, A, gradoniD) {
   // ---- Chiara e il ragazzo biondo ----------------------------------------
   // `a`: quanto sono avanti rispetto a Roberto; `emerge`/`veer`: intervalli in cui escono e rientrano.
   const COPPIA = [
-    { c: cCh, off: 0.9, porta1: PORTA_IA1 + 0.3, porta2: PORTA_RWC + 0.2, esce: [7.5, 10.2], entra: [48.5, 56.5], x: -3.4, soglia: -4.55 },
-    { c: cBi, off: -0.7, porta1: PORTA_IA1 - 0.5, porta2: PORTA_RWC - 0.4, esce: [8.3, 11], entra: [49.5, 57.5], x: -3.55, soglia: -4.55 },
+    { c: cCh, off: 1.4, porta1: PORTA_IA1 + 0.3, porta2: PORTA_RWC + 0.2, esce: [7.5, 10.2], entra: [48.5, 56.5], x: -3.4, soglia: -4.55, xs: -3.4, segui: [2.0, -0.2] },
+    { c: cBi, off: -0.2, porta1: PORTA_IA1 - 0.5, porta2: PORTA_RWC - 0.4, esce: [8.3, 11], entra: [49.5, 57.5], x: -3.55, soglia: -4.55, xs: -3.55, segui: [2.5, -0.9] },
   ];
 
   function coppia(G, dt) {
@@ -150,7 +150,11 @@ export function creaScenaAmici(scena, perc, A, gradoniD) {
       const s1 = ss(p, A + o.esce[0], A + o.esce[1]);
       const libera = smax(o.porta1, p + o.off, 2.2);
       const u = ss(libera, o.porta2 - 4.5, o.porta2 + 3.5);        // si sposta verso la porta solo quando ci arriva
-      const x = -4.7 + (o.x + 4.7) * s1 - 1.5 * u;
+      // Camminano accanto a Roberto, dal lato libero: se lui è al centro o a destra si spostano verso di lui
+      // (restando a distanza), così nell'inquadratura si vedono sempre.
+      const voglia = clamp(G.x - o.segui[0], o.x, o.segui[1]);
+      o.xs += (voglia - o.xs) * Math.min(1, dt * 3);
+      const x = lerp(lerp(-4.7, o.xs, s1), -4.9, u);
       const d = Math.min(libera, o.porta2);
       const rotta = (Math.PI / 2) * (1 - s1) - (Math.PI / 2) * u;
       c.p.radice.visible = sotto && x > o.soglia;
@@ -178,7 +182,19 @@ export function creaScenaAmici(scena, perc, A, gradoniD) {
       }
       if (i === 1) espressioneAmico(c.p, ss(p, A + 16, A + 18) > 0.5 && Math.sin(tempo * 12) > 0.2 && u < 0.2 ? 'sorriso' : 'neutro');
     }
-    if (sotto) chiedi(-1, 0.55 * ss(p, A + 9, A + 14) * (1 - ss(p, A + 52, A + 58)));
+    if (sotto) {
+      const k = ss(p, A + 9, A + 14) * (1 - ss(p, A + 52, A + 58));
+      chiedi(-1, 0.55 * k);
+      // La camera guarda a metà strada tra Roberto e i due amici, senza stringere l'inquadratura.
+      if (k > 0.01 && 0.5 * k > ai.fuoco) {
+        const xm = (COPPIA[0].xs + COPPIA[1].xs) / 2;
+        perc.punto(p + 3.5, tmp);
+        const l = (G.x + xm) / 2;
+        ai.mira.set(tmp.x + Math.cos(tmp.psi) * l, tmp.h + 1.3, tmp.z + Math.sin(tmp.psi) * l);
+        ai.fuoco = 0.5 * k;
+        ai.largo = true;
+      }
+    }
   }
 
   // ---- il gruppo ----------------------------------------------------------
@@ -332,7 +348,7 @@ export function creaScenaAmici(scena, perc, A, gradoniD) {
     },
     // Posiziona tutto; da chiamare a ogni frame (anche con il gioco fermo).
     disponi(G, dt) {
-      ai.k = 0; ai.fuoco = 0;
+      ai.k = 0; ai.fuoco = 0; ai.largo = false;
       if (G.pos < P0 - 4 && S.fatto && !S.attivo) S.fatto = false;       // respawn prima della scena
       seduti(G);
       if (G.pos < A - 2 || G.pos > C + 20) { nascondi(); porte[0].userData.apri(0); porte[1].userData.apri(0); return ai; }

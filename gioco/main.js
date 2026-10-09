@@ -1325,7 +1325,7 @@ const bollaCiao = fumetto('Ciao!', '#FFFFFF', '#1C1D2B', 0.75);
 scena.add(bollaAmo, bollaCiao);
 // Spostamento della camera chiesto dai personaggi a margine (il più forte vince, si azzera a ogni frame).
 // Con `fuoco` (0..1) la camera guarda anche verso `aiuto.mira` e stringe l'inquadratura.
-const aiuto = { k: 0, lato: 0, fuoco: 0, mira: new THREE.Vector3() };
+const aiuto = { k: 0, lato: 0, fuoco: 0, largo: false, mira: new THREE.Vector3() };
 function aiutoCamera(lato, k) { if (k > aiuto.k) { aiuto.k = k; aiuto.lato = lato; } }
 
 // Mentre si salutano Roberto rallenta, così la scena si legge.
@@ -1342,7 +1342,7 @@ function aggiornaRagazza() {
   if (!attivo) return;
   // Cammina lungo il muro di destra, fuori dalle corsie. Incrociato Roberto si gira, lo supera
   // saltellando lungo il muro (così la si vede bene da dietro) e sparisce in fondo al corridoio.
-  const lato = 1, x = lato * MARGINE;
+  const lato = 1, x = lato * 3.05;
   const gira = THREE.MathUtils.smoothstep(p, M - 1, M + 2);
   const d = p < M ? M + (M - p) * 0.25 : M + (p - M) * 1.35;
   azzeraPosa(ragazza);
@@ -1363,11 +1363,12 @@ function aggiornaRagazza() {
   // La camera si allarga verso di lei per tutta la scena, poi torna dietro a Roberto.
   aiutoCamera(lato, THREE.MathUtils.smoothstep(p, M - 34, M - 24) * (1 - THREE.MathUtils.smoothstep(p, M + 9, M + 15)));
   // Quando è vicina la camera la inquadra da vicino sul viso.
-  const sulViso = THREE.MathUtils.smoothstep(p, M - 17, M - 12) * (1 - THREE.MathUtils.smoothstep(p, M - 4, M - 1));
+  // Tutta la scena la camera la tiene al centro dello schermo (lei è il soggetto), un po' più stretta sul viso.
+  const sulViso = THREE.MathUtils.smoothstep(p, M - 24, M - 16) * (1 - THREE.MathUtils.smoothstep(p, M + 1, M + 5));
   if (sulViso > 0) {
     ragazza.radice.getWorldPosition(aiuto.mira);
-    aiuto.mira.y += 1.65;
-    aiuto.fuoco = 0.6 * sulViso;
+    aiuto.mira.y += 1.5;
+    aiuto.fuoco = 0.92 * sulViso;
   }
   if (amo) {
     ragazza.radice.getWorldPosition(bollaAmo.position);
@@ -1644,6 +1645,7 @@ const ragazzaBoss = creaBossRagazza(scena, {
   sez: SEZ_RAGAZZA_BOSS, corsie: CORSIE, daLocale, fisica,
   psi: d => { perc.punto(d, tmpBoss); return tmpBoss.psi; },
   immune: () => Boolean(G.immune),
+  orizzontale: () => fovBase < 70,
   colpito: () => {
     G.exprNome = 'dolore'; G.exprTemp = 0.9;
     colpoT = DURATA_COLPO;
@@ -1676,7 +1678,7 @@ function avviaBacio() {
 function aggiornaAmici(dt) {
   const a = amici.disponi(G, dt);
   aiutoCamera(a.lato, a.k);
-  if (a.fuoco > 0) { aiuto.mira.copy(a.mira); aiuto.fuoco = Math.max(aiuto.fuoco, a.fuoco); }
+  if (a.fuoco > 0) { aiuto.mira.copy(a.mira); aiuto.fuoco = Math.max(aiuto.fuoco, a.fuoco); aiuto.largo = a.largo; }
 }
 
 function nomiVs(a, b) {
@@ -1886,7 +1888,8 @@ function aggiornaCamera(dt) {
   // Personaggi a margine (ragazza del corridoio, amico biondo): la camera si sposta verso di loro e si
   // allarga, così si vedono loro e Roberto insieme.
   const kAi = aiuto.k, latAi = aiuto.lato * kAi, fuoco = aiuto.fuoco;
-  aiuto.k = 0; aiuto.fuoco = 0;
+  const largo = aiuto.largo;
+  aiuto.k = 0; aiuto.fuoco = 0; aiuto.largo = false;
   const indietro = camP.indietro * THREE.MathUtils.lerp(1, 0.84, kInt) - 2.4 * kAula - 1.6 * kFr + 0.6 * kAi;
   const alto = camP.alto * THREE.MathUtils.lerp(1, 0.88, kInt) - 1.2 * kAula - 0.7 * kFr - 0.3 * kAi;
   const lat = G.x * camP.segue + 1.2 * latAi;
@@ -1908,7 +1911,7 @@ function aggiornaCamera(dt) {
   if (fuoco > 0) guarda.lerp(aiuto.mira, fuoco);
   camera.lookAt(guarda);
 
-  const fov = fovBase * camP.fov * (1 - 0.22 * kAula - 0.12 * kFr - 0.4 * fuoco);
+  const fov = fovBase * camP.fov * (1 - 0.22 * kAula - 0.12 * kFr - (largo ? 0 : 0.46 * fuoco));
   if (Math.abs(camera.fov - fov) > 0.01) { camera.fov = fov; camera.updateProjectionMatrix(); }
 }
 

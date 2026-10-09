@@ -1,8 +1,9 @@
 // L'ultimo boss: la ragazza di Roberto. Di lei c'è solo la faccia, gigante, davanti alle tre corsie.
 // Il combattimento è una sequenza fissa di 10 attacchi, sempre la stessa, da schivare uno dopo l'altro:
 //  · Musetto: la bocca si aggruccia (molto carina) e manda due cuori in due corsie: se ne schiva cambiando corsia.
-//  · "ROBBETTOO": un urlo stridulo che parte come un'onda sonora su tutte le corsie: si salta.
-//  · Ciuffetto: si stacca il ciuffetto con una mano e lo lancia come uno spuntone lungo una corsia.
+//  · "ROBBETTOO": un urlo stridulo: le lettere stesse escono dalla bocca e arrivano in fila su tutte le corsie, si saltano.
+//  · Ciuffetto: una mano compare, strappa il ciuffetto (a sinistra del volto, che resta sempre al suo posto) e lo
+//    lancia come uno spuntone lungo una corsia.
 // Ogni attacco schivato avvicina la faccia (la distanza cala); se si viene colpiti la distanza aumenta e la
 // sequenza riparte da capo. Dopo 10 attacchi schivati di fila Roberto la raggiunge e le dà un bacetto.
 
@@ -12,10 +13,10 @@ import { dipingi, dipingiMano, VOLTO_W, VOLTO_H, CIUFFETTO } from './volto-ragaz
 
 export const N_ATTACCHI = 10;
 const D_MAX = 32, D_MIN = 15, D_ENTRA = 70;
-const LARG = 20, ALT = LARG * VOLTO_H / VOLTO_W, CENTRO_Y = 10.4;
+const LARG = 20, ALT = LARG * VOLTO_H / VOLTO_W, CENTRO_Y = 8.0;
 const SPAZIO = 1.9;                       // secondi tra l'inizio di un attacco e il successivo
 const FATTORE_VELOCITA = 0.55;            // durante lo scontro il mondo scorre più piano
-const ATTESA = { musetto: 0.75, robbettoo: 0.95, ciuffetto: 1.05 };    // preparazione prima del lancio
+const ATTESA = { musetto: 0.75, robbettoo: 0.95, ciuffetto: 1.35 };    // preparazione prima del lancio
 const DURATA_BACIO = 5.2;
 
 // La sequenza è sempre uguale, così si impara a memoria (corsie: 0 sinistra, 1 centro, 2 destra).
@@ -86,17 +87,53 @@ function creaSpuntone() {
   return g;
 }
 
-function creaOnda() {
-  const g = new THREE.Group();
-  const mat = new THREE.MeshBasicMaterial({ color: 0x66D8FF, transparent: true, opacity: 0.85 });
-  const bianco = new THREE.MeshBasicMaterial({ color: 0xFFFFFF, transparent: true, opacity: 0.9 });
-  for (const [i, y] of [0.14, 0.42, 0.7].entries()) {
-    const barra = new THREE.Mesh(new THREE.BoxGeometry(7.8, 0.13, 0.16), i === 1 ? bianco : mat);
-    barra.position.y = y; barra.position.z = i * 0.35;
-    g.add(barra);
-  }
-  g.userData.mat = [mat, bianco];
-  return g;
+// "ROBBETTOO": nove lettere a blocchi (font 5×7), che sono loro stesse l'ostacolo.
+const PAROLA = 'ROBBETTOO';
+const VOX = 0.14, PROF = 0.34, PASSO_LETTERA = 0.84, ALT_LETTERA = 7 * VOX;
+const FONT = {
+  R: ['####.', '#...#', '#...#', '####.', '#.#..', '#..#.', '#...#'],
+  O: ['.###.', '#...#', '#...#', '#...#', '#...#', '#...#', '.###.'],
+  B: ['####.', '#...#', '#...#', '####.', '#...#', '#...#', '####.'],
+  E: ['#####', '#....', '#....', '####.', '#....', '#....', '#####'],
+  T: ['#####', '..#..', '..#..', '..#..', '..#..', '..#..', '..#..'],
+};
+const geoLettere = {};
+function geoLettera(ch) {
+  if (geoLettere[ch]) return geoLettere[ch];
+  const pos = [], nor = [], idx = [];
+  const faccia = (n, a, b, c, d) => {
+    const i0 = pos.length / 3;
+    for (const v of [a, b, c, d]) { pos.push(...v); nor.push(...n); }
+    idx.push(i0, i0 + 1, i0 + 2, i0, i0 + 2, i0 + 3);
+  };
+  FONT[ch].forEach((riga, r) => {
+    [...riga].forEach((cella, c) => {
+      if (cella !== '#') return;
+      const x0 = (c - 2.5) * VOX, x1 = x0 + VOX, y0 = (6 - r) * VOX, y1 = y0 + VOX, z0 = -PROF / 2, z1 = PROF / 2;
+      faccia([0, 0, 1], [x0, y0, z1], [x1, y0, z1], [x1, y1, z1], [x0, y1, z1]);
+      faccia([0, 0, -1], [x1, y0, z0], [x0, y0, z0], [x0, y1, z0], [x1, y1, z0]);
+      faccia([1, 0, 0], [x1, y0, z1], [x1, y0, z0], [x1, y1, z0], [x1, y1, z1]);
+      faccia([-1, 0, 0], [x0, y0, z0], [x0, y0, z1], [x0, y1, z1], [x0, y1, z0]);
+      faccia([0, 1, 0], [x0, y1, z1], [x1, y1, z1], [x1, y1, z0], [x0, y1, z0]);
+      faccia([0, -1, 0], [x0, y0, z0], [x1, y0, z0], [x1, y0, z1], [x0, y0, z1]);
+    });
+  });
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+  g.setIndex(idx);
+  return (geoLettere[ch] = g);
+}
+let matLettere = null;
+function creaParola() {
+  matLettere ??= [0xFF4F8B, 0x66D8FF].map(c => new THREE.MeshLambertMaterial({ color: c, emissive: c, emissiveIntensity: 0.45 }));
+  const lettere = [...PAROLA].map((ch, i) => {
+    const m = new THREE.Mesh(geoLettera(ch), matLettere[i % 2]);
+    m.rotation.order = 'YXZ';
+    m.userData.x = (i - (PAROLA.length - 1) / 2) * PASSO_LETTERA;
+    return m;
+  });
+  return lettere;
 }
 
 function creaMarcatore(colore) {
@@ -111,7 +148,7 @@ export function creaBossRagazza(scena, ctx) {
   const { sez, corsie } = ctx;
   const B = {
     fase: 'fuori', ok: 0, idx: 0, tNext: 0, pausa: 0, dist: D_ENTRA, ride: 0, entra: 0, colpiti: 0,
-    attacchi: [], senzaCiuffo: 0, vel: 1, fatto: false, tb: 0, scossa: 0, cuori: [], t: 0,
+    attacchi: [], vel: 1, fx: 0, fy: CENTRO_Y, boccaY: 6, mx: 0, my: 16, punta: null, fatto: false, tb: 0, scossa: 0, cuori: [], t: 0,
   };
   const V = new THREE.Vector3(), V2 = new THREE.Vector3();
 
@@ -122,7 +159,7 @@ export function creaBossRagazza(scena, ctx) {
   const matVolto = new THREE.MeshBasicMaterial({ map: texVolto({}), transparent: true, alphaTest: 0.04 });
   const piano = new THREE.Mesh(new THREE.PlaneGeometry(LARG, ALT), matVolto);
   gruppo.add(piano);
-  const LM = LARG * 0.3, HM = LM * 320 / 256;
+  const LM = LARG * 0.26, HM = LM * 320 / 256;
   const matMano = new THREE.MeshBasicMaterial({ map: texMano(true), transparent: true, alphaTest: 0.04 });
   const mano = new THREE.Mesh(new THREE.PlaneGeometry(LM, HM), matMano);
   mano.position.z = 0.08; mano.visible = false;
@@ -140,6 +177,10 @@ export function creaBossRagazza(scena, ctx) {
     obj.rotation.y = -ctx.psi(d);
   }
 
+  // In orizzontale il campo visivo verticale è più stretto: la faccia si rimpicciolisce e si abbassa, così
+  // restano in vista fronte e ciuffetto.
+  const misura = () => (ctx.orizzontale?.() ? { s: 0.64, cy: 6.2 } : { s: 1, cy: CENTRO_Y });
+
   B.dentro = pos => pos >= sez.inizio && pos < sez.fine;
   Object.defineProperty(B, 'attivo', { get: () => B.fase === 'ingresso' || B.fase === 'combatte' || B.fase === 'finale' || B.fase === 'bacio' });
   B.fattore = () => B.vel;
@@ -154,7 +195,7 @@ export function creaBossRagazza(scena, ctx) {
   }
   B.reset = () => {
     pulisci();
-    Object.assign(B, { fase: 'fuori', ok: 0, idx: 0, tNext: 0, pausa: 0, dist: D_ENTRA, ride: 0, entra: 0, colpiti: 0, senzaCiuffo: 0, vel: 1, fatto: false, tb: 0, scossa: 0 });
+    Object.assign(B, { fase: 'fuori', ok: 0, idx: 0, tNext: 0, pausa: 0, dist: D_ENTRA, ride: 0, entra: 0, colpiti: 0, vel: 1, punta: null, fatto: false, tb: 0, scossa: 0 });
     gruppo.visible = false; mano.visible = false;
     gruppo.scale.setScalar(1);
   };
@@ -172,12 +213,12 @@ export function creaBossRagazza(scena, ctx) {
     if (a.tipo === 'musetto') {
       for (const l of a.corsie) { const m = aggiungi(creaCuore()); a.mesh.push(m); m.userData.lane = l; }
     } else if (a.tipo === 'robbettoo') {
-      const o = aggiungi(creaOnda()); a.mesh.push(o);
-      ctx.banner?.('ROBBETTOO!', 0.9);
+      for (const m of creaParola()) { aggiungi(m); a.mesh.push(m); }
+      a.x0 = B.fx; a.y0 = B.boccaY;
       B.scossa = 0.9;
     } else {
       const s = aggiungi(creaSpuntone()); a.mesh.push(s); s.userData.lane = a.corsie[0];
-      B.senzaCiuffo = 1.4;
+      a.x0 = B.mx; a.y0 = B.my;                      // parte dalle dita che hanno strappato il ciuffetto
     }
   }
 
@@ -186,7 +227,7 @@ export function creaBossRagazza(scena, ctx) {
     if (ctx.immune() || Math.abs(rel) > 0.8) return false;
     const f = ctx.fisica();
     const alto = G.y + (G.scivola > 0 ? f.altezzaBassa : f.altezza);
-    if (a.tipo === 'robbettoo') return G.y < 0.86;
+    if (a.tipo === 'robbettoo') return G.y < ALT_LETTERA + 0.08 - 0.16;
     return a.corsie.some(l => Math.abs(corsie[l] - G.x) < 0.95) && (a.tipo === 'musetto' ? (alto > 0.35 && G.y < 2.7) : (alto > 0.55 && G.y < 1.5));
   }
 
@@ -202,13 +243,13 @@ export function creaBossRagazza(scena, ctx) {
 
   // ---- la faccia: espressione e movimenti ---------------------------------------------------------
   function precarica() {
-    for (const o of [{ espr: 'musetto' }, { espr: 'urlo' }, { espr: 'sfida' }, { espr: 'sfida', ciuffo: false }, { espr: 'ride' }, { chiusi: true }, { ciuffo: false }]) texVolto(o);
+    for (const o of [{ espr: 'musetto' }, { espr: 'urlo' }, { espr: 'sfida' }, { espr: 'ride' }, { chiusi: true }]) texVolto(o);
     texMano(false);
   }
 
   function animaFaccia(dt, G) {
     const t = performance.now() / 1000;
-    let espr = 'neutro', chiusi = false, ciuffo = B.senzaCiuffo <= 0;
+    let espr = 'neutro', chiusi = false;
     let scala = 1, tilt = 0, scuoti = 0, manoFase = -1, manoK = 0;
     const att = B.attacchi.find(a => a.u < 0) ?? B.attacchi.find(a => a.tipo === 'robbettoo' && a.t - a.W < 0.8) ?? B.attacchi.find(a => a.tipo === 'ciuffetto' && a.t - a.W < 0.7);
     if (B.ride > 0) { espr = 'ride'; tilt = 0.06 * Math.sin(t * 22); }
@@ -223,45 +264,68 @@ export function creaBossRagazza(scena, ctx) {
         if (k < att.W) { chiusi = true; scala = 1 + 0.10 * ss(k, 0.1, att.W); }     // prende fiato
         else { espr = 'urlo'; scala = 1.1 + 0.03 * Math.sin(t * 40); scuoti = 1; }
       } else {
+        // Il ciuffetto resta sempre al suo posto sul volto: la mano compare, lo strappa (con una ciocca in
+        // mano) e lo lancia. Fasi in frazioni dell'attesa: sale (0-.32), pizzica e tira (.32-.62), lancia (.62-1).
         espr = 'sfida';
-        if (k < 0.35) manoFase = 0, manoK = k / 0.35;                       // la mano sale alla fronte
-        else if (k < 0.6) { manoFase = 1; manoK = (k - 0.35) / 0.25; ciuffo = false; }   // pizzica e tira
-        else { manoFase = 2; manoK = clamp((k - 0.6) / (att.W - 0.6 + 0.2), 0, 1.4); ciuffo = false; }     // lancia
+        const f = k / att.W;
+        if (f < 0.32) manoFase = 0, manoK = f / 0.32;
+        else if (f < 0.62) { manoFase = 1; manoK = (f - 0.32) / 0.30; }
+        else manoFase = 2, manoK = clamp((f - 0.62) / 0.38, 0, 1);
         if (att.u >= 0) manoFase = 3, manoK = clamp(att.u * 3, 0, 1);       // dopo il lancio la mano si ritira
       }
     } else if ((t % 3.6) < 0.13) chiusi = true;                              // ammicca
     if (B.fase === 'bacio' && B.tb > 2.9) espr = 'ride';
-    if (B.senzaCiuffo > 0 && !att) ciuffo = false;
-    const chiave = { espr, chiusi, ciuffo: espr === 'musetto' || espr === 'urlo' || espr === 'bacio' || espr === 'ride' ? true : ciuffo };
-    if (espr === 'urlo' || espr === 'bacio' || espr === 'ride' || espr === 'musetto') chiave.ciuffo = B.senzaCiuffo <= 0;
-    const tx = texVolto(chiave);
+    const tx = texVolto({ espr, chiusi });
     if (matVolto.map !== tx) matVolto.map = tx;
 
-    // Mano
+    const entra = B.entra;
+    const mis = misura();
+    const fs = scala * lerp(0.7, 1, entra) * mis.s;
+    // Mano: arriva dal basso a sinistra, pizzica il ciuffetto (a sinistra del volto), tira, poi lo lancia.
     mano.visible = manoFase >= 0 && manoFase < 4 && B.fase !== 'bacio';
     if (mano.visible) {
-      const fuori = new THREE.Vector2(LARG * 0.62, -ALT * 0.42);
-      let tx2, ty2;
-      if (manoFase === 0) { const e = ss(manoK, 0, 1); tx2 = lerp(fuori.x, posCiuffetto.x + 0.1, e); ty2 = lerp(fuori.y, posCiuffetto.y - 0.3, e); }
-      else if (manoFase === 1) { tx2 = posCiuffetto.x + 0.1; ty2 = posCiuffetto.y - 0.3 + 0.9 * ss(manoK, 0, 1); }
-      else if (manoFase === 2) { const e = ss(manoK, 0, 1.4); tx2 = lerp(posCiuffetto.x + 0.1, LARG * 0.5, e); ty2 = lerp(posCiuffetto.y + 0.6, -ALT * 0.12, e); }
-      else { const e = ss(manoK, 0, 1); tx2 = lerp(LARG * 0.5, fuori.x + 1, e); ty2 = lerp(-ALT * 0.12, fuori.y, e); }
-      mano.position.x = tx2 - puntaMano.x; mano.position.y = ty2 - puntaMano.y;
-      mano.rotation.z = manoFase === 2 ? -0.5 * manoK : 0;
-      const conCiocca = manoFase === 1 || (manoFase === 2 && manoK < 0.9);
+      const fuori = new THREE.Vector2(-LARG * 0.5, ALT * 0.62);
+      const ciuf = new THREE.Vector2(posCiuffetto.x, posCiuffetto.y - 0.2);       // dove pizzica
+      const corsiaLancio = att?.corsie?.[0] ?? 1;
+      const lancio = new THREE.Vector2((corsie[corsiaLancio] - B.fx) / Math.max(fs, 0.3), ciuf.y + 1.4);
+      let tx2, ty2, rot = 0, gr = 1;
+      if (manoFase === 0) { const e = ss(manoK, 0, 1); tx2 = lerp(fuori.x, ciuf.x, e); ty2 = lerp(fuori.y, ciuf.y, e); rot = Math.PI + 0.55 * (1 - e); }
+      else if (manoFase === 1) {
+        // tira: due strattoni verso il basso a sinistra, il ciuffetto sul volto si vede sotto le dita
+        const strappo = Math.abs(Math.sin(manoK * Math.PI * 2.5)) * (0.35 + 0.65 * manoK);
+        tx2 = ciuf.x - 0.55 * strappo; ty2 = ciuf.y - 0.7 * strappo; rot = Math.PI + 0.25 * strappo;
+      }
+      else if (manoFase === 2) {
+        const e = ss(manoK, 0, 1);
+        const carica = Math.sin(clamp(manoK / 0.35, 0, 1) * Math.PI * 0.5) * (1 - ss(manoK, 0.35, 0.6));    // si carica indietro e poi lancia
+        tx2 = lerp(ciuf.x, lancio.x, e) - 1.2 * carica; ty2 = lerp(ciuf.y, lancio.y, e) + 0.3 * carica;
+        rot = Math.PI - 0.9 * ss(manoK, 0.3, 1) + 0.3 * carica; gr = 1 + 0.5 * e;
+      }
+      else { const e = ss(manoK, 0, 1); tx2 = lerp(lancio.x, fuori.x, e); ty2 = lerp(lancio.y, fuori.y, e); gr = 1.5 - 0.5 * e; rot = Math.PI - 0.9 * (1 - e); }
+      mano.scale.setScalar(gr);
+      mano.rotation.z = rot;
+      const cr = Math.cos(rot), sr = Math.sin(rot), ox = puntaMano.x * gr, oy = puntaMano.y * gr;
+      mano.position.x = tx2 - (ox * cr - oy * sr); mano.position.y = ty2 - (ox * sr + oy * cr);
+      mano.position.z = 0.08 + (manoFase === 2 ? 1.5 * ss(manoK, 0.4, 1) : manoFase === 3 ? 1.5 : 0);
+      B.punta = [tx2, ty2];
+      const conCiocca = manoFase === 1 || manoFase === 2;
       const m = texMano(conCiocca);
       if (matMano.map !== m) matMano.map = m;
     }
 
     // Posizione, scala e movimento della faccia (nel bacio ci pensa aggiornaBacio)
     if (B.fase === 'bacio') return;
-    const entra = B.entra;
     const bob = Math.sin(t * 1.6) * 0.18 + (scuoti ? Math.sin(t * 55) * 0.12 : 0);
-    const y = lerp(-ALT * 0.7, CENTRO_Y, entra) + bob;
-    piazza(gruppo, G.pos + B.dist, scuoti ? Math.sin(t * 47) * 0.12 : Math.sin(t * 0.8) * 0.25, y);
+    const y = lerp(-ALT * 0.7 * mis.s, mis.cy, entra) + bob * mis.s;
+    const fx = scuoti ? Math.sin(t * 47) * 0.12 : Math.sin(t * 0.8) * 0.25;
+    piazza(gruppo, G.pos + B.dist, fx, y);
     gruppo.rotation.z = tilt + (scuoti ? Math.sin(t * 41) * 0.035 : 0);
-    gruppo.scale.setScalar(scala * lerp(0.7, 1, entra));
+    gruppo.scale.setScalar(fs);
     gruppo.visible = B.fase !== 'fuori' && B.fase !== 'fatto';
+    // Dove stanno bocca e dita (nello spazio della corsa): da lì partono lettere e spuntone.
+    B.fx = fx; B.fy = y; B.boccaY = y + (0.5 - 604 / VOLTO_H) * ALT * fs;
+    const [px, py] = B.punta ?? [posCiuffetto.x, posCiuffetto.y];
+    B.mx = fx + px * fs; B.my = y + py * fs;
   }
 
   // ---- il ciclo del combattimento -------------------------------------------------------------------
@@ -285,7 +349,6 @@ export function creaBossRagazza(scena, ctx) {
     if (B.fase === 'fuori') return;
 
     if (inGioco) {
-      B.senzaCiuffo = Math.max(0, B.senzaCiuffo - dt);
       if (B.fase === 'ingresso') {
         B.t += dt;
         B.entra = ss(B.t, 0, 2.6);
@@ -320,19 +383,22 @@ export function creaBossRagazza(scena, ctx) {
         const e = a.u;
         if (a.tipo === 'musetto') {
           for (const m of a.mesh) {
-            piazza(m, d, corsie[m.userData.lane], lerp(CENTRO_Y - 0.2 * ALT, 1.25, Math.pow(e, 0.6)) + Math.sin(a.t * 6 + m.userData.lane) * 0.12);
+            piazza(m, d, corsie[m.userData.lane], lerp(B.fy - 0.2 * ALT * misura().s, 1.25, Math.pow(e, 0.6)) + Math.sin(a.t * 6 + m.userData.lane) * 0.12);
             m.rotation.y += dt * 3.2; m.rotation.z = Math.sin(a.t * 5) * 0.12;
             m.scale.setScalar(1.3 + 0.5 * e);
           }
         } else if (a.tipo === 'robbettoo') {
-          const o = a.mesh[0];
-          piazza(o, d, 0, 0.05);
-          const pulsa = 0.75 + 0.25 * Math.sin(a.t * 30);
-          for (const m of o.userData.mat) m.opacity = pulsa;
-          o.scale.set(1, 1 + 0.12 * Math.sin(a.t * 22), 1);
+          // Le lettere escono dalla bocca una dopo l'altra (la R per prima), si aprono a ventaglio e atterrano in fila.
+          for (const [i, m] of a.mesh.entries()) {
+            const ei = clamp((e - i * 0.03) / (1 - i * 0.03), 0, 1);
+            const aperto = ss(ei, 0, 0.5), giu = ss(ei, 0, 0.62);
+            piazza(m, d + (1 - giu) * 0.8, a.x0 + (m.userData.x - a.x0) * aperto, lerp(a.y0, 0.08, giu) + Math.sin(a.t * 14 + i) * 0.04 * giu);
+            m.scale.setScalar(lerp(0.5, 1, giu));
+            m.rotation.z = (1 - giu) * 0.5 * Math.sin(a.t * 9 + i * 1.7);
+          }
         } else {
           const s = a.mesh[0];
-          piazza(s, d, corsie[s.userData.lane], lerp(CENTRO_Y, 1.05, Math.pow(e, 0.7)));
+          piazza(s, d, lerp(a.x0, corsie[s.userData.lane], ss(e, 0, 0.45)), lerp(a.y0, 1.05, Math.pow(e, 0.7)));
           s.rotation.z += dt * 9;
           s.rotation.x = -0.35 * (1 - e);                 // in discesa verso Roberto
         }
@@ -376,10 +442,11 @@ export function creaBossRagazza(scena, ctx) {
     const k = ss(t, 0, 1.5);
     B.dist = lerp(B.dist0, 2.2, k) - 1.0 * ss(t, 1.5, 2.4);
     B.entra = 1;
-    const sc = lerp(1, 0.13, k);
+    const mis = misura();
+    const sc = lerp(mis.s, 0.13, k);
     const piccola = ss(t, 0, 1.5);
     const t0 = performance.now() / 1000;
-    piazza(gruppo, G.pos + B.dist, 0, lerp(CENTRO_Y, 1.85, piccola) + Math.sin(t0 * 1.6) * 0.05 * (1 - piccola));
+    piazza(gruppo, G.pos + B.dist, 0, lerp(mis.cy, 1.85, piccola) + Math.sin(t0 * 1.6) * 0.05 * (1 - piccola));
     gruppo.scale.setScalar(sc);
     gruppo.rotation.z = 0.12 * ss(t, 1.6, 2.4) * (1 - ss(t, 3.0, 3.6));
     gruppo.visible = true;

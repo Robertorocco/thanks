@@ -440,7 +440,49 @@ const MAGLIE = [0xC0392B, 0x27AE60, 0xF39C12, 0x8E44AD, 0x16A085, 0xD35400, 0x29
 const CAPELLI = [0x2B1D14, 0x5A3A22, 0xC8A25A, 0x15110E, 0x7A4A2A];
 
 // Compagno che ti viene incontro: guarda verso +z (verso il giocatore).
+// La ragazza timida: piccolina, carina in volto, capelli castani lisci a caschetto fino alle spalle. Cammina con
+// la testa un po' bassa e inclinata, stringe un libro al petto e arrossisce (viso con sguardo basso e guance rosa).
+function voltoTimida(pelle, capelli) {
+  return tela(256, 256, (g) => {
+    g.fillStyle = esa(pelle); g.fillRect(0, 0, 256, 256);
+    g.fillStyle = esa(capelli); g.fillRect(0, 0, 256, 38);
+    g.fillStyle = 'rgba(90,55,32,.8)';                       // sopracciglia sottili, un po' alzate al centro
+    for (const [x, v] of [[80, 1], [176, -1]]) { g.save(); g.translate(x, 84); g.rotate(0.14 * v); g.fillRect(-24, -4, 48, 7); g.restore(); }
+    for (const x of [82, 174]) {
+      g.fillStyle = '#ffffff'; g.beginPath(); g.ellipse(x, 118, 25, 16, 0, 0, Math.PI * 2); g.fill();
+      g.fillStyle = '#5A3A22'; g.beginPath(); g.arc(x + 2, 124, 14, 0, Math.PI * 2); g.fill();      // sguardo in basso
+      g.fillStyle = '#1C1D2B'; g.beginPath(); g.arc(x + 2, 125, 7, 0, Math.PI * 2); g.fill();
+      g.fillStyle = '#ffffff'; g.fillRect(x + 5, 117, 6, 6);
+      g.fillStyle = esa(pelle); g.fillRect(x - 28, 98, 56, 14);                                       // palpebra mezza chiusa
+      g.fillStyle = '#1C1D2B'; g.fillRect(x - 28, 109, 56, 6);                                        // ciglia
+      const fuori = x < 128 ? -1 : 1;
+      g.save(); g.translate(x + fuori * 27, 112); g.rotate(-fuori * 0.6); g.fillRect(-2, -10, 6, 12); g.restore();
+    }
+    g.fillStyle = 'rgba(240,110,125,.5)';                                                              // guance rosse
+    g.beginPath(); g.ellipse(58, 164, 24, 14, 0, 0, Math.PI * 2); g.ellipse(198, 164, 24, 14, 0, 0, Math.PI * 2); g.fill();
+    g.fillStyle = 'rgba(0,0,0,.08)'; g.fillRect(122, 134, 12, 30);
+    g.strokeStyle = '#C0566A'; g.lineWidth = 5; g.lineCap = 'round';                                   // sorrisino piccolo e un po' storto
+    g.beginPath(); g.moveTo(110, 198); g.quadraticCurveTo(128, 208, 148, 194); g.stroke();
+  });
+}
+
+export function creaRagazzaTimida() {
+  const PELLE = 0xF2D3BA, CAPELLI = 0x7B4B2D;
+  const p = creaPersona({
+    pelle: PELLE, capelli: CAPELLI, acconciatura: 'caschetto', maglia: 0xC9B8E4, pantaloni: 0x6F86A8, scarpe: 0xF4F0EA,
+    corpulenza: 0.78, conZaino: false, volto: voltoTimida(PELLE, CAPELLI),
+  });
+  const libro = new THREE.Group();
+  libro.add(blocco(0.32, 0.05, 0.24, 0x4F7FB8, 0, 0));
+  libro.add(blocco(0.3, 0.035, 0.22, 0xF1EBDD, 0, 0.05));
+  libro.position.set(0, 1.12, -0.24); libro.rotation.x = -1.35;
+  p.superiore.add(libro);
+  p.radice.scale.setScalar(0.8 * 0.87);
+  return p;
+}
+
 export function creaCompagno(e) {
+  if (e.membro === 'timida') return creaCompagnaTimida(e);
   const v = e.var ?? 0;
   const p = creaPersona({
     maglia: MAGLIE[v % MAGLIE.length], capelli: CAPELLI[(v >> 1) % CAPELLI.length],
@@ -451,6 +493,19 @@ export function creaCompagno(e) {
   p.radice.rotation.y = e.via ? 0 : Math.PI;      // chi esce da scuola cammina nella tua direzione
   g.add(p.radice);
   g.userData.anima = e.via ? (t => posaCorsa(p, t * 6 + v, 0.55)) : (t => posaCorsa(p, t * 9 + v, 0.8));
+  return g;
+}
+
+function creaCompagnaTimida(e) {
+  const p = creaRagazzaTimida();
+  const g = new THREE.Group();
+  p.radice.rotation.y = Math.PI;
+  g.add(p.radice);
+  g.userData.anima = t => {
+    posaCorsa(p, t * 8 + (e.var ?? 0), 0.5);
+    for (const { spalla, gomito } of p.braccia) { spalla.rotation.set(0.65, 0, 0); gomito.rotation.x = 1.5; }    // stringe il libro
+    p.testa.rotation.x = 0.26; p.testa.rotation.z = 0.12 + Math.sin(t * 2) * 0.03;                            // testa bassa, inclinata
+  };
   return g;
 }
 

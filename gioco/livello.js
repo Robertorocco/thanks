@@ -159,6 +159,8 @@ export function generaLivello(TRATTI, perc, velocitaIn) {
 
     // Compagni che vengono incontro: `n` persone sparse in [a, b), sempre con una corsia libera.
     // Con via = true sono ragazzi che escono da scuola e camminano davanti a te, più piano.
+    // Nei corridoi del liceo, una comparsa su due è la ragazza timida (caschetto castano, libro al petto).
+    let nCompagniInt = 0;
     function compagni(a, b, n, stile = 'liceoInt', via = false, membri = null) {
       for (let i = 0; i < n; i++) {
         const d0 = a + (b - a) * ((i + 0.3 + r() * 0.5) / n);
@@ -168,7 +170,8 @@ export function generaLivello(TRATTI, perc, velocitaIn) {
         const libere = [0, 1, 2].filter(c => !bl.has(c));
         if (libere.length < 2) continue;
         const corsia = libere[Math.floor(r() * libere.length)];
-        ostacolo(d0, corsia, 'persona', stile, { d0, via, membro: membri ? membri[i % membri.length] : undefined, vel: stile === 'casa' ? 0.6 : undefined });
+        const timida = stile === 'liceoInt' && !via && nCompagniInt++ % 2 === 1;
+        ostacolo(d0, corsia, 'persona', stile, { d0, via, membro: timida ? 'timida' : membri ? membri[i % membri.length] : undefined, vel: stile === 'casa' ? 0.6 : undefined });
       }
     }
 

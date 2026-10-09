@@ -240,12 +240,28 @@ export function creaPortaScorrevole(testo) {
 // rosso, un ragazzo moro, Chiara e il ragazzo biondo chiaro. Ordine da sinistra a destra (dalla strada).
 // ---------------------------------------------------------------------------
 
+// Scritta bianca sul davanti del cappello (una sola texture per tutti).
+let scrittaCap = null;
 function cappelloBlu(p) {
   const t = p.testa;
+  if (!scrittaCap) {
+    scrittaCap = new THREE.MeshBasicMaterial({ transparent: true, map: tela(256, 80, (g, W, H) => {
+      g.fillStyle = '#2F5FD0'; g.fillRect(0, 0, W, H);
+      g.fillStyle = '#ffffff'; g.font = `800 ${H * 0.78}px Arial, Helvetica, sans-serif`;
+      g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('NOCAP', W / 2, H * 0.54, W * 0.94);
+    }) });
+  }
   t.add(blocco(0.48, 0.15, 0.48, 0x2F5FD0, 0, 0.17, 0));
   t.add(blocco(0.4, 0.08, 0.4, 0x2F5FD0, 0, 0.32, 0));
   t.add(blocco(0.49, 0.05, 0.49, 0x1E3F9A, 0, 0.17, 0));                 // risvolto più scuro
   t.add(blocco(0.1, 0.1, 0.1, 0x6F9BF0, 0, 0.4, 0));                     // pon pon
+  // Visiera davanti, leggermente piegata verso il basso, e "NOCAP" sulla fronte del cappello.
+  const visiera = blocco(0.44, 0.04, 0.3, 0x1E3F9A, 0, 0.145, -0.37);
+  visiera.rotation.x = -0.14;
+  t.add(visiera);
+  const scritta = new THREE.Mesh(new THREE.PlaneGeometry(0.4, 0.125), scrittaCap);
+  scritta.position.set(0, 0.265, -0.2475); scritta.rotation.y = Math.PI;
+  t.add(scritta);
 }
 
 export function creaSedutiCappello() {

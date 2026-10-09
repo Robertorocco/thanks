@@ -5,12 +5,12 @@
 
 export const VOLTO_W = 768, VOLTO_H = 864;
 // Punto dove sta il ciuffetto sulla tela (serve per la mano che lo stacca): ritorna in coordinate 0..1.
-export const CIUFFETTO = { x: 372 / VOLTO_W, y: 190 / VOLTO_H };
+export const CIUFFETTO = { x: 290 / VOLTO_W, y: 226 / VOLTO_H };
 
 const C = {
-  capello: '#2A1912', capelloChiaro: '#5A3A28', capelloMedio: '#3A241A',
-  pelle: '#EDBE9C', pelleOmbra: '#D79E7C', pelleLuce: '#F7D3B6',
-  occhio: '#4A2A16', ciglia: '#1B100B', labbro: '#C8736B', labbroScuro: '#A8524C', maglia: '#17322E',
+  capello: '#2F1D15', capelloChiaro: '#6A4630', capelloMedio: '#3A241A',
+  pelle: '#E8B791', pelleOmbra: '#CC9068', pelleLuce: '#F5CDA8',
+  occhio: '#4A2A16', ciglia: '#1B100B', labbro: '#C9706A', labbroScuro: '#A04C48', maglia: '#17322E',
 };
 
 const percorso = (g, pts) => {
@@ -42,7 +42,7 @@ export function dipingi({ espr = 'neutro', chiusi = false, ciuffo = true } = {})
   g.fillStyle = C.pelle; g.fill();
 
   // --- Il viso: ovale un po' stretto verso il mento ---
-  const viso = [[384, 166], [524, 166, 580, 290, 576, 420], [572, 548, 520, 684, 384, 712], [248, 684, 196, 548, 192, 420], [188, 290, 244, 166, 384, 166]];
+  const viso = [[384, 160], [536, 160, 600, 296, 596, 440], [592, 584, 524, 722, 384, 730], [244, 722, 176, 584, 172, 440], [168, 296, 232, 160, 384, 160]];
   percorso(g, viso);
   const pelle = g.createRadialGradient(384, 330, 40, 384, 440, 320);
   pelle.addColorStop(0, C.pelleLuce); pelle.addColorStop(0.5, C.pelle); pelle.addColorStop(1, C.pelleOmbra);
@@ -56,14 +56,14 @@ export function dipingi({ espr = 'neutro', chiusi = false, ciuffo = true } = {})
   // Guance arrossate
   const rosso = g.createRadialGradient(0, 0, 0, 0, 0, 1);
   rosso.addColorStop(0, 'rgba(236,110,110,0.55)'); rosso.addColorStop(1, 'rgba(236,110,110,0)');
-  for (const [x, y, k] of [[268, 540, musetto || urla ? 1.35 : 1], [500, 540, musetto || urla ? 1.35 : 1]]) {
+  for (const [x, y, k] of [[250, 560, musetto || urla ? 1.35 : 1], [518, 560, musetto || urla ? 1.35 : 1]]) {
     g.save(); g.translate(x, y); g.scale(62 * k, 36 * k); g.fillStyle = rosso; g.beginPath(); g.arc(0, 0, 1, 0, Math.PI * 2); g.fill(); g.restore();
   }
   if (urla) { g.fillStyle = 'rgba(230,80,80,0.16)'; percorso(g, viso); g.fill(); }
 
   // --- Occhi ---
   const occhio = (x, lato) => {
-    const y = 410;
+    const y = 420;
     if (occhiChiusi) {
       g.strokeStyle = C.ciglia; g.lineWidth = 11;
       g.beginPath();
@@ -73,15 +73,17 @@ export function dipingi({ espr = 'neutro', chiusi = false, ciuffo = true } = {})
       g.stroke();
       return;
     }
-    const grande = (musetto ? 1.15 : 1) * 1.18, soc = sfida ? 0.86 : 1;
+    const grande = (musetto ? 1.12 : 1) * 1.4, soc = sfida ? 0.86 : 1;
     g.save(); g.translate(x, y); g.scale(grande, soc * grande);
     // bianco a mandorla
     percorso(g, [[-50, 4], [-24, -26, 24, -26, 50, 2], [26, 28, -26, 28, -50, 4]]);
     g.fillStyle = '#FFFFFF'; g.fill();
     g.save(); percorso(g, [[-50, 4], [-24, -26, 24, -26, 50, 2], [26, 28, -26, 28, -50, 4]]); g.clip();
-    g.fillStyle = C.occhio; g.beginPath(); g.arc(lato * -2, 2, 26, 0, Math.PI * 2); g.fill();
+    g.fillStyle = C.occhio; g.beginPath(); g.arc(lato * -2, 2, 28, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#6B4026'; g.beginPath(); g.arc(lato * -2, 12, 20, 0, Math.PI); g.fill();
     g.fillStyle = '#120A06'; g.beginPath(); g.arc(lato * -2, 2, 13, 0, Math.PI * 2); g.fill();
-    g.fillStyle = '#FFFFFF'; g.beginPath(); g.arc(lato * -2 + 9, -8, 7, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#FFFFFF'; g.beginPath(); g.arc(lato * -2 + 10, -8, 8, 0, Math.PI * 2); g.fill();
+    g.beginPath(); g.arc(lato * -2 - 9, 11, 4, 0, Math.PI * 2); g.fill();
     if (musetto) { g.beginPath(); g.arc(lato * -2 - 8, 10, 4, 0, Math.PI * 2); g.fill(); }
     g.restore();
     // palpebra e ciglia
@@ -90,23 +92,23 @@ export function dipingi({ espr = 'neutro', chiusi = false, ciuffo = true } = {})
     g.lineWidth = 5;
     g.beginPath(); g.moveTo(-lato * 50, 0); g.lineTo(-lato * 68, -14); g.stroke();
     g.beginPath(); g.moveTo(-lato * 44, -10); g.lineTo(-lato * 58, -26); g.stroke();
-    g.strokeStyle = 'rgba(120,70,50,0.45)'; g.lineWidth = 5;
-    g.beginPath(); g.moveTo(-44, 32); g.quadraticCurveTo(0, 46, 44, 32); g.stroke();
+    g.strokeStyle = 'rgba(120,70,50,0.18)'; g.lineWidth = 4;
+    g.beginPath(); g.moveTo(-40, 34); g.quadraticCurveTo(0, 44, 40, 34); g.stroke();
     g.restore();
   };
-  occhio(278, 1); occhio(490, -1);
+  occhio(286, 1); occhio(482, -1);
 
   // --- Sopracciglia: sottili e ad arco ---
-  g.strokeStyle = C.capelloMedio; g.lineWidth = 15;
+  g.strokeStyle = C.capelloMedio; g.lineWidth = 17;
   const sopr = (x0, y0, xp, yp, x1, y1) => { g.beginPath(); g.moveTo(x0, y0); g.quadraticCurveTo(xp, yp, x1, y1); g.stroke(); };
-  if (urla) { sopr(220, 336, 278, 340, 340, 372); sopr(552, 336, 492, 340, 430, 372); }
-  else if (musetto) { sopr(220, 340, 278, 312, 340, 322); sopr(552, 340, 492, 312, 428, 322); }
-  else if (sfida) { sopr(220, 356, 278, 336, 340, 350); sopr(428, 336, 494, 296, 552, 330); }
-  else { sopr(220, 356, 278, 322, 340, 342); sopr(428, 342, 492, 322, 552, 356); }
+  if (urla) { sopr(226, 336, 284, 330, 346, 368); sopr(548, 336, 484, 330, 422, 368); }
+  else if (musetto) { sopr(226, 336, 284, 296, 346, 310); sopr(548, 336, 484, 296, 422, 310); }
+  else if (sfida) { sopr(226, 352, 284, 322, 346, 340); sopr(422, 326, 486, 282, 548, 322); }
+  else { sopr(226, 346, 284, 300, 346, 322); sopr(422, 322, 484, 300, 548, 346); }
 
   // --- Naso: ombra sul lato e narici ---
   g.strokeStyle = 'rgba(150,90,66,0.35)'; g.lineWidth = 8;
-  g.beginPath(); g.moveTo(398, 410); g.quadraticCurveTo(414, 470, 410, 512); g.stroke();
+  g.beginPath(); g.moveTo(400, 430); g.quadraticCurveTo(414, 480, 410, 516); g.stroke();
   g.fillStyle = 'rgba(247,214,186,0.5)'; g.beginPath(); g.ellipse(384, 498, 14, 20, 0, 0, Math.PI * 2); g.fill();
   g.strokeStyle = 'rgba(120,64,48,0.7)'; g.lineWidth = 7;
   g.beginPath(); g.moveTo(352, 526); g.quadraticCurveTo(364, 540, 378, 530); g.stroke();
@@ -159,12 +161,12 @@ export function dipingi({ espr = 'neutro', chiusi = false, ciuffo = true } = {})
   g.fillStyle = 'rgba(190,130,104,0.35)'; g.beginPath(); g.ellipse(bx, by + 96, 18, 10, 0, 0, Math.PI * 2); g.fill();
 
   // --- Capelli davanti: due tendine dalla riga di lato, che coprono le orecchie e scendono lisce ---
-  const riga = [338, 106];
+  const riga = [396, 100];
   const tendina = (pts, colore) => { percorso(g, pts); g.fillStyle = colore; g.fill(); };
   // sinistra (la riga è un po' spostata a sinistra, quindi questa è più piccola)
-  tendina([riga, [264, 128, 214, 210, 204, 316], [192, 430, 204, 520, 214, 600], [196, 640, 170, 760, 150, 864], [30, 864], [36, 440], [60, 200, 200, 30, 338, 18], [338, 80], riga], C.capello);
+  tendina([riga, [310, 104, 232, 170, 214, 290], [188, 400, 190, 520, 204, 600], [190, 650, 170, 760, 150, 864], [30, 864], [36, 440], [60, 200, 200, 30, 396, 18], [396, 70], riga], C.capello);
   // destra
-  tendina([riga, [440, 118, 520, 170, 552, 262], [578, 360, 574, 470, 570, 560], [572, 640, 596, 760, 620, 864], [740, 864], [722, 440], [708, 200, 600, 30, 400, 18], [346, 70], riga], C.capello);
+  tendina([riga, [470, 128, 548, 188, 574, 280], [600, 370, 600, 470, 594, 560], [596, 640, 600, 760, 620, 864], [740, 864], [722, 440], [708, 200, 600, 30, 410, 18], [400, 70], riga], C.capello);
   // riflessi sui capelli
   g.lineWidth = 7; g.strokeStyle = C.capelloChiaro;
   const ciocca = (x0, y0, x1, y1, x2, y2) => { g.beginPath(); g.moveTo(x0, y0); g.quadraticCurveTo(x1, y1, x2, y2); g.stroke(); };
@@ -175,10 +177,12 @@ export function dipingi({ espr = 'neutro', chiusi = false, ciuffo = true } = {})
 
   // --- Il ciuffetto: ciocca corta (a metà fronte) separata dai capelli ---
   if (ciuffo) {
-    percorso(g, [[360, 134], [346, 172, 364, 214, 394, 258], [402, 208, 396, 168, 388, 134], [378, 126, 364, 126, 360, 134]]);
-    g.fillStyle = C.capello; g.fill();
-    g.strokeStyle = C.capelloChiaro; g.lineWidth = 3;
-    g.beginPath(); g.moveTo(374, 150); g.quadraticCurveTo(372, 190, 386, 226); g.stroke();
+    percorso(g, [[312, 112], [290, 160, 276, 212, 266, 268], [290, 276, 306, 262, 316, 244], [342, 200, 358, 160, 364, 118], [350, 102, 326, 100, 312, 112]]);
+    g.fillStyle = '#44291C'; g.fill();
+    g.strokeStyle = C.capelloChiaro; g.lineWidth = 4;
+    g.beginPath(); g.moveTo(332, 140); g.quadraticCurveTo(310, 190, 288, 246); g.stroke();
+    g.strokeStyle = 'rgba(20,10,6,0.55)'; g.lineWidth = 3;
+    percorso(g, [[312, 112], [290, 160, 276, 212, 266, 268]]); g.stroke();
   }
   return c;
 }
@@ -190,12 +194,17 @@ export function dipingiMano(conCiocca = true) {
   const g = c.getContext('2d');
   g.lineCap = 'round'; g.lineJoin = 'round';
   // polso e avambraccio (arriva dal basso)
+  g.fillStyle = '#7A4A32'; g.fillRect(90, 196, 78, 124);
   g.fillStyle = C.pelleOmbra; g.fillRect(96, 200, 66, 120);
   g.fillStyle = C.pelle; g.fillRect(100, 200, 58, 120);
   // palmo
   percorso(g, [[84, 214], [78, 150, 96, 120, 128, 116], [166, 120, 184, 150, 176, 214], [150, 236, 112, 236, 84, 214]]);
+  g.strokeStyle = '#7A4A32'; g.lineWidth = 8; g.stroke();
   g.fillStyle = C.pelle; g.fill();
-  // dita: indice e pollice si chiudono a pinza in alto, le altre ripiegate
+  // dita: indice e pollice si chiudono a pinza in alto, le altre ripiegate (prima un contorno scuro)
+  g.strokeStyle = '#7A4A32'; g.lineWidth = 34;
+  g.beginPath(); g.moveTo(112, 130); g.quadraticCurveTo(100, 80, 126, 40); g.stroke();
+  g.beginPath(); g.moveTo(86, 190); g.quadraticCurveTo(64, 120, 112, 52); g.stroke();
   g.strokeStyle = C.pelle; g.lineWidth = 26;
   g.beginPath(); g.moveTo(112, 130); g.quadraticCurveTo(100, 80, 126, 40); g.stroke();                // indice
   g.beginPath(); g.moveTo(86, 190); g.quadraticCurveTo(64, 120, 112, 52); g.stroke();                 // pollice
