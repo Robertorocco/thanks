@@ -246,15 +246,18 @@ export function generaLivello(TRATTI, perc, velocitaIn) {
         }
       };
       switch (sz.id) {
-        case 'via-claudio': {
-          for (let q = a + 14; q < b - 4; q += 12) { metti('stadio', -1, q); metti('autoSpina', -1, q); }
-          for (let q = a + 10; q < b - 6; q += 8) if (Math.abs(q - (a + 300)) > 9 && r() > 0.12) metti('motorini', 1, q);
-          for (let q = a + 6; q < b + 6; q += 12) metti('recinzione', 1, q);
+        case 'via-claudio': case 'curva-stadio': case 'via-claudio2': {
+          // Lo stadio sta all'interno della curva: i pezzi si sovrappongono un po', senza buchi.
+          const inizioStadio = sz.id === 'via-claudio' ? a + 14 : a;
+          for (let q = inizioStadio; q < b + 2; q += 12) { metti('stadio', -1, q); metti('autoSpina', -1, q); }
+          const panini = sz.id === 'via-claudio2' ? a + 50 : null;
+          for (let q = a + (sz.id === 'via-claudio' ? 10 : 4); q < b - 2; q += 8) if ((panini === null || Math.abs(q - panini) > 9) && r() > 0.12) metti('motorini', 1, q);
+          for (let q = a + 6; q < b + 6; q += 11) metti('recinzione', 1, q);
           for (let q = a + 22; q < b; q += 26) metti('albero', 1, q, { x: 11.6, rosso: r() < 0.6, scala: 0.9 + r() * 0.4 });
           for (let q = a + 18; q < b; q += 30) metti('lampione', 1, q);
-          palazzi(1, a + 4, b + 20, 13.5, 13, 22);
-          metti('panini', 1, a + 300);
-          metti('targa', 1, a + 16);
+          palazzi(1, a + 4, b + (sz.id === 'via-claudio2' ? 20 : 0), 13.5, 13, 22);
+          if (panini !== null) metti('panini', 1, panini);
+          if (sz.id === 'via-claudio') metti('targa', 1, a + 16);
           break;
         }
         case 'piazzale-ing':
@@ -417,14 +420,15 @@ export function generaLivello(TRATTI, perc, velocitaIn) {
           riempi(a + sz.portaFratello + 36, b - 10, { stile: 'darmonInt', tipi: ['basso', 'alto', 'muro'], corridoi: 0.1, spazio: 1.2 });
           break;
         // --- Triennale: Via Claudio, il piazzale e l'ingresso di Ingegneria ---
-        case 'via-claudio': {
-          const p1 = a + 130, p2 = a + 330;
-          parcheggiatore(p1, -1);
-          parcheggiatore(p2, 1);
+        case 'via-claudio': case 'curva-stadio': case 'via-claudio2': {
+          // Un parcheggiatore nella curva e uno nell'ultimo rettilineo; attorno a loro la strada è libera.
           const opz = { stile: 'triennale', tipi: ['basso', 'alto', 'muro'], corridoi: 0.12, spazio: 1.05 };
-          riempi(a + 40, p1 - 22, opz);
-          riempi(p1 + 16, p2 - 22, opz);
-          riempi(p2 + 16, b - 4, opz);
+          const p = sz.id === 'curva-stadio' ? a + 130 : sz.id === 'via-claudio2' ? a + 60 : null;
+          const da = sz.id === 'via-claudio' ? a + 40 : a;
+          if (p === null) { riempi(da, b, opz); break; }
+          parcheggiatore(p, sz.id === 'curva-stadio' ? -1 : 1);
+          riempi(da, p - 22, opz);
+          riempi(p + 16, b - (sz.id === 'via-claudio2' ? 4 : 0), opz);
           break;
         }
         case 'piazzale-ing': {

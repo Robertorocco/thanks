@@ -150,7 +150,10 @@ export const MONDI = [
     luogo: 'Napoli',
     // Via Claudio, fuori dallo stadio Maradona, fino all'ingresso della Facoltà di Ingegneria.
     sezioni: [
-      { id: 'via-claudio',   lung: 470, amb: 'est' },
+      // Via Claudio gira attorno allo stadio: nella lunga curva a sinistra lo si vede davanti per tutto il tempo.
+      { id: 'via-claudio',   lung: 110, amb: 'est' },
+      { id: 'curva-stadio',  lung: 270, amb: 'est', curva: Math.PI * 0.6 },
+      { id: 'via-claudio2',  lung: 90,  amb: 'est' },
       { id: 'piazzale-ing',  lung: 110, amb: 'est' },
       { id: 'ingresso-ing',  lung: 20,  amb: 'est' },
     ],

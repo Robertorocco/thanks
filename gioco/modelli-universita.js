@@ -142,21 +142,21 @@ const texTenda = tela(128, 64, (g, W, H) => {
   }
 });
 
-// L'insegna dell'ingresso: legno dipinto d'azzurro a doghe, lettere in bronzo.
-const texInsegna = tela(1024, 112, (g, W, H) => {
-  g.fillStyle = '#5B8FB8'; g.fillRect(0, 0, W, H);
-  g.fillStyle = 'rgba(20,50,80,.22)';
-  for (let y = 10; y < H; y += 14) g.fillRect(0, y, W, 2);
+// L'insegna dell'ingresso: cartello blu con la scritta "Università degli Studi Federico II di Napoli"
+// in lettere di bronzo, su due righe, e la cornice scura.
+const texInsegna = tela(2048, 224, (g, W, H) => {
+  g.fillStyle = '#2D5F9E'; g.fillRect(0, 0, W, H);
+  g.fillStyle = 'rgba(10,30,60,.25)';
+  for (let y = 18; y < H; y += 26) g.fillRect(0, y, W, 3);
+  g.strokeStyle = '#1C2A3A'; g.lineWidth = 10; g.strokeRect(5, 5, W - 10, H - 10);
   g.textAlign = 'center'; g.textBaseline = 'middle';
-  g.font = '700 54px Georgia, "Times New Roman", serif';
-  const parti = ['UNIVERSITA\'', 'DEGLI', 'STUDI'];
-  const xs = [W * 0.27, W * 0.54, W * 0.79];
-  for (const [i, t] of parti.entries()) {
-    g.lineWidth = 6; g.strokeStyle = '#2C2414'; g.strokeText(t, xs[i], 44);
-    g.fillStyle = '#D9B45A'; g.fillText(t, xs[i], 44);
-  }
-  g.font = '700 20px Georgia, serif';
-  g.fillStyle = '#2C2414'; g.fillText('FACOLTA\'  DI  INGEGNERIA', W * 0.5, 92);
+  const riga = (t, y, px) => {
+    g.font = `700 ${px}px Georgia, "Times New Roman", serif`;
+    g.lineWidth = 10; g.strokeStyle = '#2A2112'; g.strokeText(t, W / 2, y, W - 120);
+    g.fillStyle = '#E2BE62'; g.fillText(t, W / 2, y, W - 120);
+  };
+  riga('UNIVERSITÀ  DEGLI  STUDI', 70, 92);
+  riga('FEDERICO  II  DI  NAPOLI', 166, 80);
 });
 
 // ---------------------------------------------------------------------------
@@ -446,7 +446,7 @@ export function creaIngressoFacolta() {
     // Pilastri e trave sotto l'insegna.
     for (const x of [-4.1, 4.1]) k.add(blocco(0.5, 5.0, 0.5, SCURO, x, 0, 0));
     k.add(blocco(14.6, 0.25, 1.2, SCURO, -0.9, 4.95, 0));
-    k.add(blocco(14.9, 0.18, 1.5, 0x9C4A34, -0.9, 6.45, 0));              // tettuccio rosso
+    k.add(blocco(14.9, 0.18, 1.5, 0x9C4A34, -0.9, 6.85, 0));              // tettuccio rosso
     // Cancelli scorrevoli aperti, accostati alla recinzione.
     for (const s of [-1, 1]) {
       k.add(blocco(0.12, 2.3, 0.2, VERDE, s * 4.5, 0, -0.3));
@@ -473,9 +473,9 @@ export function creaIngressoFacolta() {
   }));
   // Insegna (texture) su entrambi i lati.
   const matI = new THREE.MeshLambertMaterial({ map: texInsegna });
-  const insegna = new THREE.Mesh(CUBO, [materiale(0x5B8FB8), materiale(0x5B8FB8), materiale(0x5B8FB8), materiale(0x2F4F69), matI, matI]);
-  insegna.scale.set(14.6, 1.25, 0.35);
-  insegna.position.set(-0.9, 5.8, 0);
+  const insegna = new THREE.Mesh(CUBO, [materiale(0x2D5F9E), materiale(0x2D5F9E), materiale(0x2D5F9E), materiale(0x1F3F69), matI, matI]);
+  insegna.scale.set(14.6, 1.6, 0.35);
+  insegna.position.set(-0.9, 6.0, 0);
   insegna.castShadow = true;
   g.add(insegna);
   // Il civico "3" sulla casetta.
