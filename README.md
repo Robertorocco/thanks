@@ -67,3 +67,4 @@ v38: ultimo boss dopo Rennes, il TRIAGo ("Ingegnere VS TRIAGo"): il robot della 
 v39: i bonus non hanno più il numero sopra e ognuno toglie 3 s (non più 5), con "-3" verde sul timer. La classifica ignora le registrazioni con nome "0".
 v40: la classe del Darmon è la 3ª A (non B), sulla lavagna, sul cartello e sulla porta. Una scelta sbagliata (prima fila, saluto al maestro, risposta all'esame) fa comparire subito un "+10" rosso accanto al timer in alto a sinistra.
 v41: ogni morte aggiunge 2 s al timer e ogni colpo del gelato ne aggiunge 2 (non più 1), con un "+2" rosso accanto al timer. La barra della vita di tutti i boss è semplicemente rossa. Nella schermata finale le cadute mostrano i secondi aggiunti.
+v42: Chiara ha la frangia a riga in mezzo sopra le sopracciglia (prima le ciocche coprivano gli occhi e la testa sembrava rotta); sulla schiena delle maglie una C per Chiara e una W per il ragazzo biondo.
