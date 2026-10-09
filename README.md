@@ -69,3 +69,4 @@ v40: la classe del Darmon è la 3ª A (non B), sulla lavagna, sul cartello e sul
 v41: ogni morte aggiunge 2 s al timer e ogni colpo del gelato ne aggiunge 2 (non più 1), con un "+2" rosso accanto al timer. La barra della vita di tutti i boss è semplicemente rossa. Nella schermata finale le cadute mostrano i secondi aggiunti.
 v42: Chiara ha la frangia a riga in mezzo sopra le sopracciglia (prima le ciocche coprivano gli occhi e la testa sembrava rotta); sulla schiena delle maglie una C per Chiara e una W per il ragazzo biondo.
 v43: all'esame, copiando, resta solo "Promosso con 27!" (via "Grazie, Chiara"). A Rennes Roberto va più piano del 25% e tutte le persone sono più grandi del 25%, con la testa ancora più grande, per riconoscere i volti; il fumetto "Abuso!" è un po' più in alto.
+v44: il terzo amico dell'università ha gli occhiali e i capelli mossi corti (non più lunghi), tutti da un lato.

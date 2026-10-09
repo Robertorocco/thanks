@@ -173,12 +173,11 @@ export function creaGruppoAmici() {
     }
     gruppo.push(p);
   }
-  // 3 · Stessa altezza del secondo, biondo più chiaro, occhi chiari, un po' più lunghi e molto mossi, tutti da un lato.
+  // 3 · Stessa altezza del secondo, biondo più chiaro, occhi azzurri, occhiali, capelli mossi e corti, tutti da un lato.
   {
     const CAP = 0xE9D9A2;
-    const p = amico({ pelle: 0xF2D6C0, capelli: CAP, iride: 0x6FB0E0, donna: false, maglia: 0x6F8E6A, pantaloni: 0x3B3A36, acconciatura: 'lato' }, 1.05);
-    p.testa.add(blocco(0.46, 0.3, 0.12, CAP, 0, -0.14, 0.2));
-    riccioli(p, CAP, [[-0.2, 0.22, -0.1], [-0.27, 0.1, -0.02], [-0.29, -0.05, -0.04], [-0.27, -0.2, 0.02], [-0.06, 0.28, -0.1], [0.12, 0.27, -0.04], [-0.18, 0.2, 0.08], [-0.26, -0.3, 0.06]], 0.085);
+    const p = amico({ pelle: 0xF2D6C0, capelli: CAP, iride: 0x6FB0E0, donna: false, maglia: 0x6F8E6A, pantaloni: 0x3B3A36, occhiali: true, acconciatura: 'lato' }, 1.05);
+    riccioli(p, CAP, [[-0.2, 0.22, -0.1], [-0.27, 0.1, -0.02], [-0.29, -0.05, -0.04], [-0.06, 0.28, -0.1], [0.12, 0.27, -0.04], [-0.18, 0.2, 0.08]], 0.085);
     gruppo.push(p);
   }
   // 4 · Occhiali, capelli castano chiaro, occhi verdi, alto quanto il terzo.
