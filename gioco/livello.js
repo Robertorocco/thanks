@@ -277,7 +277,7 @@ export function generaLivello(TRATTI, perc, velocitaIn) {
           metti('ingresso', 0, a + 4);
           break;
         // Dentro la facoltà: i fabbricati sono i protagonisti, poche auto e niente motorini.
-        case 'viale-ing': case 'dopo-esame':
+        case 'viale-ing': case 'dopo-esame': case 'boss-ragazza':
           for (const lato of [-1, 1]) {
             palazzi(lato, a + 2, sz.id === 'viale-ing' ? b - 14 : b, 9, 12, 24);
             for (let q = a + 8; q < b - 4; q += 12) if (r() > 0.82) metti('autoFila', lato, q);

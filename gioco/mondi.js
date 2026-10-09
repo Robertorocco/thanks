@@ -193,6 +193,7 @@ export const MONDI = [
       { id: 'uscita-uni',    lung: 22,  amb: 'int' },
       { id: 'portone-uni',   lung: 10,  amb: 'int' },
       { id: 'dopo-esame',    lung: 340, amb: 'est' },
+      { id: 'boss-ragazza',  lung: 700, amb: 'est', boss: 'ragazza', checkpoint: 'La fidanzata' },   // ultimo boss: il tratto è lungo perché durante lo scontro si corre piano
     ],
     velocita: 15,
     cielo: 0xA9D0F2,
