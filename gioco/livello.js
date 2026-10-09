@@ -352,11 +352,20 @@ export function generaLivello(TRATTI, perc, velocitaIn) {
         case 'rennes-fine':
           fila(-1, a, b); fila(1, a, b);
           break;
+        case 'boss-triago':
+          // A destra il posto resta libero per il robot gigante (D_ROBOT = 130 in boss-triago.js).
+          fila(-1, a, b); fila(1, a, a + 92); fila(1, a + 170, b);
+          break;
         default: break;
       }
-      // Lampioni su entrambi i lati e qualche albero lungo il marciapiede.
-      for (let q = a + 6; q < b; q += 24) for (const lato of [-1, 1]) ENTITA.push({ d: q, genere: 'lampione', lato, mondo: t.indice });
-      for (let q = a + 14; q < b; q += 34) ENTITA.push({ d: q, genere: 'albero', lato: Math.round(q / 34) % 2 ? -1 : 1, scala: 0.8 + r() * 0.4, mondo: t.indice });
+      // Lampioni su entrambi i lati e qualche albero lungo il marciapiede (non dove sta il TRIAGo).
+      const postoRobot = (q, lato) => sz.id === 'boss-triago' && lato > 0 && q > a + 90 && q < a + 172;
+      for (let q = a + 6; q < b; q += 24) for (const lato of [-1, 1]) if (!postoRobot(q, lato)) ENTITA.push({ d: q, genere: 'lampione', lato, mondo: t.indice });
+      for (let q = a + 14; q < b; q += 34) {
+        const lato = Math.round(q / 34) % 2 ? -1 : 1;
+        const scala = 0.8 + r() * 0.4;
+        if (!postoRobot(q, lato)) ENTITA.push({ d: q, genere: 'albero', lato, scala, mondo: t.indice });
+      }
     }
 
     // Le sette persone da incontrare (modelli-rennes.js): camminano piano verso di te, in una corsia stabilita.
@@ -476,7 +485,7 @@ export function generaLivello(TRATTI, perc, velocitaIn) {
           riempi(a + 58, b - 6, opzRennes);
           compagni(a + 6, b - 10, 2, 'rennes');
           break;
-        case 'rennes-fine':
+        case 'rennes-fine': case 'boss-triago':
           break;
         // --- Casa (neonato): niente salto né scivolata, gli ostacoli si schivano e basta ---
         case 'culla': break;

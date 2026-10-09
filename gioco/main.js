@@ -1,7 +1,7 @@
 import * as THREE from './lib/three.module.min.js';
 import {
   MONDI, TRAGUARDO, BONUS_CAFFE, MALUS_BOSS_RAGAZZA, SPINTA, CRESCITA, MALUS_PRIMA_FILA, TEMPO_SCELTA,
-  MODALITA_SVILUPPO, RESPAWN_INDIETRO, RESPAWN_INVULNERABILE, FISICA,
+  MODALITA_SVILUPPO, RESPAWN_DOVE_MORI, RESPAWN_INDIETRO, RESPAWN_INVULNERABILE, FISICA,
 } from './mondi.js';
 import { inviaTempo, leggiClassifica, formattaTempo } from './classifica.js';
 import {
@@ -27,6 +27,7 @@ import { creaBossGelato, MALUS_COLPO, MAX_GRASSO } from './boss-gelato.js';
 import { creaPingPong } from './boss-pingpong.js';
 import { creaScenaAmici } from './scena-amici.js';
 import { creaBossRagazza, N_ATTACCHI } from './boss-ragazza.js';
+import { creaBossTriago } from './boss-triago.js';
 
 // L'etichetta mostra la versione del codice che sta davvero girando (dal ?v= con cui è caricato).
 {
@@ -666,7 +667,7 @@ function nuovaPartita() {
   const m0 = MODALITA_SVILUPPO ? mondoDiPartenza() : 0;
   try { localStorage.setItem('gioco-laurea:dev-mondo', String(m0)); } catch {}
   G.pos = TRATTI[m0].inizio; G.tempo = 0; G.malus = 0; G.malusBoss = 0; G.caffe = 0; G.raccolti = new Set(); G.mondo = m0; G.cadute = 0;
-  pingpong.reset(); amici.reset(); ragazzaBoss.reset();
+  pingpong.reset(); amici.reset(); ragazzaBoss.reset(); triago.reset();
   G.fatti = new Set(); G.comandiVisti = new Set(); G.esitoAula = null; G.invul = 0; G.posCaduta = null; G.bassa = 0; G.exprTemp = 0;
   impostaEta(TRATTI[m0].eta);
   salvaCheckpoint(CHECKPOINT.findIndex(c => c.mondo === m0 && c.nuovoMondo));
@@ -702,7 +703,7 @@ function caduta() {
 }
 
 function ripartiDalCheckpoint() {
-  if (MODALITA_SVILUPPO) {
+  if (RESPAWN_DOVE_MORI) {
     // Si riparte poco prima del punto della caduta, tenendo caffè e tempo; i checkpoint restano
     // calcolati ma non si usano.
     G.pos = Math.max(0, (G.posCaduta ?? G.pos) - RESPAWN_INDIETRO);
@@ -1016,7 +1017,7 @@ function aggiornaComandi(dt) {
   if (G.stato === 'gioco' && !G.comandiVisti.has(chiave)) { G.comandiVisti.add(chiave); mostraComandi(); }
   if (durataComandi <= 0) return;
   if (G.stato === 'gioco') durataComandi -= dt;
-  if (G.stato === 'aula' || G.stato === 'crescita' || G.stato === 'fine' || G.stato === 'pingpong' || G.stato === 'amici' || G.stato === 'bacio') durataComandi = 0;
+  if (G.stato === 'aula' || G.stato === 'crescita' || G.stato === 'fine' || G.stato === 'pingpong' || G.stato === 'amici' || G.stato === 'bacio' || G.stato === 'triago') durataComandi = 0;
   barraComandi.style.transform = `scaleX(${Math.max(0, durataComandi / DURATA_COMANDI)})`;
   if (durataComandi <= 0) { elComandi.hidden = true; elComandi.innerHTML = ''; }
 }
@@ -1742,6 +1743,29 @@ function aggiornaPannelloRagazza() {
   }
 }
 
+// ---------------------------------------------------------------------------
+// L'ultimo ultimo boss: il TRIAGo, robot gigante che si pianta con i freni di emergenza (vedi boss-triago.js)
+// ---------------------------------------------------------------------------
+
+const RENNES = TRATTI.findIndex(t => t.stile === 'rennes');
+const SEZ_TRIAGO = TRATTI[RENNES].sezioni.find(s => s.boss === 'triago');
+const triago = creaBossTriago(scena, {
+  sez: SEZ_TRIAGO, daLocale,
+  psi: d => { perc.punto(d, tmpBoss); return tmpBoss.psi; },
+  vs: () => {
+    nomiVs('Ingegnere', 'TRIAGo');
+    vsT = 2.6;
+    elVs.hidden = true; void elVs.offsetWidth; elVs.hidden = false;
+  },
+});
+triago.reset();
+
+function avviaTriago() {
+  G.stato = 'triago';
+  G.corsia = 1; G.y = 0; G.vy = 0; G.scivola = 0;
+  triago.avvia();
+}
+
 function avviaBacio() {
   G.stato = 'bacio';
   G.corsia = 1; G.y = 0; G.vy = 0; G.scivola = 0;
@@ -1816,6 +1840,7 @@ function animaRoberto(dt) {
   }
   if (G.stato === 'amici') { amici.posaRoberto(R, G); return; }
   if (G.stato === 'bacio') { ragazzaBoss.posaRoberto(R, G); return; }
+  if (G.stato === 'triago') { triago.posaRoberto(R, G); return; }
 
   // Se lo stato precedente ha lasciato qualcosa di storto (intro saltata, caduta, ritorno dall'aula),
   // si riparte da una posa pulita.
@@ -1855,7 +1880,7 @@ function animaRoberto(dt) {
   }
 
   // Col grasso del boss le gambe vanno più piano, come la corsa.
-  if (inCorsa) G.passo += dt * velocitaIn(G.pos) * 0.75 * (1 - 0.65 * avvicinamentoAula()) * boss.fattore() * (1 - amici.rallenta(G.pos)) * ragazzaBoss.fattore();
+  if (inCorsa) G.passo += dt * velocitaIn(G.pos) * 0.75 * (1 - 0.65 * avvicinamentoAula()) * boss.fattore() * (1 - amici.rallenta(G.pos)) * ragazzaBoss.fattore() * triago.fattore();
   R.testa.rotation.set(0, 0, 0);
   posaCorsa(R, G.passo, inAria ? 0.35 : 1);
   if (G.parlaAmico || amico.radice.visible) R.testa.rotation.y = -amicoStato.lato * (amico.radice.visible && !G.parlaAmico ? 0.2 : 0.5);
@@ -2031,7 +2056,7 @@ function ciclo(ora) {
     if (G.timer <= 0) G.stato = 'gioco';
   } else if (G.stato === 'gioco' || G.stato === 'aulaIn') {
     if (G.stato === 'gioco') G.tempo += dt;
-    G.pos += velocitaIn(G.pos) * (1 - 0.65 * avvicinamentoAula()) * boss.fattore() * (1 - rallentaRagazza()) * (1 - amici.rallenta(G.pos)) * ragazzaBoss.fattore() * dt;
+    G.pos += velocitaIn(G.pos) * (1 - 0.65 * avvicinamentoAula()) * boss.fattore() * (1 - rallentaRagazza()) * (1 - amici.rallenta(G.pos)) * ragazzaBoss.fattore() * triago.fattore() * dt;
     // Durante lo scontro finale la strada si ripete: se si arriva in fondo al tratto si torna indietro (è tutta uguale).
     if (ragazzaBoss.attivo && G.pos > SEZ_RAGAZZA_BOSS.fine - 90) G.pos -= 380;
 
@@ -2055,6 +2080,7 @@ function ciclo(ora) {
       else if (EVENTO[G.mondo] && !G.fatti.has(G.mondo) && G.pos >= EVENTO[G.mondo].sez.inizio + 3) avviaAula();
       else if (!pingpong.fatto && G.pos >= pingpong.inizio && G.pos < pingpong.posTavolo + 1) avviaPingPong();
       else if (ragazzaBoss.fase === 'finale') avviaBacio();
+      else if (triago.pronto) avviaTriago();
       else if (G.mondo === MAGISTRALE && !amici.fatto && G.pos >= amici.inizioAnello && G.pos < amici.inizioAnello + 8) avviaAmici();
       else controllaUrti();
     }
@@ -2069,6 +2095,10 @@ function ciclo(ora) {
       G.stato = 'gioco'; G.statoPosa = null; G.invul = 0.5;
       elSipario.classList.remove('nero');
     }
+  } else if (G.stato === 'triago') {
+    // Il TRIAGo: Roberto è fermo in mezzo alla strada (il tempo non scorre) finché i freni lo bloccano.
+    G.x += (CORSIE[1] - G.x) * Math.min(1, dt * 6);
+    if (triago.finita) { triago.concludi(); G.stato = 'gioco'; G.statoPosa = null; G.invul = 0.5; }
   } else if (G.stato === 'amici') {
     // Il gioco è fermo (il tempo non scorre): Roberto si mette in mezzo alla corsia centrale.
     G.x += (CORSIE[1] - G.x) * Math.min(1, dt * 6);
@@ -2098,6 +2128,7 @@ function ciclo(ora) {
     aggiornaAmici(dt);
     aggiornaBoss(dt);
     ragazzaBoss.aggiorna(dt, G, G.stato === 'gioco');
+    triago.aggiorna(dt, G);
     aggiornaPannelloPingPong();
     aggiornaPannelloRagazza();
     if (G.stato !== 'pingpong') pingpong.aggiorna(dt, G);
@@ -2108,6 +2139,7 @@ function ciclo(ora) {
     pingpong.camera(camera);
     amici.camera(camera);
     ragazzaBoss.camera(camera, G);
+    triago.camera(camera, G);
     aggiornaScintille(dt);
     // Suda nella salita del liceo e quando il gelato lo fa ingrassare (più è grasso, più suda).
     const salita = G.mondo === LICEO && G.pos < SEZ_INGRESSO.inizio + 120 && (G.stato === 'gioco' || G.stato === 'aulaIn');
@@ -2140,7 +2172,7 @@ requestAnimationFrame(ciclo);
 
 // Aiuto per i test automatici.
 window.__gioco = {
-  G, R, ENTITA, TRATTI, ragazza, SEZIONI, CHECKPOINT, LUNGHEZZA, perc, aula, comando, velocitaIn, FISICA, impostaEta, avviaCrescita, camera, scena, boss, pingpong, amici, ragazzaBoss,
+  G, R, ENTITA, TRATTI, ragazza, SEZIONI, CHECKPOINT, LUNGHEZZA, perc, aula, comando, velocitaIn, FISICA, impostaEta, avviaCrescita, camera, scena, boss, pingpong, amici, ragazzaBoss, triago,
   mostraAula(esito, secondi = 0, mondo = LICEO) {
     G.mondo = mondo; configuraScelta(EVENTO[mondo]);
     G.stato = 'aula'; G.esitoAula = esito; G.congela = true; G.immune = true; elSipario.classList.remove('nero');
@@ -2152,6 +2184,7 @@ window.__gioco = {
     if (pos > pingpong.posTavolo) pingpong.chiudi(); else pingpong.reset();
     if (pos > amici.centro) amici.chiudi(); else amici.reset();
     if (pos > SEZ_RAGAZZA_BOSS.fine - 100) ragazzaBoss.chiudi(); else ragazzaBoss.reset();
+    if (pos > SEZ_TRIAGO.fine - 60) triago.chiudi(); else triago.reset();
     G.pos = pos; G.mondo = mondoDi(pos); G.fatti = new Set(Object.entries(EVENTO).filter(([, ev]) => pos > ev.porta).map(([m]) => Number(m))); impostaEta(TRATTI[G.mondo].eta);
     G.cp = 0; while (G.cp + 1 < CHECKPOINT.length && pos >= CHECKPOINT[G.cp + 1].pos) G.cp++;
     G.checkpoint = { pos: CHECKPOINT[G.cp].pos, mondo: CHECKPOINT[G.cp].mondo, caffe: 0, raccolti: new Set() };

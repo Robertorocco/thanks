@@ -220,6 +220,8 @@ export const MONDI = [
       { id: 'rennes-piazza',   lung: 135, amb: 'est' },
       { id: 'rennes-fitness',  lung: 85,  amb: 'est' },
       { id: 'rennes-fine',     lung: 25,  amb: 'est' },
+      // Ultimo boss: il TRIAGo, un robot gigante che a metà dell'attacco si pianta con i freni di emergenza.
+      { id: 'boss-triago',     lung: 200, amb: 'est', boss: 'triago', checkpoint: 'Il TRIAGo' },
     ],
     velocita: 17.5,
     cielo: 0x8E99A6,
@@ -249,9 +251,11 @@ export const MALUS_BOSS_RAGAZZA = 3;
 export const MALUS_PRIMA_FILA = 10;
 export const TEMPO_SCELTA = 9;
 
-// Modalità sviluppo: se si muore si riparte da dove si è morti (un po' prima dell'ostacolo),
-// invece che dall'ultimo checkpoint. I checkpoint restano calcolati ma non vengono usati.
-// Metti false per usare i checkpoint, come nel gioco finale.
-export const MODALITA_SVILUPPO = true;
+// Versione ufficiale: se si muore si riparte da dove si è morti (un po' prima dell'ostacolo), invece che
+// dall'ultimo checkpoint. I checkpoint restano calcolati ma non vengono usati.
+export const RESPAWN_DOVE_MORI = true;
+// Strumenti di sviluppo: scelta del mondo di partenza nel menù, etichetta DEV, crescita saltabile.
+// Spenti nella versione ufficiale (l'anteprima di prova li riaccende).
+export const MODALITA_SVILUPPO = false;
 export const RESPAWN_INDIETRO = 16;     // metri prima del punto della caduta
 export const RESPAWN_INVULNERABILE = 0.35;// secondi senza urti dopo la ripartenza
