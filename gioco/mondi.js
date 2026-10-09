@@ -243,7 +243,7 @@ export const SPINTA = 1.25;
 export const CRESCITA = 0.25;
 
 // Ogni bonus raccolto (caffè, nutella, joystick...) toglie questo tempo dal timer (secondi).
-export const BONUS_CAFFE = 5;
+export const BONUS_CAFFE = 3;
 // Ogni colpo preso nel boss della fidanzata aggiunge questo tempo al timer (secondi).
 export const MALUS_BOSS_RAGAZZA = 3;
 

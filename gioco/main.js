@@ -92,15 +92,8 @@ function velocitaIn(pos) {
 
 const ENTITA = generaLivello(TRATTI, perc, velocitaIn);
 for (const t of TRATTI) if (!t.sezioni) caricaFotoLuogo(t.stile);
-// I bonus sono numerati nell'ordine del percorso: C1, C2... in casa, D1... all'Istituto, 1, 2... dopo.
-const contatori = { C: 0, D: 0, '': 0 };
-for (const e of ENTITA) {
-  if (e.genere !== 'caffe') continue;
-  const st = MONDI[e.mondo].stile;
-  const pre = st === 'casa' ? 'C' : st === 'darmon' ? 'D' : '';
-  e.num = pre + (++contatori[pre]);
-}
-const CAFFE_TOTALI = contatori.C + contatori.D + contatori[''];
+let CAFFE_TOTALI = 0;
+for (const e of ENTITA) if (e.genere === 'caffe') CAFFE_TOTALI++;
 const mezzaLunghezza = e => (e.profondita ?? 0) / 2;
 
 // Punti di ripartenza: l'inizio di ogni mondo e le tappe dentro il mondo 1.
@@ -478,23 +471,6 @@ function aggiornaPioggia(dt) {
 
 const INCLINATI = new Set(['ostacolo', 'semaforo', 'parete', 'soffitto', 'cartello', 'arredo']);
 
-const texNumeri = new Map();
-function texNumero(n) {
-  if (!texNumeri.has(n)) {
-    const c = document.createElement('canvas');
-    c.width = c.height = 96;
-    const g = c.getContext('2d');
-    g.fillStyle = '#1C1D2B'; g.beginPath(); g.arc(48, 48, 44, 0, Math.PI * 2); g.fill();
-    g.fillStyle = '#FFD23F'; g.beginPath(); g.arc(48, 48, 38, 0, Math.PI * 2); g.fill();
-    g.fillStyle = '#1C1D2B'; g.font = '800 44px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.fillText(String(n), 48, 52, 64);
-    const t = new THREE.CanvasTexture(c);
-    t.colorSpace = THREE.SRGBColorSpace;
-    texNumeri.set(n, t);
-  }
-  return texNumeri.get(n);
-}
-
 function creaMesh(e) {
   const t = TRATTI[e.mondo ?? 0];
   let m;
@@ -511,9 +487,6 @@ function creaMesh(e) {
     m = creaBonus(t.stile);
     e.altBonus = t.stile === 'casa' ? 0.45 : t.stile === 'darmon' ? 0.7 : 0.85;
     m.position.set(CORSIE[e.corsia], e.altBonus, 0);
-    const n = new THREE.Sprite(new THREE.SpriteMaterial({ map: texNumero(e.num), transparent: true, depthWrite: false }));
-    n.scale.set(0.7, 0.7, 1); n.position.y = 0.75;
-    m.add(n);
   }
   else if (e.genere === 'edificio') m = creaEdificio(e, t);
   else if (e.genere === 'monumento') m = creaMonumento(e, t);
