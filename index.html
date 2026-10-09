@@ -3,124 +3,66 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Grazie — Roberto Rocco</title>
+<title>Roberto Rocco · Laurea</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,800&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="stile.css">
 <style>
-  :root {
-    --ground: #F2F3F6;
-    --paper: #FFFFFF;
-    --ink: #1C1D2B;
-    --muted: #5B5E72;
-    --line: #DADCE5;
-    --sea: #1F5F8B;
-    --tuff: #C9962E;
-    --tuff-soft: #F4E9CF;
-    --display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
-    --body: "Newsreader", "Iowan Old Style", Georgia, "Times New Roman", serif;
-    --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) {
-      color-scheme: dark;
-      --ground: #12141C;
-      --paper: #1A1D28;
-      --ink: #ECEDF3;
-      --muted: #A3A7BA;
-      --line: #2C3040;
-      --sea: #7DB6E0;
-      --tuff: #E6BA5C;
-      --tuff-soft: #2E2716;
-    }
-  }
-  :root[data-theme="dark"] {
-    color-scheme: dark;
-    --ground: #12141C;
-    --paper: #1A1D28;
-    --ink: #ECEDF3;
-    --muted: #A3A7BA;
-    --line: #2C3040;
-    --sea: #7DB6E0;
-    --tuff: #E6BA5C;
-    --tuff-soft: #2E2716;
-  }
-
-  body {
-    background: var(--ground);
-    color: var(--ink);
-    font-family: var(--body);
-    font-size: 18px;
-    line-height: 1.6;
-    padding-inline: 20px;
-    padding-block: 40px 56px;
-  }
-  .wrap { max-width: 640px; margin: 0 auto; display: grid; gap: 40px; }
-
-  header { display: grid; gap: 14px; }
-  .eyebrow {
-    font-family: var(--mono);
-    font-size: 12px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--muted);
-  }
-  h1 {
-    font-family: var(--display);
-    font-weight: 800;
-    font-size: clamp(64px, 18vw, 120px);
-    line-height: 0.9;
-    letter-spacing: -0.03em;
-    margin: 0;
-    color: var(--ink);
-  }
-  h1 .dot { color: var(--tuff); }
-  .lede { margin: 0; font-size: 20px; max-width: 34em; text-wrap: pretty; }
-  .lede em { color: var(--sea); }
-
-  .status { display: grid; gap: 16px; }
-  .wip {
-    display: inline-flex; align-items: center; gap: 10px;
-    justify-self: start;
-    font-family: var(--mono); font-size: 13px; letter-spacing: 0.04em;
-    color: var(--ink); background: var(--tuff-soft);
-    border: 1px solid var(--tuff);
-    border-radius: 999px; padding: 8px 16px; margin: 0;
-  }
-  .wip::before {
-    content: ""; width: 8px; height: 8px; border-radius: 50%;
-    background: var(--tuff);
-    animation: pulse 1.6s ease-in-out infinite;
-  }
-  @keyframes pulse { 50% { opacity: .25; } }
-
-  footer {
-    border-top: 1px solid var(--line);
-    padding-top: 20px;
+  .scelte { display: grid; gap: 14px; }
+  .scelta {
     display: grid; gap: 4px;
-    font-size: 15px; color: var(--muted);
+    padding: 22px 24px;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    color: var(--ink); text-decoration: none;
+    transition: border-color .15s, transform .15s;
   }
-  footer .thesis { font-style: italic; color: var(--ink); }
-  footer .mono { font-family: var(--mono); font-size: 12px; }
-
-  @media (prefers-reduced-motion: reduce) {
-    .wip::before { animation: none; }
+  .scelta:hover, .scelta:focus-visible { border-color: var(--tuff); }
+  .scelta:active { transform: scale(.98); }
+  .scelta strong {
+    font-family: var(--display); font-weight: 800;
+    font-size: 34px; line-height: 1.05; letter-spacing: -0.02em;
+  }
+  .scelta strong::after { content: " →"; color: var(--tuff); }
+  .scelta span { color: var(--muted); font-size: 17px; }
+  .scelta.primaria { background: var(--tuff-soft); border-color: var(--tuff); }
+  .versione {
+    justify-self: start;
+    font-family: var(--mono); font-size: 11px; color: var(--muted);
+  }
+  .secondario {
+    justify-self: start;
+    font-family: var(--mono); font-size: 13px; color: var(--sea);
   }
 </style>
+<script>
+// Se questa pagina arriva dalla cache del browser ed è più vecchia dell'ultima versione, si ricarica da sola.
+(()=>{const V=38;try{fetch('versione.json?t='+Date.now(),{cache:'no-store'}).then(r=>r.json()).then(d=>{if(d.v!==V){const k='ricarica-'+location.pathname+d.v;if(!sessionStorage.getItem(k)){sessionStorage.setItem(k,1);const u=new URL(location.href);u.searchParams.set('v',d.v);location.replace(u)}}}).catch(()=>{})}catch(e){}})();
+</script>
 </head>
 <body>
 
 <div class="wrap">
   <header>
-    <div class="eyebrow">Tesi di laurea magistrale · Ringraziamenti</div>
-    <h1>Grazie<span class="dot">.</span></h1>
-    <p class="lede">Una tesi ha un solo nome in copertina, ma non è mai il lavoro di una persona sola. Questa pagina è per chi mi ha accompagnato fin qui. Se hai inquadrato il codice, <em>probabilmente sei uno di loro.</em></p>
+    <div class="eyebrow">Tesi di laurea magistrale · 28 settembre 2026</div>
+    <h1>Ciao<span class="dot">.</span></h1>
+    <p class="lede">Hai inquadrato il codice della mia tesi. Puoi correre attraverso la mia vita, dal liceo alla laurea, oppure leggere i ringraziamenti.</p>
   </header>
 
-  <div class="status">
-    <p class="wip">Lavori in corso</p>
-    <p class="lede">I ringraziamenti sono in fase di scrittura. Torna presto a trovarmi.</p>
-  </div>
+  <nav class="scelte" aria-label="Menù">
+    <a class="scelta primaria" href="gioco/?v=38">
+      <strong>Gioca</strong>
+      <span>Cinque mondi, un cronometro, una classifica.</span>
+    </a>
+    <a class="scelta" href="ringraziamenti/">
+      <strong>Ringraziamenti</strong>
+      <span>Per chi mi ha accompagnato fin qui.</span>
+    </a>
+    <a class="secondario" href="gioco/?v=38#classifica">Guarda la classifica</a>
+    <span class="versione">v38</span>
+  </nav>
 
   <footer>
     <span>Roberto Rocco</span>

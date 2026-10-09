@@ -1,0 +1,2194 @@
+import * as THREE from './lib/three.module.min.js';
+import {
+  MONDI, TRAGUARDO, BONUS_CAFFE, MALUS_BOSS_RAGAZZA, SPINTA, CRESCITA, MALUS_PRIMA_FILA, TEMPO_SCELTA,
+  MODALITA_SVILUPPO, RESPAWN_DOVE_MORI, RESPAWN_INDIETRO, RESPAWN_INVULNERABILE, FISICA,
+} from './mondi.js';
+import { inviaTempo, leggiClassifica, formattaTempo } from './classifica.js';
+import {
+  creaRoberto, posaCorsa, posaFerma, posaPrimiPassi, posaPerTerra, azzeraPosa, creaOstacolo, creaArco,
+  creaEdificio, creaMonumento, creaLampione, creaAlbero, caricaFotoLuogo,
+} from './modelli.js';
+import {
+  creaSemaforo, creaMetro, creaSegnaleSalita, creaAmico, creaMotorino, creaScuola, creaParete, creaSoffitto, creaCartelloAppeso, creaPortaAula,
+  creaPortone, creaMuroLungo, creaRagazza,
+} from './modelli-liceo.js';
+import {
+  creaPareteStile, creaSoffittoStile, creaArredo, creaPortaCasa, creaLanciatore, creaBonus, creaScuolaDarmon, ICONA_BONUS,
+  creaCartelloCamaldoli, creaFratello, creaCreeper,
+} from './modelli-infanzia.js';
+import { costruisciPercorso } from './percorso.js';
+import { CORSIE, PENDENZA_CROCIERA, generaLivello, distanzaPersona, distanzaLancio } from './livello.js';
+import { creaAula, fumetto } from './aula.js';
+import { creaAulaDarmon } from './aula-darmon.js';
+import { creaAulaEsame, creaFacolta } from './aula-esame.js';
+import { creaScenaUni, creaParcheggiatore, creaPareteUni, targaAula } from './modelli-universita.js';
+import { creaScenaRennes, giaccone } from './modelli-rennes.js';
+import { creaBossGelato, MALUS_COLPO, MAX_GRASSO } from './boss-gelato.js';
+import { creaPingPong } from './boss-pingpong.js';
+import { creaScenaAmici } from './scena-amici.js';
+import { creaBossRagazza, N_ATTACCHI } from './boss-ragazza.js';
+import { creaBossTriago } from './boss-triago.js';
+
+// L'etichetta mostra la versione del codice che sta davvero girando (dal ?v= con cui è caricato).
+{
+  const v = new URL(import.meta.url).searchParams.get('v');
+  const el = document.querySelector('.versione');
+  if (el && v) el.textContent = `v${v}`;
+}
+
+// ---------------------------------------------------------------------------
+// Percorso: mondi, sezioni e tracciato
+// ---------------------------------------------------------------------------
+
+const VISTA = 200;          // metri generati davanti al giocatore
+const DIETRO = 30;          // metri tenuti dietro prima di rimuovere un oggetto (serve anche all'intro)
+const TRANSIZIONE = 40;     // metri di sfumatura dei colori tra due mondi
+
+let cursore = 0;
+const SEZIONI = [];         // lista piatta di tutte le sezioni, con inizio/fine assoluti
+const TRATTI = MONDI.map((m, indice) => {
+  const t = { ...m, indice, inizio: cursore, pavInt: m.interno?.corsie ?? m.corsie, intCielo: m.interno?.cielo ?? m.cielo, terraInt: m.interno?.terra ?? 0xC2BCB0 };
+  if (m.sezioni) {
+    t.sezioni = m.sezioni.map(s => {
+      const sz = { ...s, inizio: cursore };
+      cursore += s.lung;
+      sz.fine = cursore;
+      SEZIONI.push(sz);
+      return sz;
+    });
+    t.lunghezza = cursore - t.inizio;
+  } else {
+    cursore += m.lunghezza;
+    SEZIONI.push({ id: `mondo${indice}`, inizio: t.inizio, fine: cursore, lung: m.lunghezza, amb: 'est' });
+  }
+  t.fine = cursore;
+  return t;
+});
+const LUNGHEZZA = cursore;
+// Tappe: i mondi consecutivi dello stesso `gruppo` (triennale e magistrale) contano come una sola tappa,
+// con un solo cartello all'ingresso.
+const stessoGruppo = i => Boolean(TRATTI[i].gruppo) && TRATTI[i - 1]?.gruppo === TRATTI[i].gruppo;
+let nTappe = 0;
+for (const [i, t] of TRATTI.entries()) { if (!stessoGruppo(i)) nTappe++; t.tappa = nTappe - 1; }
+const N_TAPPE = nTappe;
+function anniTappa(t) {
+  if (!t.gruppo) return t.anni;
+  const membri = TRATTI.filter(x => x.gruppo === t.gruppo);
+  return `${membri[0].anni.split(' – ')[0]} – ${membri[membri.length - 1].anni.split(' – ').pop()}`;
+}
+const perc = costruisciPercorso(SEZIONI, 260);
+
+function mondoDi(pos) {
+  for (let i = TRATTI.length - 1; i >= 0; i--) if (pos >= TRATTI[i].inizio) return i;
+  return 0;
+}
+
+// Velocità in un punto del percorso: cresce dentro ogni mondo e riparte al successivo.
+function velocitaIn(pos) {
+  const t = TRATTI[mondoDi(Math.min(pos, LUNGHEZZA - 0.01))];
+  const k = THREE.MathUtils.clamp((pos - t.inizio) / t.lunghezza, 0, 1);
+  return t.velocita * SPINTA * (1 + CRESCITA * k);
+}
+
+const ENTITA = generaLivello(TRATTI, perc, velocitaIn);
+for (const t of TRATTI) if (!t.sezioni) caricaFotoLuogo(t.stile);
+// I bonus sono numerati nell'ordine del percorso: C1, C2... in casa, D1... all'Istituto, 1, 2... dopo.
+const contatori = { C: 0, D: 0, '': 0 };
+for (const e of ENTITA) {
+  if (e.genere !== 'caffe') continue;
+  const st = MONDI[e.mondo].stile;
+  const pre = st === 'casa' ? 'C' : st === 'darmon' ? 'D' : '';
+  e.num = pre + (++contatori[pre]);
+}
+const CAFFE_TOTALI = contatori.C + contatori.D + contatori[''];
+const mezzaLunghezza = e => (e.profondita ?? 0) / 2;
+
+// Punti di ripartenza: l'inizio di ogni mondo e le tappe dentro il mondo 1.
+const CHECKPOINT = [];
+for (const t of TRATTI) {
+  CHECKPOINT.push({ pos: t.inizio, mondo: t.indice, nome: t.nome, nuovoMondo: true });
+  for (const s of t.sezioni ?? []) if (s.checkpoint) CHECKPOINT.push({ pos: s.inizio, mondo: t.indice, nome: s.checkpoint, sotto: s.sottotitolo ?? '' });
+}
+CHECKPOINT.sort((a, b) => a.pos - b.pos);
+
+const LICEO = TRATTI.findIndex(t => t.stile === 'liceo');
+const DARMON = TRATTI.findIndex(t => t.stile === 'darmon');
+const MAGISTRALE = TRATTI.findIndex(t => t.stile === 'magistrale');
+const SEZ_ESAME = TRATTI[MAGISTRALE].sezioni.find(s => s.evento === 'esame');
+const SEZ_AULA = TRATTI[LICEO].sezioni.find(s => s.evento === 'aula');
+const SEZ_AULA_D = TRATTI[DARMON].sezioni.find(s => s.evento === 'darmon');
+const SEZ_INGRESSO = TRATTI[LICEO].sezioni.find(s => s.id === 'atrio');
+const SEZ_INGRESSO_D = TRATTI[DARMON].sezioni.find(s => s.id === 'atrio-d');
+const AVVICINAMENTO_AULA = 30;              // metri di rallentamento prima di entrare
+const ORA_PARTENZA = 8 * 60 + 5, ORA_CAMPANELLA = 8 * 60 + 30;
+
+// ---------------------------------------------------------------------------
+// Scena
+// ---------------------------------------------------------------------------
+
+const contenitore = document.getElementById('scena');
+const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+contenitore.appendChild(renderer.domElement);
+
+const NEBBIA_EST = [70, VISTA - 5], NEBBIA_INT = [8, 46];
+const scena = new THREE.Scene();
+scena.background = new THREE.Color(TRATTI[0].intCielo);
+scena.fog = new THREE.Fog(TRATTI[0].intCielo, NEBBIA_INT[0], NEBBIA_INT[1]);
+
+const camera = new THREE.PerspectiveCamera(65, 1, 0.3, 900);
+let fovBase = 72;
+
+const cielo = new THREE.HemisphereLight(0xffffff, 0x77736a, 1.5);
+scena.add(cielo);
+const sole = new THREE.DirectionalLight(0xfff4e0, 1.6);
+sole.castShadow = true;
+// Il riquadro delle ombre copre ~60 m davanti a chi corre (e segue le curve): le ombre sono già
+// al loro posto quando gli oggetti arrivano vicino, invece di comparire all'ultimo.
+sole.shadow.mapSize.set(2048, 2048);
+Object.assign(sole.shadow.camera, { left: -11, right: 11, top: 34, bottom: -34, near: 1, far: 110 });
+sole.shadow.bias = -0.0008;
+scena.add(sole, sole.target);
+
+const aula = creaAula();
+const aulaD = creaAulaDarmon();
+const aulaE = creaAulaEsame();
+let aulaAttiva = aula;                      // la scena in classe in uso
+
+// Le scene in classe: la 5ª H al liceo, la 3ª B all'Istituto Darmon e l'esame alla magistrale. `esiti` dice cosa succede
+// con ogni scelta: penalità in secondi e testo del cartello.
+const EVENTO = {
+  [LICEO]: {
+    sez: SEZ_AULA, porta: SEZ_AULA.fine, scena: aula,
+    domanda: '5ª H. Dove ti siedi?',
+    opzioni: [{ id: 'prima', etichetta: 'Prima fila' }, { id: 'ultima', etichetta: 'Ultima fila' }],
+    esiti: {
+      prima: { titolo: 'Prima fila', sotto: `+${MALUS_PRIMA_FILA} secondi di penalità`, malus: MALUS_PRIMA_FILA, durata: 2.4 },
+      ultima: { titolo: 'Ultima fila', sotto: 'Con i tuoi amici', malus: 0, durata: 2.0 },
+    },
+    fuori: ['Fuori dall\'aula', 'La campanella è suonata, si scende'],
+  },
+  [DARMON]: {
+    sez: SEZ_AULA_D, porta: SEZ_AULA_D.fine, scena: aulaD,
+    domanda: 'Arriva il maestro Rodolfo. Cosa fai?',
+    opzioni: [{ id: 'piango', etichetta: 'Piango' }, { id: 'saluto', etichetta: 'Saluto il maestro' }],
+    esiti: {
+      piango: { titolo: 'Che pianto!', sotto: 'Tutti fuori dalla classe', malus: 0, durata: 3.0 },
+      saluto: { titolo: 'Roberto aveva paura del maestro Rodolfo', sotto: `+${MALUS_PRIMA_FILA} secondi di penalità`, malus: MALUS_PRIMA_FILA, durata: 3.2 },
+    },
+    // Il cartello dell'esito arriva alla fine della scena, quando la classe è vuota (non subito alla scelta).
+    esitoAllaFine: true,
+    fuori: null,
+  },
+  [MAGISTRALE]: {
+    sez: SEZ_ESAME, porta: SEZ_ESAME.fine, scena: aulaE,
+    domanda: 'Cosa fai?',
+    opzioni: [{ id: 'copiare', etichetta: 'Copiare' }, { id: 'rispondere', etichetta: 'Rispondere' }],
+    esiti: {
+      copiare: { titolo: 'Promosso con 27!', sotto: 'Grazie, Chiara', malus: 0, durata: 2.4 },
+      rispondere: { titolo: 'Bocciato!', sotto: `+${MALUS_PRIMA_FILA} secondi di penalità`, malus: MALUS_PRIMA_FILA, durata: 2.6 },
+    },
+    esitoAllaFine: true,
+    fuori: null,
+  },
+};
+
+function ridimensiona() {
+  const w = window.innerWidth, h = window.innerHeight;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h;
+  fovBase = w < h ? 72 : 60;
+  camera.fov = fovBase;
+  camera.updateProjectionMatrix();
+  aula.ridimensiona(w / h); aulaD.ridimensiona(w / h); aulaE.ridimensiona(w / h);
+}
+window.addEventListener('resize', ridimensiona);
+ridimensiona();
+
+// --- Frame di riferimento del percorso --------------------------------------
+// Direzione avanti (sin ψ, -cos ψ), destra (cos ψ, sin ψ). Le coordinate locali sono
+// x a destra, y in alto, z all'indietro rispetto a chi corre.
+const tmp = {};
+function mettiSulPercorso(obj, d, inclina) {
+  perc.punto(d, tmp);
+  obj.position.set(tmp.x, tmp.h, tmp.z);
+  obj.rotation.order = 'YXZ';
+  obj.rotation.set(inclina ? Math.atan(tmp.pend) : 0, -tmp.psi, 0);
+}
+function daLocale(d, lx, ly, lz, fuori) {
+  perc.punto(d, tmp);
+  const s = Math.sin(tmp.psi), c = Math.cos(tmp.psi);
+  return fuori.set(tmp.x + c * lx - s * lz, tmp.h + ly, tmp.z + s * lx + c * lz);
+}
+
+// --- Strada, marciapiedi, terreno e pavimento interno: nastri lungo il percorso ---
+const cA = new THREE.Color(), cB = new THREE.Color(), cC = new THREE.Color();
+function coloreMondo(prop, d, fuori) {
+  const i = mondoDi(d);
+  const t = TRATTI[i], dopo = TRATTI[i + 1];
+  fuori.setHex(t[prop]);
+  if (dopo) fuori.lerp(cB.setHex(dopo[prop]), THREE.MathUtils.smoothstep(d, t.fine - TRANSIZIONE, t.fine));
+  return fuori;
+}
+
+function texturaStrada() {
+  const c = document.createElement('canvas');
+  c.width = 256; c.height = 256;
+  const g = c.getContext('2d');
+  g.fillStyle = '#ffffff'; g.fillRect(0, 0, 256, 256);
+  g.fillStyle = 'rgba(0,0,0,.06)'; g.fillRect(0, 0, 256, 128);
+  for (let i = 0; i < 400; i++) {
+    g.fillStyle = `rgba(0,0,0,${Math.random() * 0.05})`;
+    g.fillRect(Math.random() * 256, Math.random() * 256, 3, 3);
+  }
+  g.fillStyle = 'rgba(255,255,255,.9)';
+  for (const x of [85, 171]) g.fillRect(x - 3, 20, 6, 90);
+  g.fillStyle = 'rgba(0,0,0,.3)';
+  g.fillRect(0, 0, 8, 256); g.fillRect(248, 0, 8, 256);
+  return c;
+}
+function texturaPavimento() {
+  const c = document.createElement('canvas');
+  c.width = 128; c.height = 128;
+  const g = c.getContext('2d');
+  g.fillStyle = '#ffffff'; g.fillRect(0, 0, 128, 128);
+  g.fillStyle = 'rgba(0,0,0,.07)'; g.fillRect(0, 0, 64, 64); g.fillRect(64, 64, 64, 64);
+  g.fillStyle = 'rgba(0,0,0,.18)'; g.fillRect(0, 0, 128, 3); g.fillRect(0, 0, 3, 128);
+  return c;
+}
+// Cotto a quadrotti, come il pavimento del corridoio dell'Istituto Darmon (il colore arriva dai vertici).
+function texturaCotto() {
+  const c = document.createElement('canvas');
+  c.width = 128; c.height = 128;
+  const g = c.getContext('2d');
+  for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) {
+    const v = 236 + ((i * 7 + j * 13) % 5) * 4;
+    g.fillStyle = `rgb(${v},${v - 6},${v - 10})`; g.fillRect(i * 32, j * 32, 32, 32);
+  }
+  g.fillStyle = 'rgba(90,40,20,.35)';
+  for (let i = 0; i < 4; i++) { g.fillRect(i * 32, 0, 2, 128); g.fillRect(0, i * 32, 128, 2); }
+  return c;
+}
+function texDa(canvas, ripetiU = 1) {
+  const t = new THREE.CanvasTexture(canvas);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 8;
+  t.repeat.set(ripetiU, 1);
+  return t;
+}
+function texturaGradini() {
+  const c = document.createElement('canvas');
+  c.width = 64; c.height = 128;
+  const g = c.getContext('2d');
+  g.fillStyle = '#ffffff'; g.fillRect(0, 0, 64, 128);
+  g.fillStyle = 'rgba(0,0,0,.34)'; g.fillRect(0, 0, 64, 30);      // alzata in ombra
+  g.fillStyle = 'rgba(0,0,0,.5)'; g.fillRect(0, 28, 64, 4);       // spigolo
+  g.fillStyle = 'rgba(255,255,255,.55)'; g.fillRect(0, 32, 64, 8); // bordo chiaro del gradino
+  return c;
+}
+function texturaParquet() {
+  const c = document.createElement('canvas');
+  c.width = 128; c.height = 128;
+  const g = c.getContext('2d');
+  g.fillStyle = '#ffffff'; g.fillRect(0, 0, 128, 128);
+  for (let i = 0; i < 4; i++) {
+    g.fillStyle = `rgba(0,0,0,${0.03 + (i % 2) * 0.06})`; g.fillRect(i * 32, 0, 32, 128);
+    g.fillStyle = 'rgba(0,0,0,.16)'; g.fillRect(i * 32, 0, 2, 128);
+    for (let y = (i % 2) * 40; y < 128; y += 80) { g.fillRect(i * 32, y, 32, 2); }
+  }
+  return c;
+}
+const TILE_STRADA = 6, TILE_PAV = 4, PASSO_GRADINO = 0.6;
+
+// Intervalli consecutivi dello stesso ambiente.
+const INTERVALLI = [];
+for (const s of SEZIONI) {
+  const ultimo = INTERVALLI[INTERVALLI.length - 1];
+  if (ultimo && ultimo.amb === s.amb) ultimo.fine = s.fine;
+  else INTERVALLI.push({ amb: s.amb, inizio: s.inizio, fine: s.fine });
+}
+INTERVALLI[0].inizio = -40;
+INTERVALLI[INTERVALLI.length - 1].fine += 120;
+
+function nastro(a, b, sinistra, destra, quota, colore, vTile, materiale, passo = 2) {
+  const n = Math.max(1, Math.ceil((b - a) / passo));
+  const pos = new Float32Array((n + 1) * 6), col = new Float32Array((n + 1) * 6);
+  const nor = new Float32Array((n + 1) * 6), uv = new Float32Array((n + 1) * 4);
+  const c = new THREE.Color();
+  for (let i = 0; i <= n; i++) {
+    const d = a + ((b - a) * i) / n;
+    perc.punto(d, tmp);
+    const rx = Math.cos(tmp.psi), rz = Math.sin(tmp.psi);
+    pos.set([tmp.x + rx * sinistra, tmp.h + quota, tmp.z + rz * sinistra, tmp.x + rx * destra, tmp.h + quota, tmp.z + rz * destra], i * 6);
+    colore(d, c);
+    col.set([c.r, c.g, c.b, c.r, c.g, c.b], i * 6);
+    nor.set([0, 1, 0, 0, 1, 0], i * 6);
+    uv.set([0, d / vTile, 1, d / vTile], i * 4);
+  }
+  const idx = [];
+  for (let i = 0; i < n; i++) idx.push(i * 2, i * 2 + 1, i * 2 + 2, i * 2 + 1, i * 2 + 3, i * 2 + 2);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  geo.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+  geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  geo.setIndex(idx);
+  const m = new THREE.Mesh(geo, materiale);
+  m.receiveShadow = true;
+  scena.add(m);
+  return m;
+}
+
+{
+  const strada = new THREE.MeshLambertMaterial({ map: texDa(texturaStrada()), vertexColors: true, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+  const terreno = new THREE.MeshLambertMaterial({ vertexColors: true });
+  const marciapiede = new THREE.MeshLambertMaterial({ vertexColors: true, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
+  const pavimento = new THREE.MeshLambertMaterial({ map: texDa(texturaPavimento(), 2), vertexColors: true });
+  const parquet = new THREE.MeshLambertMaterial({ map: texDa(texturaParquet(), 2), vertexColors: true });
+  const cotto = new THREE.MeshLambertMaterial({ map: texDa(texturaCotto(), 2), vertexColors: true });
+  const gradini = new THREE.MeshLambertMaterial({ map: texDa(texturaGradini()), vertexColors: true });
+  for (const iv of INTERVALLI) {
+    if (iv.amb === 'est') {
+      nastro(iv.inizio, iv.fine, -34, 34, -0.06, (d, c) => coloreMondo('terreno', d, c), 1000, terreno, 3);
+      nastro(iv.inizio, iv.fine, -3.3, 3.3, 0.02, (d, c) => coloreMondo('corsie', d, c), TILE_STRADA, strada);
+      const marc = (d, c) => coloreMondo('terreno', d, c).lerp(cC.setHex(0xffffff), 0.35);
+      nastro(iv.inizio, iv.fine, -6.3, -3.3, 0.12, marc, 1000, marciapiede);
+      nastro(iv.inizio, iv.fine, 3.3, 6.3, 0.12, marc, 1000, marciapiede);
+      // Scalinate all'aperto (davanti all'edificio dell'esame): gradini su tutta la larghezza.
+      for (const s of SEZIONI) if (s.gradini && s.amb === 'est' && s.inizio >= iv.inizio && s.fine <= iv.fine) nastro(s.inizio, s.fine, -4.6, 4.6, 0.14, (d, c) => c.setHex(0xD3CEC2), PASSO_GRADINO, gradini);
+    } else {
+      // Dentro la scuola: pavimento a piastrelle, con i gradini sulle rampe di scale.
+      const scale = SEZIONI.filter(s => s.amb === 'int' && s.id.startsWith('scale') && s.inizio >= iv.inizio && s.fine <= iv.fine);
+      let da = iv.inizio;
+      const stilePav = TRATTI[mondoDi(iv.inizio + 1)].stile;
+      const matPav = stilePav === 'casa' ? parquet : stilePav === 'darmon' ? cotto : pavimento;
+      const pezzo = (a, b, mat, tile) => { if (b > a) nastro(a, b, -4.4, 4.4, 0.0, (d, c) => coloreMondo('pavInt', d, c), tile, mat === pavimento ? matPav : mat, 1); };
+      for (const s of scale) { pezzo(da, s.inizio, pavimento, TILE_PAV); pezzo(s.inizio, s.fine, gradini, PASSO_GRADINO); da = s.fine; }
+      pezzo(da, iv.fine, pavimento, TILE_PAV);
+    }
+  }
+}
+
+// La scuola in lontananza: resta visibile da lontano (fuori dalla nebbia) con un velo d'aria.
+const FACCIATE = [
+  { mesh: creaScuola(), pos: SEZ_INGRESSO.inizio },
+  { mesh: creaScuolaDarmon(), pos: SEZ_INGRESSO_D.inizio },
+];
+for (const f of FACCIATE) { mettiSulPercorso(f.mesh, f.pos, false); scena.add(f.mesh); }
+const coloreCielo = new THREE.Color();
+
+// ---------------------------------------------------------------------------
+// Roberto
+// ---------------------------------------------------------------------------
+
+const R = creaRoberto(TRATTI[0].eta);
+const roberto = R.radice;
+roberto.scale.setScalar(FISICA[TRATTI[0].eta].scala);   // 0,8 = alto circa 1,8 m
+roberto.rotation.order = 'YXZ';
+scena.add(roberto);
+R.volto().prepara(['neutro', 'sorriso', 'gioia', 'sforzo', 'sorpresa', 'dolore', 'piange']);
+// A Rennes piove e fa freddo: Roberto indossa il giaccone e la sciarpa (si mostrano solo in quel mondo).
+const giaccaRoberto = giaccone(R, 0x3F4A3A, 0xD8CDB4);
+giaccaRoberto.imposta(false);
+let giaccaVisibile = false;
+
+// Cambia l'età di Roberto: aspetto, proporzioni e fisica (salto, quote degli ostacoli, camera).
+function impostaEta(eta) {
+  if (G.eta === eta) return;
+  G.eta = eta;
+  R.vesti(eta);
+  R.volto().prepara(['neutro', 'sorriso', 'gioia', 'sforzo', 'sorpresa', 'dolore', 'piange']);
+  roberto.scale.setScalar(FISICA[eta].scala);
+  G.statoPosa = null;
+}
+const fisica = () => FISICA[G.eta ?? 'liceo'];
+
+// Gocce di sudore: nascono vicino alla fronte e restano indietro.
+const GOCCE = Array.from({ length: 12 }, () => {
+  const m = new THREE.Mesh(new THREE.SphereGeometry(0.06, 6, 5), new THREE.MeshBasicMaterial({ color: 0x8FD0FF }));
+  m.visible = false;
+  m.scale.set(0.9, 1.4, 0.9);
+  scena.add(m);
+  return { m, vita: 0, x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0 };
+});
+let prossimaGoccia = 0;
+
+function aggiornaSudore(dt, attivo, intensita) {
+  prossimaGoccia -= dt;
+  if (attivo && prossimaGoccia <= 0) {
+    const g = GOCCE.find(x => x.vita <= 0);
+    if (g) {
+      // Gocce che schizzano dalle tempie verso l'alto e indietro, come nei fumetti (non sotto gli occhi).
+      const lato = Math.random() < 0.5 ? -1 : 1;
+      g.vita = 0.7 + Math.random() * 0.2;
+      const sc = fisica().scala / 0.8;      // Roberto piccolo (boss alle medie): testa più in basso
+      g.x = lato * (0.2 + Math.random() * 0.1) * sc; g.y = (1.85 + Math.random() * 0.1) * sc; g.z = 0.05;
+      g.vx = lato * (0.9 + Math.random() * 1.1); g.vy = 2.0 + Math.random() * 1.2; g.vz = 1.5 + Math.random() * 2;
+    }
+    prossimaGoccia = 0.22 - 0.12 * intensita;
+  }
+  for (const g of GOCCE) {
+    if (g.vita <= 0) { g.m.visible = false; continue; }
+    g.vita -= dt;
+    g.x += g.vx * dt; g.y += g.vy * dt; g.z += g.vz * dt; g.vy -= 9 * dt;
+    daLocale(G.pos, G.x + g.x, G.y + g.y, g.z, g.m.position);
+    g.m.visible = g.vita > 0;
+  }
+}
+
+// Pioggerella: righe sottili che cadono attorno alla telecamera, solo a Rennes (si sfuma con `coperto`).
+const N_PIOGGIA = 420, PIOGGIA_X = 15, PIOGGIA_ALTO = 13, PIOGGIA_Z = [-46, 5];
+const pioggiaGeo = new THREE.BufferGeometry();
+const pioggiaPos = new Float32Array(N_PIOGGIA * 6);
+const pioggiaGocce = Array.from({ length: N_PIOGGIA }, () => ({
+  x: (Math.random() * 2 - 1) * PIOGGIA_X, y: Math.random() * PIOGGIA_ALTO, z: PIOGGIA_Z[0] + Math.random() * (PIOGGIA_Z[1] - PIOGGIA_Z[0]),
+  v: 13 + Math.random() * 5,
+}));
+pioggiaGeo.setAttribute('position', new THREE.BufferAttribute(pioggiaPos, 3));
+const pioggiaMat = new THREE.LineBasicMaterial({ color: 0xD3DCE6, transparent: true, opacity: 0, fog: false, depthWrite: false });
+const pioggia = new THREE.LineSegments(pioggiaGeo, pioggiaMat);
+pioggia.frustumCulled = false;
+pioggia.visible = false;
+scena.add(pioggia);
+const dirCamera = new THREE.Vector3();
+
+function aggiornaPioggia(dt) {
+  pioggia.visible = coperto > 0.03;
+  if (!pioggia.visible) return;
+  pioggiaMat.opacity = 0.42 * coperto;
+  // Il gruppo di gocce segue la telecamera, girato come la corsa, ma resta a livello del suolo.
+  camera.getWorldDirection(dirCamera);
+  pioggia.position.set(camera.position.x, roberto.position.y, camera.position.z);
+  pioggia.rotation.y = Math.atan2(-dirCamera.x, -dirCamera.z);
+  for (let i = 0; i < N_PIOGGIA; i++) {
+    const g = pioggiaGocce[i];
+    g.y -= g.v * dt;
+    if (g.y < 0) g.y += PIOGGIA_ALTO;
+    pioggiaPos.set([g.x, g.y, g.z, g.x - 0.04, g.y + 0.55, g.z + 0.03], i * 6);
+  }
+  pioggiaGeo.attributes.position.needsUpdate = true;
+}
+
+// ---------------------------------------------------------------------------
+// Oggetti del percorso
+// ---------------------------------------------------------------------------
+
+const INCLINATI = new Set(['ostacolo', 'semaforo', 'parete', 'soffitto', 'cartello', 'arredo']);
+
+const texNumeri = new Map();
+function texNumero(n) {
+  if (!texNumeri.has(n)) {
+    const c = document.createElement('canvas');
+    c.width = c.height = 96;
+    const g = c.getContext('2d');
+    g.fillStyle = '#1C1D2B'; g.beginPath(); g.arc(48, 48, 44, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#FFD23F'; g.beginPath(); g.arc(48, 48, 38, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#1C1D2B'; g.font = '800 44px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(String(n), 48, 52, 64);
+    const t = new THREE.CanvasTexture(c);
+    t.colorSpace = THREE.SRGBColorSpace;
+    texNumeri.set(n, t);
+  }
+  return texNumeri.get(n);
+}
+
+function creaMesh(e) {
+  const t = TRATTI[e.mondo ?? 0];
+  let m;
+  if (e.genere === 'ostacolo') {
+    if (e.tipo === 'parcheggiatore') {
+      m = creaParcheggiatore(e.var);
+      Object.assign(e, { xLat: e.lato * MARGINE_PARCHEGGIATORE, insegue: 0, passo: 0, tPrec: null });
+    }
+    else if (e.lungo && (e.stile === 'liceo' || e.stile === 'liceoInt' || e.stile === 'darmon')) m = creaMuroLungo(e);
+    else m = creaOstacolo(e, t);
+    if (e.tipo !== 'crociera' && e.tipo !== 'lancio' && e.tipo !== 'parcheggiatore') m.position.x = CORSIE[e.corsia];
+  }
+  else if (e.genere === 'caffe') {
+    m = creaBonus(t.stile);
+    e.altBonus = t.stile === 'casa' ? 0.45 : t.stile === 'darmon' ? 0.7 : 0.85;
+    m.position.set(CORSIE[e.corsia], e.altBonus, 0);
+    const n = new THREE.Sprite(new THREE.SpriteMaterial({ map: texNumero(e.num), transparent: true, depthWrite: false }));
+    n.scale.set(0.7, 0.7, 1); n.position.y = 0.75;
+    m.add(n);
+  }
+  else if (e.genere === 'edificio') m = creaEdificio(e, t);
+  else if (e.genere === 'monumento') m = creaMonumento(e, t);
+  else if (e.genere === 'lampione') m = creaLampione(e.lato);
+  else if (e.genere === 'albero') m = creaAlbero(e.lato, e.scala);
+  else if (e.genere === 'arco') m = creaArco(e);
+  else if (e.genere === 'semaforo') m = creaSemaforo(e);
+  else if (e.genere === 'metro') m = creaMetro(e.lato);
+  else if (e.genere === 'segnale') m = creaSegnaleSalita(e.lato, e.testo);
+  else if (e.genere === 'camaldoli') m = creaCartelloCamaldoli(e.lato, e.testo);
+  else if (e.genere === 'parete') m = e.stile === 'magistrale' ? creaPareteUni(e) : creaPareteStile(e);
+  else if (e.genere === 'soffitto') m = creaSoffittoStile(e);
+  else if (e.genere === 'arredo') m = creaArredo(e);
+  else if (e.genere === 'uni') m = creaScenaUni(e);
+  else if (e.genere === 'rennes') m = creaScenaRennes(e);
+  else if (e.genere === 'lanciatore') m = creaLanciatore(e);
+  else if (e.genere === 'cartello') m = creaCartelloAppeso(e.testo, e.w, e.colore);
+  else if (e.genere === 'portaAula') m = e.stile === 'darmon' ? creaPortaAula('3ª B', 0xE0533F) : e.stile === 'ia3' ? creaPortaAula('Ia3', 0x1F58B8, targaAula('Ia3', 2.2, 0.8)) : e.stile === 'facolta' ? creaFacolta() : creaPortaAula();
+  else if (e.genere === 'portone') m = e.stile === 'casa' ? creaPortaCasa() : creaPortone();
+  const involucro = new THREE.Group();
+  involucro.add(m);
+  if (e.genere === 'soffitto' || e.genere === 'parete') m.traverse(o => { o.castShadow = false; });
+  e.interno = m;
+  e.anima = m.userData?.anima ?? null;
+  return involucro;
+}
+
+const bucoInStrada = e => e.genere === 'ostacolo' && e.tipo === 'buco' && e.stile === 'liceo';
+const dinamico = e => e.genere === 'caffe' || bucoInStrada(e) || (e.genere === 'ostacolo' && (e.tipo === 'persona' || e.tipo === 'crociera' || e.tipo === 'lancio' || e.tipo === 'parcheggiatore'));
+
+// Il parcheggiatore abusivo (Via Claudio): aspetta sul bordo della strada; quando Roberto è a
+// PARCHEGGIATORE_DA metri entra in strada e si sposta verso la sua corsia con la mano tesa ("Un euro a
+// piacere"), più lento di un cambio di corsia. Negli ultimi PARCHEGGIATORE_FERMO metri non corregge più:
+// lo si evita cambiando corsia all'ultimo, non prima (altrimenti ti segue).
+const MARGINE_PARCHEGGIATORE = 3.7;
+const PARCHEGGIATORE_DA = 34, PARCHEGGIATORE_FERMO = 9, PARCHEGGIATORE_VEL = 5.2;
+const bollaEuro = fumetto('Un euro a piacere', '#ffffff', '#1C1D2B', 2.19, 2.5, 65);
+scena.add(bollaEuro);
+// "Abuso!": la ragazza del CROUS lo dice quando ti passa accanto.
+const bollaAbuso = fumetto('Abuso!', '#ffffff', '#1C1D2B', 1.5, 1.2, 76);
+scena.add(bollaAbuso);
+const ABUSO_DA = 20;
+function aggiornaParcheggiatore(e, ora) {
+  const t = ora / 1000, dt = e.tPrec === null ? 0 : Math.min(0.1, t - e.tPrec);
+  e.tPrec = t;
+  const dist = e.d - G.pos;
+  const inStrada = dist < PARCHEGGIATORE_DA && dist > -2;
+  let meta = e.lato * MARGINE_PARCHEGGIATORE;
+  if (inStrada) {
+    if (dist > PARCHEGGIATORE_FERMO) e.mira = THREE.MathUtils.clamp(G.x, CORSIE[0], CORSIE[2]);
+    meta = e.mira ?? meta;
+  }
+  if (dist > PARCHEGGIATORE_DA + 6) { e.xLat = e.lato * MARGINE_PARCHEGGIATORE; e.mira = null; }
+  const dx = meta - e.xLat, passo = PARCHEGGIATORE_VEL * dt;
+  e.xLat += Math.abs(dx) <= passo ? dx : Math.sign(dx) * passo;
+  e.insegue = THREE.MathUtils.damp(e.insegue, inStrada ? 1 : 0, 6, dt);
+  if (Math.abs(dx) > 0.05) e.passo += dt * 9;
+  mettiSulPercorso(e.mesh, e.d, true);
+  e.mesh.position.x += Math.cos(tmp.psi) * e.xLat;
+  e.mesh.position.z += Math.sin(tmp.psi) * e.xLat;
+  e.anima?.(t, Math.abs(dx) > 0.05 ? 1 : e.insegue, e.passo);
+  // Il fumetto sopra la testa mentre ti viene incontro.
+  if (inStrada && dist > 0.5 && G.stato === 'gioco') {
+    bollaEuro.visible = true;
+    bollaEuro.position.copy(e.mesh.position);
+    bollaEuro.position.y += 2.25;
+  }
+}
+
+// Distanza effettiva lungo il percorso: i compagni ti vengono incontro.
+function distanza(e, pos) {
+  if (e.tipo === 'persona') return distanzaPersona(e, pos);
+  if (e.tipo === 'lancio') return distanzaLancio(e, pos);
+  return e.d;
+}
+const latoCrociera = (e, pos) => CORSIE[e.corsia] - e.dir * PENDENZA_CROCIERA * (e.d - pos);
+
+function rimuovi(e) {
+  scena.remove(e.mesh);
+  e.mesh = null; e.interno = null; e.anima = null;
+}
+
+let prossima = 0;      // indice della prossima entità da far comparire
+const attive = [];
+
+function svuota() {
+  for (const e of attive) rimuovi(e);
+  attive.length = 0;
+}
+
+function riposiziona(pos) {
+  svuota();
+  prossima = 0;
+  while (prossima < ENTITA.length && ENTITA[prossima].d < pos - 40) prossima++;
+}
+
+// ---------------------------------------------------------------------------
+// Stato di gioco
+// ---------------------------------------------------------------------------
+
+const G = {
+  stato: 'inizio',     // inizio | intro | conto | gioco | caduto | pausa | crescita | aulaIn | aula | aulaOut | aulaRientro | fine
+  pos: 0,
+  tempo: 0,
+  malus: 0,
+  caffe: 0,
+  raccolti: new Set(),
+  mondo: 0,
+  cp: 0,
+  checkpoint: null,
+  fatti: new Set(),    // mondi in cui la scena in classe è già stata fatta
+  esitoAula: null,
+  corsia: 1,
+  x: 0,
+  y: 0,
+  vy: 0,
+  scivola: 0,
+  timer: 0,
+  passo: 0,
+  cadute: 0,
+  nome: '',
+  eta: null,           // neonato | bimbo | liceo | universita
+  bassa: 0,            // 0..1: a gattoni, quanto si striscia sulla pancia
+  exprTemp: 0, exprNome: 'neutro',
+};
+
+G.eta = TRATTI[0].eta;
+const GRAVITA = 28;
+const DURATA_INTRO = 3.6;
+const DURATA_SIPARIO = 0.45;
+
+function azzeraGiocatore() {
+  G.corsia = 1; G.x = 0; G.y = 0; G.vy = 0; G.scivola = 0;
+}
+
+// Dal menù di sviluppo si può partire da un mondo qualsiasi.
+const elDevMondo = document.getElementById('dev-mondo');
+if (elDevMondo && MODALITA_SVILUPPO) {
+  elDevMondo.innerHTML = TRATTI.map((t, i) => `<option value="${i}">${i + 1} · ${t.nome}</option>`).join('');
+  elDevMondo.closest('label').hidden = false;
+  try { elDevMondo.value = localStorage.getItem('gioco-laurea:dev-mondo') || '0'; } catch {}
+}
+const mondoDiPartenza = () => Math.min(TRATTI.length - 1, Math.max(0, Number(elDevMondo?.value) || 0));
+
+function salvaCheckpoint(i) {
+  G.cp = i;
+  G.checkpoint = { pos: CHECKPOINT[i].pos, mondo: CHECKPOINT[i].mondo, caffe: G.caffe, raccolti: new Set(G.raccolti) };
+}
+
+function nuovaPartita() {
+  const m0 = MODALITA_SVILUPPO ? mondoDiPartenza() : 0;
+  try { localStorage.setItem('gioco-laurea:dev-mondo', String(m0)); } catch {}
+  G.pos = TRATTI[m0].inizio; G.tempo = 0; G.malus = 0; G.malusBoss = 0; G.caffe = 0; G.raccolti = new Set(); G.mondo = m0; G.cadute = 0;
+  pingpong.reset(); amici.reset(); ragazzaBoss.reset(); triago.reset();
+  G.fatti = new Set(); G.comandiVisti = new Set(); G.esitoAula = null; G.invul = 0; G.posCaduta = null; G.bassa = 0; G.exprTemp = 0;
+  impostaEta(TRATTI[m0].eta);
+  salvaCheckpoint(CHECKPOINT.findIndex(c => c.mondo === m0 && c.nuovoMondo));
+  azzeraGiocatore();
+  riposiziona(G.pos);
+  mostraSchermo(null);
+  hud.radice.hidden = true;
+  elOrologio.hidden = true;
+  elScelta.hidden = true;
+  elSipario.classList.remove('nero');
+  G.stato = 'intro';
+  G.timer = 0;
+  G.bannerIntro = false;
+}
+
+function iniziaCorsa() {
+  G.stato = 'gioco';
+  hud.radice.hidden = false;
+}
+
+function avviaConto(sottotitolo) {
+  G.stato = 'conto';
+  G.timer = 3;
+  G.sottotitoloConto = sottotitolo;
+}
+
+function caduta() {
+  G.stato = 'caduto';
+  G.timer = 1.2;
+  G.cadute++;
+  G.posCaduta = G.pos;
+  if (navigator.vibrate) navigator.vibrate(120);
+}
+
+function ripartiDalCheckpoint() {
+  if (RESPAWN_DOVE_MORI) {
+    // Si riparte poco prima del punto della caduta, tenendo caffè e tempo; i checkpoint restano
+    // calcolati ma non si usano.
+    G.pos = Math.max(0, (G.posCaduta ?? G.pos) - RESPAWN_INDIETRO);
+    G.mondo = mondoDi(G.pos);
+    impostaEta(TRATTI[G.mondo].eta);
+    G.invul = RESPAWN_INVULNERABILE;
+    azzeraGiocatore();
+    riposiziona(G.pos);
+    G.stato = 'gioco';
+    return;
+  }
+  const c = G.checkpoint;
+  G.mondo = c.mondo;
+  impostaEta(TRATTI[G.mondo].eta);
+  G.pos = c.pos;
+  G.caffe = c.caffe;
+  G.raccolti = new Set(c.raccolti);
+  azzeraGiocatore();
+  riposiziona(G.pos);
+  G.stato = 'gioco';
+}
+
+function entraNelMondo(i) {
+  G.mondo = i;
+  const t = TRATTI[i];
+  if (stessoGruppo(i)) return;
+  banner(`${t.gruppo ?? t.nome}<small>${anniTappa(t)}</small>`, 1.8);
+}
+
+// ---------------------------------------------------------------------------
+// Crescita: tra due età Roberto cresce davanti agli occhi (alla partenza del mondo successivo)
+// ---------------------------------------------------------------------------
+
+const DURATA_CRESCITA = 5.4;
+const ANNI = { neonato: 0, bimbo: 8, liceo: 14, universita: 19 };
+const elEta = document.getElementById('eta-conto');
+const elLampo = document.getElementById('lampo');
+const SCINTILLE = Array.from({ length: 36 }, (_, i) => {
+  const m = new THREE.Mesh(new THREE.OctahedronGeometry(0.1, 0), new THREE.MeshBasicMaterial({ color: [0xFFD23F, 0xFFFFFF, 0xFF8FB0, 0x7FD6FF][i % 4], transparent: true }));
+  m.visible = false;
+  scena.add(m);
+  return { m, vita: 0, x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0 };
+});
+
+function scoppiaScintille(n, altezza) {
+  for (const sc of SCINTILLE.slice(0, n)) {
+    const a = Math.random() * Math.PI * 2, v = 1.5 + Math.random() * 2.5;
+    sc.vita = 0.9 + Math.random() * 0.6;
+    sc.x = 0; sc.y = altezza; sc.z = 0;
+    sc.vx = Math.cos(a) * v; sc.vz = Math.sin(a) * v; sc.vy = 1.5 + Math.random() * 2.5;
+  }
+}
+function aggiornaScintille(dt) {
+  for (const sc of SCINTILLE) {
+    if (sc.vita <= 0) { sc.m.visible = false; continue; }
+    sc.vita -= dt;
+    sc.x += sc.vx * dt; sc.y += sc.vy * dt; sc.z += sc.vz * dt; sc.vy -= 4 * dt;
+    daLocale(G.pos, sc.x, sc.y, sc.z, sc.m.position);
+    sc.m.visible = sc.vita > 0;
+    sc.m.scale.setScalar(Math.max(0.01, Math.min(1, sc.vita * 2)));
+    sc.m.rotation.y += dt * 6; sc.m.rotation.x += dt * 4;
+  }
+}
+
+function avviaCrescita(m) {
+  G.stato = 'crescita';
+  G.timer = 0;
+  G.crescita = { da: G.eta, a: TRATTI[m].eta, mondo: m, scambiato: false };
+  G.invul = 0;
+  // Dopo il boss del gelato si cresce già magri.
+  if (boss.grasso || boss.grassoVis) { boss.reset(); R.corporatura(R.dim.corpo ?? 1); corpoBoss = null; }
+  azzeraGiocatore();
+  elBanner.hidden = true;
+  elEta.hidden = false;
+  // L'arco del nuovo mondo resta fuori campo: la camera lo guarderebbe da dietro.
+  for (const e of attive) if (e.genere === 'arco' && e.mesh) e.mesh.visible = false;
+}
+
+function finisciCrescita() {
+  const m = G.crescita.mondo;
+  elEta.hidden = true;
+  for (const e of attive) if (e.genere === 'arco' && e.mesh) e.mesh.visible = true;
+  G.crescita = null;
+  G.statoPosa = null;
+  G.invul = 0.6;
+  entraNelMondo(m);
+  G.stato = 'gioco';
+}
+
+async function fine() {
+  G.stato = 'fine';
+  hud.radice.hidden = true;
+  elOrologio.hidden = true;
+  const totale = Math.max(0, G.tempo + G.malus - G.caffe * BONUS_CAFFE);
+  document.getElementById('fine-data').textContent = `${TRAGUARDO.nome} · ${TRAGUARDO.data}`;
+  document.getElementById('fine-tempo').textContent = formattaTempo(totale);
+  document.getElementById('fine-dettaglio').textContent =
+    `Corsa ${formattaTempo(G.tempo)} · bonus ${G.caffe} su ${CAFFE_TOTALI} · ` +
+    (G.cadute === 1 ? '1 caduta' : `${G.cadute} cadute`) +
+    (G.malus - (G.malusBoss ?? 0) ? ` · penalità in classe +${G.malus - (G.malusBoss ?? 0)} s` : '') +
+    (G.malusBoss ? ` · boss +${G.malusBoss} s` : '');
+  mostraSchermo('fine');
+  const arrotondato = Math.round(totale * 10) / 10;
+  await inviaTempo(G.nome, arrotondato);
+  disegnaClassifica(document.getElementById('fine-classifica'), G.nome, arrotondato);
+}
+
+// ---------------------------------------------------------------------------
+// La scena in classe
+// ---------------------------------------------------------------------------
+
+const elSipario = document.getElementById('sipario');
+const elScelta = document.getElementById('scelta');
+const elBarraScelta = document.getElementById('barra-scelta');
+const elOrologio = document.getElementById('orologio');
+
+const elDomanda = document.getElementById('domanda-scelta');
+const bottoniScelta = [...document.querySelectorAll('[data-scelta]')];
+
+function configuraScelta(ev) {
+  aulaAttiva = ev.scena;
+  elDomanda.textContent = ev.domanda;
+  ev.opzioni.forEach((o, i) => { bottoniScelta[i].dataset.scelta = o.id; bottoniScelta[i].textContent = o.etichetta; });
+}
+
+function avviaAula() {
+  const ev = EVENTO[G.mondo];
+  configuraScelta(ev);
+  G.stato = 'aulaIn';
+  G.timer = 0;
+  G.esitoAula = null;
+  G.esitoMostrato = false;
+  elSipario.classList.add('nero');
+}
+
+function scegliInAula(esito) {
+  if (G.stato !== 'aula' || aulaAttiva.stato !== 'scelta') return;
+  aulaAttiva.scegli(esito);
+  applicaEsito(esito);
+}
+
+function applicaEsito(esito) {
+  G.esitoAula = esito;
+  elScelta.hidden = true;
+  const r = EVENTO[G.mondo].esiti[esito];
+  G.malus += r.malus;
+  if (!EVENTO[G.mondo].esitoAllaFine) mostraEsito();
+}
+function mostraEsito() {
+  const r = EVENTO[G.mondo].esiti[G.esitoAula];
+  G.esitoMostrato = true;
+  banner(`${r.titolo}<small>${r.sotto}</small>`, r.durata, 'in-basso');
+}
+for (const b of bottoniScelta) {
+  b.addEventListener('click', () => scegliInAula(b.dataset.scelta));
+}
+
+function aggiornaAula(dt) {
+  const ev = EVENTO[G.mondo];
+  if (G.stato === 'aulaIn') {
+    G.timer += dt;
+    if (G.timer >= DURATA_SIPARIO) {
+      G.stato = 'aula';
+      aulaAttiva.avvia();
+      elBanner.hidden = true;
+      elSipario.classList.remove('nero');
+    }
+  } else if (G.stato === 'aula') {
+    aulaAttiva.aggiorna(G.congela ? 0 : dt);
+    if (aulaAttiva.esito && !G.esitoAula) applicaEsito(aulaAttiva.esito);   // tempo scaduto: scelta sbagliata
+    const inScelta = aulaAttiva.stato === 'scelta';
+    if (inScelta && elScelta.hidden) elScelta.hidden = false;
+    if (!inScelta && !elScelta.hidden) elScelta.hidden = true;
+    if (inScelta) elBarraScelta.style.transform = `scaleX(${aulaAttiva.residuo / TEMPO_SCELTA})`;
+    if (ev.esitoAllaFine && aulaAttiva.uscito && G.esitoAula && !G.esitoMostrato) mostraEsito();
+    if (aulaAttiva.stato === 'fine') {
+      G.stato = 'aulaOut';
+      G.timer = 0;
+      elSipario.classList.add('nero');
+    }
+  } else if (G.stato === 'aulaOut') {
+    G.timer += dt;
+    if (G.timer >= DURATA_SIPARIO) {
+      G.fatti.add(G.mondo);
+      G.pos = ev.porta + 0.6;
+      G.corsia = 1; G.x = 0; G.y = 0; G.vy = 0;
+      riposiziona(G.pos);
+      G.stato = 'aulaRientro';
+      G.timer = 0;
+      elSipario.classList.remove('nero');
+    }
+  } else if (G.stato === 'aulaRientro') {
+    G.timer += dt;
+    if (G.timer >= 0.5) G.stato = 'gioco';
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Comandi
+// ---------------------------------------------------------------------------
+
+function comando(azione) {
+  if (G.stato === 'pingpong') { pingpong.comando(azione); return; }
+  if (G.stato !== 'gioco') return;
+  if (azione === 'sinistra') G.corsia = Math.max(0, G.corsia - 1);
+  if (azione === 'destra') G.corsia = Math.min(2, G.corsia + 1);
+  if (fisica().senzaScivolata && azione === 'giu') return;   // primi passi: niente scivolata
+  if (azione === 'su' && G.y <= 0.001) { G.vy = Math.sqrt(2 * GRAVITA * fisica().salto); G.scivola = 0; }
+  if (azione === 'giu') {
+    if (G.y > 0.001) G.vy = -Math.sqrt(2 * GRAVITA * fisica().salto) * 1.6;
+    G.scivola = 0.75;
+  }
+}
+
+function saltaCrescita() {
+  if (G.stato === 'crescita' && MODALITA_SVILUPPO && G.timer < DURATA_CRESCITA - 0.5) G.timer = DURATA_CRESCITA - 0.5;
+}
+
+function saltaIntro() {
+  if (G.stato === 'intro' && G.timer < DURATA_INTRO - 0.4) G.timer = DURATA_INTRO - 0.4;
+}
+
+window.addEventListener('keydown', ev => {
+  const tasti = {
+    ArrowLeft: 'sinistra', KeyA: 'sinistra',
+    ArrowRight: 'destra', KeyD: 'destra',
+    ArrowUp: 'su', KeyW: 'su', Space: 'su',
+    ArrowDown: 'giu', KeyS: 'giu',
+  };
+  if (G.stato === 'intro') saltaIntro();
+  saltaCrescita();
+  if (G.stato === 'pingpong' && !ev.repeat) pingpong.tocca();
+  if (G.stato === 'aula') {
+    if (ev.code === 'ArrowUp' || ev.code === 'Digit1') scegliInAula(EVENTO[G.mondo].opzioni[0].id);
+    if (ev.code === 'ArrowDown' || ev.code === 'Digit2') scegliInAula(EVENTO[G.mondo].opzioni[1].id);
+  }
+  if (tasti[ev.code] && G.stato === 'gioco') { ev.preventDefault(); comando(tasti[ev.code]); }
+  if (ev.code === 'Escape' || ev.code === 'KeyP') metti_in_pausa();
+});
+
+// Il duello finale del ping pong si vince toccando lo schermo tante volte (un solo evento per tocco o clic).
+contenitore.addEventListener('pointerdown', () => { if (G.stato === 'pingpong') pingpong.tocca(); });
+
+let tocco = null;
+contenitore.addEventListener('touchstart', ev => {
+  const t = ev.changedTouches[0];
+  tocco = { x: t.clientX, y: t.clientY, usato: false };
+  saltaIntro();
+  saltaCrescita();
+}, { passive: true });
+contenitore.addEventListener('touchmove', ev => {
+  if (!tocco || tocco.usato) return;
+  const t = ev.changedTouches[0];
+  const dx = t.clientX - tocco.x, dy = t.clientY - tocco.y;
+  if (Math.hypot(dx, dy) < 28) return;
+  tocco.usato = true;
+  if (Math.abs(dx) > Math.abs(dy)) comando(dx < 0 ? 'sinistra' : 'destra');
+  else comando(dy < 0 ? 'su' : 'giu');
+}, { passive: true });
+contenitore.addEventListener('touchend', () => { tocco = null; }, { passive: true });
+
+function metti_in_pausa() {
+  if (G.stato !== 'gioco' && G.stato !== 'conto' && G.stato !== 'caduto') return;
+  G.statoPrima = G.stato;
+  G.stato = 'pausa';
+  mostraSchermo('pausa');
+}
+
+document.addEventListener('visibilitychange', () => { if (document.hidden) metti_in_pausa(); });
+document.getElementById('hud-pausa').addEventListener('click', metti_in_pausa);
+document.getElementById('riprendi').addEventListener('click', () => {
+  mostraSchermo(null);
+  if (G.statoPrima === 'caduto') { ripartiDalCheckpoint(); }
+  avviaConto('');
+});
+
+
+// ---------------------------------------------------------------------------
+// Interfaccia
+// ---------------------------------------------------------------------------
+
+const hud = {
+  radice: document.getElementById('hud'),
+  tempo: document.getElementById('hud-tempo'),
+  caffe: document.getElementById('hud-caffe'),
+  mondo: document.getElementById('hud-mondo'),
+  barra: document.getElementById('hud-barra'),
+};
+document.getElementById('hud-tacche').innerHTML =
+  TRATTI.slice(1).filter(t => !stessoGruppo(t.indice)).map(t => `<span style="left:${(t.inizio / LUNGHEZZA) * 100}%"></span>`).join('');
+
+// I comandi restano a schermo per i primi secondi di corsa, così si provano subito. Si rimostrano
+// quando cambiano (dai primi passi in casa al bambino che salta e si abbassa).
+const DURATA_COMANDI = 5;
+const elComandi = document.getElementById('comandi');
+let durataComandi = 0, barraComandi = null;
+function mostraComandi() {
+  const f = fisica();
+  // Una parola per gesto: le frecce dicono già da che parte scorrere.
+  const righe = [['← →', 'corsia']];
+  if (f.senzaScivolata) righe.push(['↑', 'saltello']);
+  else righe.push(['↑', 'salta'], ['↓', 'abbassati']);
+  elComandi.innerHTML = `<ul>${righe.map(([g, a]) => `<li><span class="gesto">${g}</span><span>${a}</span></li>`).join('')}</ul>`
+    + '<div class="resta"><div></div></div>';
+  barraComandi = elComandi.querySelector('.resta div');
+  elComandi.hidden = false;
+  durataComandi = DURATA_COMANDI;
+}
+function aggiornaComandi(dt) {
+  const chiave = fisica().senzaScivolata ? 'primi' : 'tutti';
+  if (G.stato === 'gioco' && !G.comandiVisti.has(chiave)) { G.comandiVisti.add(chiave); mostraComandi(); }
+  if (durataComandi <= 0) return;
+  if (G.stato === 'gioco') durataComandi -= dt;
+  if (G.stato === 'aula' || G.stato === 'crescita' || G.stato === 'fine' || G.stato === 'pingpong' || G.stato === 'amici' || G.stato === 'bacio' || G.stato === 'triago') durataComandi = 0;
+  barraComandi.style.transform = `scaleX(${Math.max(0, durataComandi / DURATA_COMANDI)})`;
+  if (durataComandi <= 0) { elComandi.hidden = true; elComandi.innerHTML = ''; }
+}
+
+const elBanner = document.getElementById('banner');
+let durataBanner = 0;
+function banner(html, durata, posizione = '') {
+  elBanner.innerHTML = html;
+  elBanner.className = `banner ${posizione}`;
+  elBanner.hidden = false;
+  durataBanner = durata;
+}
+
+const schermi = {
+  inizio: document.getElementById('schermo-inizio'),
+  pausa: document.getElementById('schermo-pausa'),
+  fine: document.getElementById('schermo-fine'),
+  classifica: document.getElementById('schermo-classifica'),
+};
+function mostraSchermo(nome) {
+  for (const [k, el] of Object.entries(schermi)) el.hidden = k !== nome;
+}
+
+function scappa(testo) {
+  const d = document.createElement('div');
+  d.textContent = testo;
+  return d.innerHTML;
+}
+
+async function disegnaClassifica(ol, nome, tempo) {
+  const { voci, condivisa } = await leggiClassifica(10);
+  const nota = condivisa ? '' : '<li class="vuota">Classifica salvata solo su questo telefono.</li>';
+  if (!voci.length) {
+    ol.innerHTML = '<li class="vuota">Nessun tempo ancora. Sii il primo.</li>';
+    return;
+  }
+  let evidenziato = false;
+  ol.innerHTML = voci.map(v => {
+    const tu = !evidenziato && nome && v.nome.toLowerCase() === nome.toLowerCase() && Math.abs(v.tempo - tempo) < 0.06;
+    if (tu) evidenziato = true;
+    return `<li${tu ? ' class="tu"' : ''}><span>${scappa(v.nome)}</span><span class="t">${formattaTempo(Number(v.tempo))}</span></li>`;
+  }).join('') + nota;
+}
+
+const campoNome = document.getElementById('nome');
+try { campoNome.value = localStorage.getItem('gioco-laurea:nome') || ''; } catch {}
+
+document.getElementById('modulo-nome').addEventListener('submit', ev => {
+  ev.preventDefault();
+  const nome = campoNome.value.trim().slice(0, 24);
+  if (!nome) { campoNome.focus(); return; }
+  G.nome = nome;
+  try { localStorage.setItem('gioco-laurea:nome', nome); } catch {}
+  campoNome.blur();
+  nuovaPartita();
+});
+
+for (const b of document.querySelectorAll('[data-ricomincia]')) {
+  b.addEventListener('click', () => (G.nome ? nuovaPartita() : mostraSchermo('inizio')));
+}
+for (const b of document.querySelectorAll('[data-apri="classifica"]')) {
+  b.addEventListener('click', apriClassifica);
+}
+document.querySelector('[data-chiudi-classifica]').addEventListener('click', () => {
+  history.replaceState(null, '', location.pathname);
+  mostraSchermo('inizio');
+});
+
+function apriClassifica() {
+  mostraSchermo('classifica');
+  disegnaClassifica(document.getElementById('classifica'), null, null);
+}
+
+if (location.hash === '#classifica') apriClassifica();
+else mostraSchermo('inizio');
+
+// ---------------------------------------------------------------------------
+// Ciclo principale
+// ---------------------------------------------------------------------------
+
+const cInt = new THREE.Color();
+const cTerra = new THREE.Color(0x77736a), cTerraInt = new THREE.Color(0xC2BCB0);
+
+// Rennes: cielo coperto e pioggerella. `coperto` va da 0 a 1 con calma quando si entra o si esce dal mondo.
+let coperto = 0;
+function aggiornaColori() {
+  const inRennes = TRATTI[mondoDi(G.pos)].stile === 'rennes';
+  coperto += ((inRennes ? 1 : 0) - coperto) * 0.04;
+  if (inRennes !== giaccaVisibile) { giaccaVisibile = inRennes; giaccaRoberto.imposta(inRennes); }
+  const k = perc.quantoInterno(G.pos + 3, 6);
+  coloreMondo('intCielo', G.pos, cInt);
+  coloreMondo('cielo', G.pos, cA).lerp(cInt, k);
+  scena.background.copy(cA);
+  scena.fog.color.copy(cA);
+  scena.fog.near = THREE.MathUtils.lerp(NEBBIA_EST[0] - 28 * coperto, NEBBIA_INT[0], k);
+  scena.fog.far = THREE.MathUtils.lerp(NEBBIA_EST[1] - 30 * coperto, NEBBIA_INT[1], k);
+  const notte = TRATTI[mondoDi(G.pos)].stile === 'festival';
+  cielo.intensity += (THREE.MathUtils.lerp(notte ? 0.7 : 1.5 - 0.2 * coperto, 1.9, k) - cielo.intensity) * 0.1;
+  sole.intensity += (THREE.MathUtils.lerp(notte ? 0.5 : 1.6 - 0.75 * coperto, 0.1, k) - sole.intensity) * 0.1;
+  coloreMondo('terraInt', G.pos, cTerraInt);
+  cielo.groundColor.copy(cTerra).lerp(cTerraInt, k);
+
+  // La scuola in lontananza si schiarisce con la distanza (velo d'aria).
+  for (const fa of FACCIATE) {
+    fa.mesh.visible = G.pos < fa.pos + 4 && G.pos > fa.pos - 700;
+    if (!fa.mesh.visible) continue;
+    fa.mesh.userData.apri(aperturaPorta(fa.pos - G.pos));
+    const f = THREE.MathUtils.smoothstep(fa.pos - G.pos, 90, 650) * 0.72;
+    for (const { m, base } of fa.mesh.userData.materiali) m.color.copy(base).lerp(cA, f);
+  }
+}
+
+// Le porte si aprono quando ci si avvicina: chiuse oltre 18 m, aperte a 8 m.
+const aperturaPorta = distanza => THREE.MathUtils.smoothstep(18 - distanza, 0, 10);
+
+function aggiornaEntita(ora) {
+  const pos = G.pos;
+  bollaEuro.visible = false;
+  bollaAbuso.visible = false;
+  while (prossima < ENTITA.length && ENTITA[prossima].d - mezzaLunghezza(ENTITA[prossima]) < pos + VISTA) {
+    const e = ENTITA[prossima++];
+    if (distanza(e, pos) + mezzaLunghezza(e) < pos - DIETRO) continue;
+    if (e.genere === 'caffe' && G.raccolti.has(e)) continue;
+    if (e.genere === 'portaAula' && G.fatti.has(e.mondo)) continue;
+    e.mesh = creaMesh(e);
+    scena.add(e.mesh);
+    if (!dinamico(e)) mettiSulPercorso(e.mesh, e.d, INCLINATI.has(e.genere));
+    attive.push(e);
+  }
+  for (let i = attive.length - 1; i >= 0; i--) {
+    const e = attive[i];
+    const d = distanza(e, pos);
+    if (d + mezzaLunghezza(e) < pos - DIETRO || (e.genere === 'portaAula' && G.fatti.has(e.mondo))) {
+      rimuovi(e); attive.splice(i, 1);
+      continue;
+    }
+    if (e.genere === 'caffe') {
+      mettiSulPercorso(e.mesh, e.d, false);
+      e.interno.rotation.y += 0.05;
+      e.interno.position.y = e.altBonus + Math.sin(ora / 250 + e.d) * 0.08;
+    } else if (bucoInStrada(e)) {
+      // La buca spunta con un rimbalzo circa 1 s prima di arrivarci.
+      mettiSulPercorso(e.mesh, e.d, true);
+      const v = velocitaIn(pos);
+      const p = THREE.MathUtils.clamp((v * 1.15 - (e.d - pos)) / (v * 0.3), 0, 1), x = p - 1;
+      e.interno.scale.setScalar(p === 0 ? 0.001 : Math.max(0.001, 1 + 2.70158 * x * x * x + 1.70158 * x * x));
+    } else if (e.tipo === 'parcheggiatore') {
+      aggiornaParcheggiatore(e, ora);
+    } else if (e.tipo === 'persona') {
+      mettiSulPercorso(e.mesh, d, true);
+      e.anima?.(ora / 1000);
+      if (e.membro === 'abuso' && d - pos < ABUSO_DA && d - pos > 0.5 && G.stato === 'gioco') {
+        bollaAbuso.visible = true;
+        daLocale(d, CORSIE[e.corsia], 2.35, 0, bollaAbuso.position);
+      }
+    } else if (e.tipo === 'lancio') {
+      // Parte quando il giocatore è vicino, nella corsia in cui si trova in quel momento.
+      if (pos < e.d0 - e.anticipo) e.lanciato = false;
+      else if (!e.lanciato) { e.lanciato = true; e.corsia = G.corsia; e.t0 = ora / 1000; }
+      const k = e.lanciato ? THREE.MathUtils.smoothstep(e.d0 - d, 0, 3.5) : 0;
+      e.xLat = THREE.MathUtils.lerp(e.lato * 3.0, CORSIE[e.corsia], k);
+      mettiSulPercorso(e.mesh, d, true);
+      e.mesh.position.x += Math.cos(tmp.psi) * e.xLat;
+      e.mesh.position.z += Math.sin(tmp.psi) * e.xLat;
+      e.mesh.visible = Boolean(e.lanciato) && d > pos - 1;   // passato il giocatore sparisce
+      e.anima?.(ora / 1000);
+    } else if (e.genere === 'lanciatore') {
+      e.anima?.(ora / 1000, e.proiettile, e.d - pos);
+    } else if (e.tipo === 'crociera') {
+      mettiSulPercorso(e.mesh, e.d, true);
+      const lat = latoCrociera(e, pos);
+      e.mesh.position.x += Math.cos(tmp.psi) * lat;
+      e.mesh.position.z += Math.sin(tmp.psi) * lat;
+    } else if (e.genere === 'rennes') {
+      e.anima?.(ora / 1000);
+    } else if (e.interno.userData.apri) {
+      e.interno.userData.apri(aperturaPorta(e.d - pos));
+    }
+  }
+}
+
+// Scritta che sale accanto al timer quando il tempo cambia: verde (-) per i bonus, rossa (+) per le penalità.
+function scrittaTempo(testo, colore) {
+  const r = hud.tempo.getBoundingClientRect();
+  const el = document.createElement('div');
+  el.textContent = testo;
+  el.style.cssText = `position:fixed;left:${Math.round(r.right + 8)}px;top:${Math.round(r.top)}px;z-index:30;pointer-events:none;`
+    + `font:800 ${Math.max(18, Math.round(r.height * 0.95))}px system-ui,sans-serif;color:${colore};text-shadow:0 2px 6px rgba(0,0,0,.55);`;
+  document.body.appendChild(el);
+  const fine = () => el.remove();
+  if (el.animate) el.animate([{ transform: 'translateY(0)', opacity: 1 }, { transform: 'translateY(-10px)', opacity: 1, offset: 0.6 }, { transform: 'translateY(-22px)', opacity: 0 }], { duration: 1500, easing: 'ease-out' }).onfinish = fine;
+  else setTimeout(fine, 1500);
+}
+
+function controllaUrti() {
+  if (G.immune || G.invul > 0) return;
+  const f = fisica();
+  const altezza = G.scivola > 0 ? f.altezzaBassa : f.altezza;
+  const basso = G.y, alto = G.y + altezza;
+  for (let i = attive.length - 1; i >= 0; i--) {
+    const e = attive[i];
+    if (e.genere !== 'ostacolo' && e.genere !== 'caffe') continue;
+    const d = distanza(e, G.pos);
+    // In casa si va piano e le persone sembrano già superate: hitbox più snelle (meno larghe e meno lunghe).
+    const snello = e.genere === 'ostacolo' && TRATTI[G.mondo].stile === 'casa';
+    if (Math.abs(d - G.pos) > (snello ? mezzaLunghezza(e) * 0.75 + 0.05 : mezzaLunghezza(e) + 0.4)) continue;
+    if (e.tipo === 'crociera') {
+      // L'auto è larga 4,2 m lungo x: colpisce chi sta nella sua corsia o in quella accanto.
+      if (Math.abs(latoCrociera(e, G.pos) - G.x) < 2.1 + 0.5 && basso < 1.3) { caduta(); return; }
+      continue;
+    }
+    if (e.tipo === 'lancio') { if (!e.lanciato || Math.abs(e.xLat - G.x) > (snello ? 0.55 : 1.0)) continue; }
+    else if (e.tipo === 'parcheggiatore') { if (Math.abs(e.xLat - G.x) > 0.95) continue; }
+    else if (Math.abs(CORSIE[e.corsia] - G.x) > (snello ? 0.6 : 1.15)) continue;
+    if (e.genere === 'caffe') {
+      G.caffe++;
+      scrittaTempo(`-${BONUS_CAFFE}`, '#7CE08A');
+      G.exprNome = 'gioia'; G.exprTemp = 0.9;
+      G.raccolti.add(e);
+      rimuovi(e); attive.splice(i, 1);
+      continue;
+    }
+    // Intervallo di quota occupato dall'ostacolo. La buca si supera saltando.
+    const [oBasso, oAlto] = e.tipo === 'basso' ? [0, f.bassoMax] : e.tipo === 'alto' ? [f.altoDa, 3]
+      : e.tipo === 'buco' ? [-1, f.bucoMax] : [0, 3];
+    if (alto > oBasso && basso < oAlto) { caduta(); return; }
+  }
+}
+
+// Quanto ci si sta avvicinando alla porta dell'aula: 0 lontano, 1 davanti alla porta.
+function avvicinamentoAula() {
+  const ev = EVENTO[G.mondo];
+  if (!ev || G.fatti.has(G.mondo)) return 0;
+  return THREE.MathUtils.smoothstep(G.pos, ev.sez.inizio - AVVICINAMENTO_AULA, ev.sez.inizio + 2);
+}
+
+// ---------------------------------------------------------------------------
+// L'amico biondo: esce dall'aula insieme a Roberto; fuori dal portone chiacchierano, lui va verso il suo
+// motorino sul marciapiede e si salutano.
+// ---------------------------------------------------------------------------
+
+const amico = creaAmico();
+amico.radice.visible = false;
+amico.radice.rotation.order = 'YXZ';
+scena.add(amico.radice);
+const motorino = new THREE.Group();
+const motorinoMesh = creaMotorino();
+motorino.add(motorinoMesh);
+motorino.visible = false;
+scena.add(motorino);
+const SEZ_PORTONE = TRATTI[LICEO].sezioni.find(s => s.id === 'portone');
+const AMICO_INIZIO = EVENTO[LICEO].porta + 0.6;    // esce dall'aula con Roberto
+const AMICO_PARLA = AMICO_INIZIO + 3;              // il dialogo parte appena usciti dall'aula e finisce sulle scale
+const AMICO_MOTO = SEZ_PORTONE.fine + 1;           // fuori dal portone va al suo motorino
+const RIGA_DIALOGO = 1.1;                          // secondi per battuta
+const DIALOGO = [
+  ['amico', 'Oh, dopo mi mandi i compiti?'], ['roberto', 'Sì fra, te li mando'],
+  ['amico', 'Allora ci sentiamo dopo'], ['roberto', 'Ciao fra'],
+];
+const bolleAmico = DIALOGO.map(([chi, testo]) => {
+  const largo = testo.length > 16 ? 1.9 : testo.length > 10 ? 1.4 : 1;
+  const f = fumetto(testo, chi === 'amico' ? '#FFE27A' : '#ffffff', '#1C1D2B', 0.95 * largo, largo);
+  scena.add(f);
+  return f;
+});
+const MOTORINO_X = 3.75;                           // sul bordo del marciapiede, così resta in vista
+const AMICO_LATO = -1;                             // corre sul lato sinistro
+const AMICO_X = 2.8;                               // appena fuori dalla corsia, dentro i pilastri del portone (3,1)
+const amicoStato = { x: 0, parla: 0, lato: 1, avviato: false, dMoto: null, latoMoto: -1, dFermo: null, d3: 0, pos3: 0, kCam: 0 };
+const posAmico = new THREE.Vector3();
+
+function aggiornaAmico(dt) {
+  const fermo = amicoStato.dFermo !== null;
+  const attivo = G.mondo === LICEO && G.fatti.has(LICEO) && G.pos >= AMICO_INIZIO && (!fermo || G.pos - amicoStato.dFermo < 40)
+    && (G.stato === 'gioco' || G.stato === 'caduto' || G.stato === 'aulaRientro' || G.stato === 'pausa');
+  amico.radice.visible = attivo;
+  motorino.visible = attivo && amicoStato.dMoto !== null;
+  for (const b of bolleAmico) b.visible = false;
+  G.parlaAmico = 0;
+  if (!attivo) {
+    if (G.pos < AMICO_INIZIO || G.mondo !== LICEO) Object.assign(amicoStato, { parla: 0, avviato: false, dMoto: null, dFermo: null, kCam: 0 });
+    return;
+  }
+
+  // Le battute partono appena usciti dall'aula, una ogni RIGA_DIALOGO secondi.
+  if (G.pos >= AMICO_PARLA && G.stato === 'gioco') amicoStato.parla += dt;
+  const riga = Math.floor(amicoStato.parla / RIGA_DIALOGO);
+  const parlano = G.pos >= AMICO_PARLA && riga < DIALOGO.length && G.stato === 'gioco';
+
+  // Fuori dal portone compare il motorino sul marciapiede dal suo lato, poco più avanti.
+  if (G.pos >= AMICO_MOTO && amicoStato.dMoto === null) {
+    amicoStato.latoMoto = AMICO_LATO;
+    // Il motorino non deve stare dietro a un bonus (lo nasconderebbe): se serve, qualche metro prima.
+    let dm = G.pos + 25;
+    const vicinoBonus = q => ENTITA.some(e => e.genere === 'caffe' && Math.abs(e.d - q) < 9);
+    while (vicinoBonus(dm) && dm > G.pos + 12) dm -= 2;
+    amicoStato.dMoto = dm;
+    amicoStato.d3 = G.pos + 2.6; amicoStato.pos3 = G.pos;
+    mettiSulPercorso(motorino, amicoStato.dMoto, false);
+    motorinoMesh.position.set(amicoStato.latoMoto * MOTORINO_X, 0.12, 0);
+    motorinoMesh.rotation.y = -amicoStato.latoMoto * 0.35;
+  }
+
+  let d, x, sterza = 0;
+  azzeraPosa(amico);
+  if (amicoStato.dMoto === null) {
+    // Sul lato sinistro, appena fuori dalle corsie, un paio di metri davanti a Roberto: così non
+    // sembra un ostacolo e la camera (spostata verso di lui) li inquadra tutti e due.
+    // Se Roberto è nella corsia di sinistra, l'amico si scosta un po' di più (senza toccare i pilastri).
+    const bersaglio = AMICO_LATO * Math.max(AMICO_X, Math.min(3.05, -AMICO_LATO * G.x + 0.85));
+    if (!amicoStato.avviato) { amicoStato.x = bersaglio; amicoStato.avviato = true; }
+    amicoStato.x += (bersaglio - amicoStato.x) * Math.min(1, dt * 4);
+    x = amicoStato.x;
+    d = G.pos + 2.6;
+    posaCorsa(amico, G.passo + 0.9, 0.85);
+  } else {
+    // Va verso il motorino e si ferma lì accanto; Roberto tira dritto.
+    // Allunga il passo per arrivarci prima di Roberto, così lo si vede salire sul marciapiede.
+    const meta = amicoStato.dMoto - 1.0, xMeta = amicoStato.latoMoto * (MOTORINO_X - 0.55);
+    if (!fermo) {
+      d = Math.min(amicoStato.d3 + (G.pos - amicoStato.pos3) * 1.85, meta);
+      amicoStato.x += (xMeta - amicoStato.x) * Math.min(1, dt * 2.2);
+      if (d >= meta - 0.01) amicoStato.dFermo = meta;
+      sterza = -Math.sign(xMeta - amicoStato.x) * Math.min(0.9, Math.abs(xMeta - amicoStato.x) * 0.6);
+      posaCorsa(amico, G.passo * 0.8 + 0.9, 0.7);
+    } else {
+      d = amicoStato.dFermo;
+      amicoStato.x += (xMeta - amicoStato.x) * Math.min(1, dt * 3);
+      // Saluta con la mano mentre Roberto si allontana.
+      const i = amicoStato.latoMoto < 0 ? 1 : 0;     // il braccio dal lato di Roberto
+      amico.braccia[i].spalla.rotation.set(0, 0, (i ? 1 : -1) * (2.5 + Math.sin(G.tempo * 9) * 0.25));
+    }
+    x = amicoStato.x;
+  }
+  perc.punto(d, tmp);
+  const c = Math.cos(tmp.psi), s = Math.sin(tmp.psi);
+  const suMarciapiede = Math.abs(x) > 3.3 ? 0.12 : 0;
+  amico.radice.position.set(tmp.x + c * x, tmp.h + suMarciapiede, tmp.z + s * x);
+  amico.radice.rotation.set(Math.atan(tmp.pend) * 0.5, -tmp.psi + sterza, 0);
+
+  const lato = Math.sign(x - G.x) || 1;    // +1 = amico alla destra di Roberto
+  amicoStato.lato = lato;
+  // Camera spostata verso di lui finché corrono insieme; quando va al motorino torna dietro a Roberto.
+  amicoStato.kCam += ((amicoStato.dMoto === null ? 1 : 0) - amicoStato.kCam) * Math.min(1, dt * 1.5);
+  aiutoCamera(AMICO_LATO, amicoStato.kCam);
+  amico.testa.rotation.y = parlano ? lato * 0.55 : 0;
+  if (parlano && DIALOGO[riga][0] === 'amico' && !fermo) {
+    amico.braccia[0].spalla.rotation.set(-1.1 + Math.sin(G.tempo * 14) * 0.25, 0, -0.25);
+    amico.braccia[0].gomito.rotation.set(-1.0, 0, 0);
+  }
+  if (parlano) {
+    const bolla = bolleAmico[riga];
+    const parlaRoberto = DIALOGO[riga][0] === 'roberto';
+    roberto.getWorldPosition(posAmico);
+    amico.radice.getWorldPosition(bolla.position);
+    // Il fumetto sta tra i due, spostato verso chi parla (così non esce dallo schermo).
+    bolla.position.lerp(posAmico, parlaRoberto ? 0.62 : 0.35);
+    bolla.position.y += 2.3;
+    bolla.visible = true;
+    G.parlaAmico = parlaRoberto ? 2 : 1;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Nel corridoio del 3° piano del liceo una ragazza bionda viene incontro a Roberto: "Ciao amo!",
+// "Ciao!". Roberto non si ferma: la camera si avvicina un attimo per farla vedere bene, poi lei si
+// gira a salutarlo mentre lui passa (e la camera la sorpassa).
+// ---------------------------------------------------------------------------
+
+const ragazza = creaRagazza();
+ragazza.radice.visible = false;
+scena.add(ragazza.radice);
+const SEZ_RAGAZZA = TRATTI[LICEO].sezioni.find(s => s.ragazza);
+const RAGAZZA_M = SEZ_RAGAZZA.inizio + SEZ_RAGAZZA.ragazza;     // dove si incrociano
+const bollaAmo = fumetto('Ciao amo!', '#FFC9DA', '#1C1D2B', 1.35);
+const bollaCiao = fumetto('Ciao!', '#FFFFFF', '#1C1D2B', 0.75);
+scena.add(bollaAmo, bollaCiao);
+// Spostamento della camera chiesto dai personaggi a margine (il più forte vince, si azzera a ogni frame).
+// Con `fuoco` (0..1) la camera guarda anche verso `aiuto.mira` e stringe l'inquadratura.
+const aiuto = { k: 0, lato: 0, fuoco: 0, largo: false, mira: new THREE.Vector3() };
+function aiutoCamera(lato, k) { if (k > aiuto.k) { aiuto.k = k; aiuto.lato = lato; } }
+
+// Mentre si salutano Roberto rallenta, così la scena si legge.
+const rallentaRagazza = () => (G.mondo === LICEO
+  ? 0.5 * THREE.MathUtils.smoothstep(G.pos, RAGAZZA_M - 20, RAGAZZA_M - 14) * (1 - THREE.MathUtils.smoothstep(G.pos, RAGAZZA_M + 6, RAGAZZA_M + 10)) : 0);
+const MARGINE = 3.35;          // fuori dalle corsie, lungo il muro: i personaggi non sembrano ostacoli
+
+function aggiornaRagazza() {
+  const p = G.pos, M = RAGAZZA_M;
+  const attivo = G.mondo === LICEO && p > M - 40 && p < M + 16
+    && (G.stato === 'gioco' || G.stato === 'caduto' || G.stato === 'pausa');
+  ragazza.radice.visible = attivo;
+  bollaAmo.visible = bollaCiao.visible = false;
+  if (!attivo) return;
+  // Cammina lungo il muro di destra, fuori dalle corsie. Incrociato Roberto si gira, lo supera
+  // saltellando lungo il muro (così la si vede bene da dietro) e sparisce in fondo al corridoio.
+  const lato = 1, x = lato * 3.05;
+  const gira = THREE.MathUtils.smoothstep(p, M - 1, M + 2);
+  const d = p < M ? M + (M - p) * 0.25 : M + (p - M) * 1.35;
+  azzeraPosa(ragazza);
+  posaCorsa(ragazza, G.tempo * (6.5 + 3 * gira), 0.38 + 0.2 * gira);
+  ragazza.corpo.rotation.z = Math.sin(G.tempo * 6.5) * 0.07;          // ancheggia
+  const amo = p > M - 16 && p < M - 4;
+  const ciao = p >= M - 4 && p < M + 3;
+  // Saluta con la mano verso Roberto mentre parla, e di nuovo quando lui risponde.
+  if (amo || ciao) {
+    const i = gira < 0.5 ? 1 : 0;
+    ragazza.braccia[i].spalla.rotation.set(0, 0, (i ? 1 : -1) * (2.5 + Math.sin(G.tempo * 10) * 0.25));
+  }
+  ragazza.testa.rotation.y = gira < 0.5 ? -0.35 : 0.6 * (1 - THREE.MathUtils.smoothstep(p, M + 3, M + 6));   // si volta a guardarlo
+  perc.punto(d, tmp);
+  const c = Math.cos(tmp.psi), s = Math.sin(tmp.psi);
+  ragazza.radice.position.set(tmp.x + c * x, tmp.h, tmp.z + s * x);
+  ragazza.radice.rotation.set(0, -tmp.psi + Math.PI * (1 - gira), 0);
+  // La camera si allarga verso di lei per tutta la scena, poi torna dietro a Roberto.
+  aiutoCamera(lato, THREE.MathUtils.smoothstep(p, M - 34, M - 24) * (1 - THREE.MathUtils.smoothstep(p, M + 9, M + 15)));
+  // Quando è vicina la camera la inquadra da vicino sul viso.
+  // Tutta la scena la camera la tiene al centro dello schermo (lei è il soggetto), un po' più stretta sul viso.
+  const sulViso = THREE.MathUtils.smoothstep(p, M - 24, M - 16) * (1 - THREE.MathUtils.smoothstep(p, M + 1, M + 5));
+  if (sulViso > 0) {
+    ragazza.radice.getWorldPosition(aiuto.mira);
+    aiuto.mira.y += 1.5;
+    aiuto.fuoco = 0.92 * sulViso;
+  }
+  if (amo) {
+    ragazza.radice.getWorldPosition(bollaAmo.position);
+    bollaAmo.position.y += 2.15;
+    bollaAmo.visible = true;
+  }
+  if (ciao) {
+    roberto.getWorldPosition(bollaCiao.position);
+    bollaCiao.position.y += 2.0;
+    bollaCiao.visible = true;
+    G.exprTemp = 0.2; G.exprNome = 'gioia';
+  }
+  G.guardaRagazza = ciao || amo ? lato : 0;
+}
+
+// ---------------------------------------------------------------------------
+// Il fratello all'Istituto Darmon: esce dalla classe accanto a Roberto con il suo creeper, corrono un po'
+// insieme, poi lui entra nella sua classe. Roberto gli chiede "Dove vai?" e tira dritto.
+// ---------------------------------------------------------------------------
+
+const fratello = creaFratello();
+fratello.radice.visible = false;
+fratello.radice.rotation.order = 'YXZ';
+fratello.radice.scale.setScalar(0.52);
+scena.add(fratello.radice);
+const SEZ_USCITA_D = TRATTI[DARMON].sezioni.find(s => s.id === 'uscita-d');
+const FRATELLO_INIZIO = EVENTO[DARMON].porta + 0.6;
+const FRATELLO_PORTA = SEZ_USCITA_D.inizio + SEZ_USCITA_D.portaFratello;
+const FRATELLO_MOSTRA = 28;                       // metri in cui si fa vedere bene, con il creeper alzato
+const FRATELLO_GIRA = FRATELLO_PORTA - 17;       // da qui corre avanti verso la porta (che si vede ancora)
+const bollaDoveVai = fumetto('Dove vai?', '#FFFFFF', '#1C1D2B', 1.25);
+scena.add(bollaDoveVai);
+const fr = { x: 0, avviato: false, dentro: false, d0: 0, x0: 0, domanda: 0, lanciato: false };
+
+function aggiornaFratello(dt) {
+  if (G.pos < FRATELLO_INIZIO || G.mondo !== DARMON) {
+    Object.assign(fr, { avviato: false, dentro: false, domanda: 0, lanciato: false });
+    if (lancioCreeper.stato !== 'no') azzeraCreeper();
+  }
+  fratello.creeper.visible = !fr.lanciato;
+  const attivo = G.mondo === DARMON && G.fatti.has(DARMON) && G.pos >= FRATELLO_INIZIO && !fr.dentro
+    && G.pos < FRATELLO_PORTA + 20
+    && (G.stato === 'gioco' || G.stato === 'caduto' || G.stato === 'aulaRientro' || G.stato === 'pausa');
+  fratello.radice.visible = attivo;
+  bollaDoveVai.visible = false;
+  G.zoomFratello = 0;
+  if (fr.domanda > 0 && G.stato === 'gioco') {
+    // Roberto chiede "Dove vai?" mentre il fratello sparisce in classe.
+    fr.domanda -= dt;
+    roberto.getWorldPosition(bollaDoveVai.position);
+    bollaDoveVai.position.y += 1.9;
+    bollaDoveVai.visible = true;
+    G.exprTemp = 0.2; G.exprNome = 'sorpresa';
+  }
+  if (!attivo) return;
+
+  let d, x, sterza = 0, mostra = 0;
+  azzeraPosa(fratello);
+  if (G.pos < FRATELLO_GIRA) {
+    // Accanto a Roberto, dal lato della porta (a destra), a sinistra se Roberto è già nella corsia di destra.
+    const bersaglio = G.x < 1 ? G.x + 1.0 : G.x - 1.0;
+    if (!fr.avviato) { fr.x = bersaglio; fr.avviato = true; }
+    fr.x += (bersaglio - fr.x) * Math.min(1, dt * 6);
+    // All'inizio si presenta: un po' più avanti, girato verso di noi, con il creeper alzato in mano.
+    const pr = G.pos - FRATELLO_INIZIO;
+    mostra = 1 - THREE.MathUtils.smoothstep(pr, FRATELLO_MOSTRA, FRATELLO_MOSTRA + 7);
+    G.zoomFratello = THREE.MathUtils.smoothstep(pr, 0, 3) * mostra;
+    x = THREE.MathUtils.lerp(fr.x, G.x + Math.sign(bersaglio - G.x) * 0.85, mostra);
+    d = G.pos - 0.2 - Math.min(1, Math.abs(bersaglio - fr.x) / 1.2) + 2.6 * mostra;
+    fr.d0 = d; fr.x0 = x;
+    posaCorsa(fratello, G.passo + 0.7, 0.75 - 0.35 * mostra);
+    fratello.testa.rotation.y = -Math.sign(x - G.x) * 0.35 * (0.5 + 0.5 * Math.sin(G.tempo * 1.7)) * (1 - mostra);
+    // Girato verso la camera (dietro Roberto), di tre quarti.
+    sterza = -mostra * (Math.PI - Math.sign(x - G.x) * 0.45);
+  } else {
+    // Scatta avanti (più veloce di Roberto) e piega verso la porta, così si vede entrare in classe.
+    const u = Math.min(1, (G.pos - FRATELLO_GIRA) * 2.3 / Math.hypot(FRATELLO_PORTA - fr.d0, 4.6 - fr.x0));
+    d = fr.d0 + (FRATELLO_PORTA - fr.d0) * (1 - (1 - u) * (1 - u) * 0.6 - 0.4 * (1 - u));
+    x = fr.x0 + (4.6 - fr.x0) * Math.pow(u, 2.2);
+    const vd = (FRATELLO_PORTA - fr.d0) * (1.2 * (1 - u) + 0.4), vx = (4.6 - fr.x0) * 2.2 * Math.pow(u, 1.2);
+    sterza = Math.atan2(vx, vd);
+    posaCorsa(fratello, G.passo * 1.3 + 0.7, 0.9);
+    if (fr.domanda === 0 && u > 0.3) fr.domanda = 1.4;
+    // Sulla porta si gira e lancia il creeper verso Roberto, un po' più avanti, nella sua corsia.
+    if (!fr.lanciato && u > 0.86) { fr.lanciato = true; lanciaCreeper(d, x); fratello.creeper.visible = false; }
+    if (x > 4.15) { fr.dentro = true; fratello.radice.visible = false; return; }
+  }
+  // Il creeper resta in mano: tenuto davanti mentre corre, alzato sopra la spalla quando lo fa vedere;
+  // prima di entrare in classe carica il braccio dietro la testa e lo lancia.
+  let [sx, gx] = [THREE.MathUtils.lerp(0.4, 2.3, mostra), THREE.MathUtils.lerp(1.1, 0.5, mostra)];
+  if (G.pos >= FRATELLO_GIRA) {
+    const u = Math.min(1, (G.pos - FRATELLO_GIRA) * 2.3 / Math.hypot(FRATELLO_PORTA - fr.d0, 4.6 - fr.x0));
+    const carica = THREE.MathUtils.smoothstep(u, 0.5, 0.8), tiro = THREE.MathUtils.smoothstep(u, 0.8, 0.9);
+    sx = THREE.MathUtils.lerp(sx, 3.1, carica) - 2.4 * tiro; gx = THREE.MathUtils.lerp(gx, 1.2, carica) - 1.0 * tiro;
+    sterza = THREE.MathUtils.lerp(sterza, sterza - 1.3, carica * (1 - tiro * 0.5));   // si gira verso Roberto
+  }
+  fratello.braccia[1].spalla.rotation.set(sx, 0, THREE.MathUtils.lerp(0.35, 0.25, mostra));
+  fratello.braccia[1].gomito.rotation.set(gx, 0, 0);
+  fratello.creeper.rotation.set(-(sx + gx), 0, 0);
+  // L'altra mano saluta.
+  if (mostra > 0.05) fratello.braccia[0].spalla.rotation.set(0, 0, -(2.4 + Math.sin(G.tempo * 9) * 0.3) * mostra);
+  perc.punto(d, tmp);
+  const c = Math.cos(tmp.psi), s = Math.sin(tmp.psi);
+  fratello.radice.position.set(tmp.x + c * x, tmp.h, tmp.z + s * x);
+  fratello.radice.rotation.set(0, -tmp.psi - sterza, 0);
+}
+
+// Il creeper lanciato dal fratello: vola in una corsia davanti a Roberto, si accende e lampeggia come nel
+// gioco, poi esplode quando Roberto si avvicina. Va schivato cambiando corsia.
+const CREEPER_ANTICIPO = 28;          // metri davanti a Roberto in cui atterra
+const CREEPER_ESPLODE = 4.5;          // esplode quando Roberto è a questa distanza
+const creeperVolante = creaCreeper();
+creeperVolante.scale.setScalar(2.2);
+const matCreeper = [];
+creeperVolante.traverse(o => { if (o.material) { o.material = Array.isArray(o.material) ? o.material.map(m => m.clone()) : o.material.clone(); matCreeper.push(...[o.material].flat()); } });
+for (const m of matCreeper) m.fog = false;          // resta ben visibile anche in fondo al corridoio
+const creeperG = new THREE.Group();
+creeperG.add(creeperVolante);
+creeperG.visible = false;
+scena.add(creeperG);
+const lancioCreeper = { stato: 'no', t: 0, d0: 0, x0: 0, y0: 0, d: 0, x: 0, pezzi: [] };
+const GEO_PEZZO = new THREE.BoxGeometry(0.22, 0.22, 0.22);
+const MAT_PEZZI = [0x5FAE3E, 0x3E7D2A, 0x8CCB5E, 0x1C1D2B, 0x9A9A9A].map(c => new THREE.MeshLambertMaterial({ color: c }));
+const lampoBoom = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 12), new THREE.MeshBasicMaterial({ color: 0xFFFFFF, transparent: true, opacity: 0, depthWrite: false }));
+lampoBoom.visible = false;
+scena.add(lampoBoom);
+let boomT = 0;
+
+function azzeraCreeper() {
+  for (const p of lancioCreeper.pezzi) scena.remove(p.m);
+  Object.assign(lancioCreeper, { stato: 'no', pezzi: [] });
+  creeperG.visible = false; lampoBoom.visible = false;
+}
+function lanciaCreeper(d, x) {
+  Object.assign(lancioCreeper, { stato: 'volo', t: 0, d0: d, x0: x, y0: 0.9, d: G.pos + CREEPER_ANTICIPO, x: CORSIE[G.corsia] });
+  creeperG.visible = true;
+}
+function aggiornaCreeper(dt) {
+  const L = lancioCreeper;
+  boomT = Math.max(0, boomT - dt);
+  if (L.stato === 'no' || L.stato === 'fatto') return;
+  const gioca = G.stato === 'gioco';
+  if (gioca) L.t += dt;
+  let d = L.d, x = L.x, y = 0;
+  for (const m of matCreeper) m.emissive?.setHex(0x000000);
+  if (L.stato === 'volo') {
+    const k = Math.min(1, L.t / 0.75);
+    d = THREE.MathUtils.lerp(L.d0, L.d, k); x = THREE.MathUtils.lerp(L.x0, L.x, k);
+    y = L.y0 * (1 - k) + Math.sin(k * Math.PI) * 3.2;
+    creeperVolante.rotation.set(k * Math.PI * 4, k * Math.PI * 2, 0);
+    if (k >= 1) { L.stato = 'miccia'; L.t = 0; creeperVolante.rotation.set(0, Math.PI, 0); }
+  } else if (L.stato === 'miccia') {
+    // Lampeggia sempre più in fretta e si gonfia.
+    const ritmo = 5 + L.t * 6;
+    const acceso = Math.sin(L.t * ritmo * Math.PI) > 0;
+    for (const m of matCreeper) m.emissive?.setScalar(acceso ? 0.85 : 0);
+    creeperVolante.scale.setScalar(2.2 * (1 + 0.15 * Math.min(1, L.t / 1.2) + (acceso ? 0.06 : 0)));
+    y = Math.abs(Math.sin(L.t * 9)) * 0.06;
+    if (L.d - G.pos < CREEPER_ESPLODE || L.t > 4) {
+      L.stato = 'boom'; L.t = 0; boomT = 0.6;
+      creeperG.visible = false;
+      daLocale(L.d, L.x, 0.8, 0, lampoBoom.position);
+      lampoBoom.visible = true;
+      for (let i = 0; i < 22; i++) {
+        const m = new THREE.Mesh(GEO_PEZZO, MAT_PEZZI[i % MAT_PEZZI.length]);
+        m.position.copy(lampoBoom.position);
+        const a = Math.random() * Math.PI * 2, v = 3 + Math.random() * 5;
+        scena.add(m);
+        L.pezzi.push({ m, vx: Math.cos(a) * v, vy: 3 + Math.random() * 5, vz: Math.sin(a) * v });
+      }
+      if (navigator.vibrate) navigator.vibrate([60, 40, 120]);
+    }
+  } else if (L.stato === 'boom') {
+    const k = Math.min(1, L.t / 0.35);
+    lampoBoom.scale.setScalar(0.4 + 1.8 * Math.sqrt(k));
+    lampoBoom.material.opacity = 0.85 * (1 - k) * (1 - k);
+    for (const p of L.pezzi) {
+      p.vy -= 14 * dt;
+      p.m.position.x += p.vx * dt; p.m.position.y = Math.max(lampoBoom.position.y - 0.7, p.m.position.y + p.vy * dt); p.m.position.z += p.vz * dt;
+      p.m.rotation.x += dt * 8; p.m.rotation.y += dt * 6;
+    }
+    // Chi è nella corsia dell'esplosione, lì vicino, cade.
+    if (L.t < 0.35 && gioca && !G.immune && !(G.invul > 0) && Math.abs(G.x - L.x) < 1.3 && Math.abs(G.pos - L.d) < 3.2) caduta();
+    if (L.t > 1.2) { for (const p of L.pezzi) scena.remove(p.m); L.pezzi = []; lampoBoom.visible = false; L.stato = 'fatto'; }
+    return;
+  }
+  daLocale(d, x, y, 0, creeperG.position);
+  perc.punto(d, tmp);
+  creeperG.rotation.set(0, -tmp.psi, 0);
+}
+
+// ---------------------------------------------------------------------------
+// Boss di fine medie: il Gelato Gigante (vedi boss-gelato.js), prima di diventare liceale
+// ---------------------------------------------------------------------------
+
+const SEZ_BOSS = TRATTI[DARMON].sezioni.find(s => s.boss === 'gelato');
+const tmpBoss = {};
+const DURATA_COLPO = 0.45;
+let colpoT = 0, corpoBoss = null;
+const boss = creaBossGelato(scena, {
+  sez: SEZ_BOSS, corsie: CORSIE, daLocale, fisica, velocita: velocitaIn,
+  psi: d => { perc.punto(d, tmpBoss); return tmpBoss.psi; },
+  immune: () => Boolean(G.immune),
+  colpito: () => {
+    G.malus += MALUS_COLPO; G.malusBoss = (G.malusBoss ?? 0) + MALUS_COLPO;
+    G.exprNome = 'dolore'; G.exprTemp = 0.9;
+    colpoT = DURATA_COLPO;
+    if (navigator.vibrate) navigator.vibrate(70);
+  },
+});
+const elBoss = document.getElementById('boss');
+const elVs = document.getElementById('vs');
+let vsT = 0, vsMostrato = false;
+const elBossBarra = document.getElementById('boss-barra');
+
+function aggiornaBoss(dt) {
+  boss.aggiorna(dt, G, G.stato === 'gioco');
+  // Roberto ingrassa e dimagrisce: si allarga il busto, con un sobbalzo a ogni colpo.
+  const c = (R.dim.corpo ?? 1) + 0.3 * boss.grassoVis + 0.16 * Math.sin(boss.scossa * Math.PI * 3) * boss.scossa;
+  if (boss.grassoVis > 0 || boss.scossa > 0) {
+    if (corpoBoss === null || Math.abs(c - corpoBoss) > 0.001) { R.corporatura(c); corpoBoss = c; }
+  } else if (corpoBoss !== null) { R.corporatura(R.dim.corpo ?? 1); corpoBoss = null; }
+  colpoT = Math.max(0, colpoT - dt);
+  // All'inizio del combattimento: "Il Bulimico Roby VS Cono Gelato", come nei picchiaduro.
+  if (G.pos < SEZ_BOSS.inizio - 60 || G.pos > SEZ_BOSS.fine) vsMostrato = false;
+  if (!vsMostrato && G.stato === 'gioco' && G.pos >= SEZ_BOSS.inizio - 6 && G.pos < SEZ_BOSS.inizio + 40) {
+    vsMostrato = true; vsT = 2.6;
+    nomiVs('Il Bulimico Roby', 'Cono Gelato');
+    elVs.hidden = true; void elVs.offsetWidth; elVs.hidden = false;      // riparte l'animazione
+  }
+  if (vsT > 0 && G.stato !== 'pausa') { vsT -= dt; if (vsT <= 0) elVs.hidden = true; }
+  // Pannello del boss.
+  const visibile = boss.dentro(G.pos) && !hud.radice.hidden && (G.stato === 'gioco' || G.stato === 'pausa' || G.stato === 'caduto');
+  elBoss.hidden = !visibile;
+  if (!visibile) return;
+  const k = THREE.MathUtils.clamp((G.pos - SEZ_BOSS.inizio) / (SEZ_BOSS.fine - SEZ_BOSS.inizio), 0, 1);
+  elBossBarra.style.transform = `scaleX(${1 - k})`;
+}
+
+// ---------------------------------------------------------------------------
+// Boss di fine liceo: a ping pong con il cugino (vedi boss-pingpong.js)
+// ---------------------------------------------------------------------------
+
+const SEZ_PINGPONG = TRATTI[LICEO].sezioni.find(s => s.boss === 'pingpong');
+const pingpong = creaPingPong(scena, SEZ_PINGPONG.inizio + 30, (o, d) => mettiSulPercorso(o, d, false), {
+  banner: (html, s) => banner(html, s, 'in-basso'),
+  nascondi: () => { elBanner.hidden = true; durataBanner = 0; },
+});
+pingpong.reset();
+const elBossIcona = elBoss.querySelector('span');
+
+// ---------------------------------------------------------------------------
+// Gli amici dell'università: i cinque col cappello blu sui gradoni, Chiara e il biondo, il cerchio di sette
+// (vedi scena-amici.js)
+// ---------------------------------------------------------------------------
+
+const SEZ_CORR_UNI = TRATTI[MAGISTRALE].sezioni.find(s => s.id === 'corridoio-uni');
+const SEZ_GRADONI = TRATTI[MAGISTRALE].sezioni.find(s => s.id === 'gradoni');
+const amici = creaScenaAmici(scena, perc, SEZ_CORR_UNI.inizio, SEZ_GRADONI.fine - 18);
+amici.reset();
+
+function avviaAmici() {
+  G.stato = 'amici';
+  G.corsia = 1; G.y = 0; G.vy = 0; G.scivola = 0;
+  amici.avvia();
+}
+
+// ---------------------------------------------------------------------------
+// L'ultimo boss: la faccia gigante della ragazza di Roberto (vedi boss-ragazza.js)
+// ---------------------------------------------------------------------------
+
+const SEZ_RAGAZZA_BOSS = TRATTI[MAGISTRALE].sezioni.find(s => s.boss === 'ragazza');
+const ragazzaBoss = creaBossRagazza(scena, {
+  sez: SEZ_RAGAZZA_BOSS, corsie: CORSIE, daLocale, fisica,
+  psi: d => { perc.punto(d, tmpBoss); return tmpBoss.psi; },
+  immune: () => Boolean(G.immune),
+  orizzontale: () => fovBase < 70,
+  colpito: () => {
+    G.malus += MALUS_BOSS_RAGAZZA; G.malusBoss = (G.malusBoss ?? 0) + MALUS_BOSS_RAGAZZA;
+    scrittaTempo(`+${MALUS_BOSS_RAGAZZA}`, '#FF4D40');
+    G.exprNome = 'dolore'; G.exprTemp = 0.9;
+    colpoT = DURATA_COLPO;
+    if (navigator.vibrate) navigator.vibrate(70);
+  },
+  vs: () => {
+    nomiVs('Roberto', 'La Fidanzata');
+    vsT = 2.6;
+    elVs.hidden = true; void elVs.offsetWidth; elVs.hidden = false;
+  },
+  banner: (html, s) => banner(html, s, 'in-basso'),
+  sipario: nero => elSipario.classList.toggle('nero', nero),
+});
+ragazzaBoss.reset();
+
+function aggiornaPannelloRagazza() {
+  if (ragazzaBoss.attivo && !hud.radice.hidden && G.stato !== 'bacio') {
+    elBoss.hidden = false;
+    elBossIcona.textContent = '💋';
+    elBossBarra.style.transform = `scaleX(${1 - ragazzaBoss.progresso()})`;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// L'ultimo ultimo boss: il TRIAGo, robot gigante che si pianta con i freni di emergenza (vedi boss-triago.js)
+// ---------------------------------------------------------------------------
+
+const RENNES = TRATTI.findIndex(t => t.stile === 'rennes');
+const SEZ_TRIAGO = TRATTI[RENNES].sezioni.find(s => s.boss === 'triago');
+const triago = creaBossTriago(scena, {
+  sez: SEZ_TRIAGO, daLocale,
+  psi: d => { perc.punto(d, tmpBoss); return tmpBoss.psi; },
+  vs: () => {
+    nomiVs('Ingegnere', 'TRIAGo');
+    vsT = 2.6;
+    elVs.hidden = true; void elVs.offsetWidth; elVs.hidden = false;
+  },
+});
+triago.reset();
+
+function avviaTriago() {
+  G.stato = 'triago';
+  G.corsia = 1; G.y = 0; G.vy = 0; G.scivola = 0;
+  triago.avvia();
+}
+
+function avviaBacio() {
+  G.stato = 'bacio';
+  G.corsia = 1; G.y = 0; G.vy = 0; G.scivola = 0;
+  ragazzaBoss.avviaBacio(G);
+}
+
+function aggiornaAmici(dt) {
+  const a = amici.disponi(G, dt);
+  aiutoCamera(a.lato, a.k);
+  if (a.fuoco > 0) { aiuto.mira.copy(a.mira); aiuto.fuoco = Math.max(aiuto.fuoco, a.fuoco); aiuto.largo = a.largo; }
+}
+
+function nomiVs(a, b) {
+  elVs.querySelector('.vs-a span').textContent = a;
+  elVs.querySelector('.vs-b span').textContent = b;
+}
+
+function avviaPingPong() {
+  G.stato = 'pingpong';
+  G.corsia = 1; G.y = 0; G.vy = 0; G.scivola = 0;
+  pingpong.avvia(R, G);
+  // "Pallettaro VS Frat Chiu' mportant", come per il gelato.
+  nomiVs('Pallettaro', 'Frat Chiu\' mportant');
+  vsT = 2.6;
+  elVs.hidden = true; void elVs.offsetWidth; elVs.hidden = false;
+}
+
+// Il pannello in alto: la racchetta e quanti colpi mancano.
+function aggiornaPannelloPingPong() {
+  if (G.stato === 'pingpong' && !hud.radice.hidden) {
+    elBoss.hidden = false;
+    elBossIcona.textContent = pingpong.fase === 'duello' ? '👆' : '🏓';
+    elBossBarra.style.transform = `scaleX(${pingpong.rimasti})`;
+  } else if (!ragazzaBoss.attivo && elBossIcona.textContent !== '🍦') elBossIcona.textContent = '🍦';
+}
+
+function animaRoberto(dt) {
+  perc.punto(G.pos, tmp);
+  const c = Math.cos(tmp.psi), s = Math.sin(tmp.psi);
+  roberto.position.set(tmp.x + c * G.x, tmp.h + G.y, tmp.z + s * G.x);
+  roberto.rotation.set(Math.atan(tmp.pend) * 0.5, -tmp.psi, 0);
+  roberto.visible = !(G.invul > 0) || Math.floor(G.invul * 12) % 2 === 0;   // lampeggia dopo la ripartenza
+  // Colpito dal gelato: barcolla all'indietro e ondeggia di lato per un attimo.
+  if (colpoT > 0) {
+    const k = Math.sin((1 - colpoT / DURATA_COLPO) * Math.PI);
+    roberto.rotation.x -= 0.35 * k;
+    roberto.rotation.z = 0.18 * k * Math.sin(colpoT * 40);
+  }
+  const f = fisica();
+  G.exprTemp = Math.max(0, G.exprTemp - dt);
+  R.aggiornaVolto(dt);
+
+  if (G.stato === 'intro') {
+    const corre = G.timer > DURATA_INTRO - 1.2;
+    const saluto = THREE.MathUtils.smoothstep(G.timer, 0.3, 0.7) * (1 - THREE.MathUtils.smoothstep(G.timer, 1.6, 2.0));
+    R.espressione(saluto > 0.5 ? 'gioia' : 'sorriso');
+    if (corre) {
+      const k = Math.min(1, (G.timer - (DURATA_INTRO - 1.2)) * 2);
+      if (f.posa === 'primipassi') { G.passo += dt * 9; posaPrimiPassi(R, G.passo, k); }
+      else { G.passo += dt * 14; posaCorsa(R, G.passo, k); }
+    }
+    else posaFerma(R, G.timer, saluto);
+    R.corpo.rotation.x = 0;
+    return;
+  }
+
+  if (G.stato === 'crescita') { animaCrescita(dt); return; }
+  if (G.stato === 'pingpong') {
+    if (G.exprTemp > 0) R.espressione(G.exprNome); else R.espressione('sforzo');
+    pingpong.posa(R, dt, G);
+    return;
+  }
+  if (G.stato === 'amici') { amici.posaRoberto(R, G); return; }
+  if (G.stato === 'bacio') { ragazzaBoss.posaRoberto(R, G); return; }
+  if (G.stato === 'triago') { triago.posaRoberto(R, G); return; }
+
+  // Se lo stato precedente ha lasciato qualcosa di storto (intro saltata, caduta, ritorno dall'aula),
+  // si riparte da una posa pulita.
+  if (G.statoPosa !== G.stato) { azzeraPosa(R); G.statoPosa = G.stato; }
+  const inCorsa = G.stato === 'gioco' || G.stato === 'aulaIn';
+  const inAria = G.y > 0.001;
+
+  // Espressione del volto.
+  let nome;
+  if (G.stato === 'caduto') nome = G.eta === 'neonato' ? 'piange' : 'dolore';
+  else if (G.exprTemp > 0) nome = G.exprNome;
+  else if (G.stato === 'conto') nome = 'sorriso';
+  else if (G.parlaAmico) nome = G.parlaAmico === 2 ? 'gioia' : 'sorriso';
+  else if (inAria) nome = f.posa === 'primipassi' ? 'gioia' : 'sorpresa';
+  else if (G.scivola > 0) nome = 'sforzo';
+  else nome = f.posa === 'primipassi' ? 'sorriso' : 'sforzo';
+  R.espressione(nome);
+
+  if (f.posa === 'primipassi') {
+    if (G.stato === 'caduto') {
+      // Seduto per terra, si stropiccia gli occhi e piange.
+      const t = performance.now() / 1000;
+      posaPerTerra(R);
+      for (const [i, { spalla, gomito }] of R.braccia.entries()) {
+        spalla.rotation.set(-2.35 + Math.sin(t * 9 + i * 2) * 0.12, 0, (i ? 1 : -1) * 0.25);
+        gomito.rotation.set(-1.9, 0, 0);
+      }
+      R.testa.rotation.set(-0.15, 0, Math.sin(t * 22) * 0.09);
+      R.corpo.rotation.x += Math.sin(t * 22) * 0.02;
+    } else {
+      // Passetti corti e barcollanti: ritmo lento, dondola da un lato all'altro.
+      if (inCorsa) G.passo += dt * velocitaIn(G.pos) * 2.1;
+      posaPrimiPassi(R, G.passo, 1);
+    }
+    roberto.rotation.z = (G.x - CORSIE[G.corsia]) * 0.12;
+    return;
+  }
+
+  // Col grasso del boss le gambe vanno più piano, come la corsa.
+  if (inCorsa) G.passo += dt * velocitaIn(G.pos) * 0.75 * (1 - 0.65 * avvicinamentoAula()) * boss.fattore() * (1 - amici.rallenta(G.pos)) * ragazzaBoss.fattore() * triago.fattore();
+  R.testa.rotation.set(0, 0, 0);
+  posaCorsa(R, G.passo, inAria ? 0.35 : 1);
+  if (G.parlaAmico || amico.radice.visible) R.testa.rotation.y = -amicoStato.lato * (amico.radice.visible && !G.parlaAmico ? 0.2 : 0.5);
+  if (G.guardaRagazza) R.testa.rotation.y = -G.guardaRagazza * 0.6;
+  if (inAria) for (const { ginocchio } of R.gambe) ginocchio.rotation.x = 1.1;
+
+  const gBoss = Math.min(1, boss.grassoVis / MAX_GRASSO);
+  const piegato = G.scivola > 0 ? -1.15 : 0.1 * gBoss;      // grasso: busto un po' all'indietro
+  R.corpo.rotation.x += (piegato - R.corpo.rotation.x) * Math.min(1, dt * 18);
+  R.corpo.position.y = G.scivola > 0 ? 0.35 : (inAria ? 0 : Math.abs(Math.sin(G.passo)) * (0.06 + 0.03 * gBoss));
+  roberto.rotation.z = (G.x - CORSIE[G.corsia]) * 0.12;
+  // Grasso: corre ciondolando da un lato all'altro.
+  if (gBoss > 0 && !inAria && G.scivola <= 0) roberto.rotation.z += Math.sin(G.passo) * 0.11 * gBoss;
+  if (G.stato === 'caduto') { R.corpo.rotation.x = 1.3; R.corpo.position.y = 0.3; }
+}
+
+// La crescita: Roberto si ferma, sorpreso; cresce girando su se stesso tra scintille e un lampo;
+// poi saluta con la nuova età e riparte.
+const T_ATTESA = 0.9, T_CRESCE = 2.6, T_SALUTO = 1.3;
+function progressoCrescita() {
+  return THREE.MathUtils.smootherstep(G.timer, T_ATTESA, T_ATTESA + T_CRESCE);
+}
+function animaCrescita(dt) {
+  const cr = G.crescita, t = G.timer;
+  const k = progressoCrescita();
+  const sDa = FISICA[cr.da].scala, sA = FISICA[cr.a].scala;
+  // A metà crescita: lampo bianco, cambio d'abito, scintille.
+  if (!cr.scambiato && k >= 0.5) {
+    cr.scambiato = true;
+    impostaEta(cr.a);
+    elLampo.classList.add('acceso');
+    setTimeout(() => elLampo.classList.remove('acceso'), 160);
+    scoppiaScintille(36, 0.5 * sA / 0.8 + 0.4);
+  }
+  if (cr.scambiato && !cr.scintille2 && k >= 0.95) { cr.scintille2 = true; scoppiaScintille(18, 0.9 * sA / 0.8); }
+  // Contatore degli anni.
+  const anni = Math.round(THREE.MathUtils.lerp(ANNI[cr.da], ANNI[cr.a], k));
+  elEta.innerHTML = `<b>${anni}</b> ${anni === 1 ? 'anno' : 'anni'}<small>${TRATTI[cr.mondo].nome}</small>`;
+  elEta.style.transform = `translateX(-50%) scale(${1 + 0.12 * Math.sin(Math.min(1, k * 8) * Math.PI)})`;
+
+  // Scala con un effetto "gomma": si allunga e si schiaccia mentre cresce.
+  const squash = Math.sin(k * Math.PI * 7) * 0.09 * Math.sin(k * Math.PI);
+  const s = THREE.MathUtils.lerp(sDa, sA, k);
+  roberto.scale.set(s * (1 - squash * 0.6), s * (1 + squash), s * (1 - squash * 0.6));
+  roberto.rotation.y = -tmp.psi + k * Math.PI * 2;
+
+  azzeraPosa(R);
+  if (t < T_ATTESA) { posaFerma(R, t, 0); R.espressione('sorpresa'); }
+  else if (t < T_ATTESA + T_CRESCE) {
+    posaFerma(R, t, 0);
+    // Braccia in su mentre cresce.
+    const su = Math.sin(k * Math.PI);
+    R.braccia[0].spalla.rotation.z = -0.08 - su * 2.4; R.braccia[1].spalla.rotation.z = 0.08 + su * 2.4;
+    R.espressione(k < 0.5 ? 'sforzo' : 'gioia');
+  } else {
+    const ts = t - (T_ATTESA + T_CRESCE);
+    posaFerma(R, t, THREE.MathUtils.smoothstep(ts, 0.1, 0.4) * (1 - THREE.MathUtils.smoothstep(ts, T_SALUTO - 0.2, T_SALUTO)));
+    R.espressione('gioia');
+    roberto.scale.setScalar(sA);
+  }
+}
+
+const guarda = new THREE.Vector3(), daIntro = new THREE.Vector3();
+const camP = { ...FISICA[TRATTI[0].eta].camera };      // valori della camera, sfumati quando cambia l'età
+function aggiornaCamera(dt) {
+  const f = fisica();
+  const cam = f.camera;
+  if (G.stato === 'intro') {
+    // Prima davanti al volto, poi un giro attorno a Roberto fino alla visuale di corsa.
+    const k = THREE.MathUtils.smootherstep(G.timer, 1.6, DURATA_INTRO - 0.2);
+    const ang = k * Math.PI;
+    const sc = f.scala / 0.8;
+    const faccia = 1.5 * sc, cz = 0;
+    const raggio = THREE.MathUtils.lerp(1.5 * sc, cam.indietro, k);
+    const avvicina = 1 - THREE.MathUtils.smootherstep(G.timer, 0, 1.2);
+    daLocale(G.pos, Math.sin(ang) * raggio * 0.6, THREE.MathUtils.lerp(faccia + 0.05, cam.alto, k), cz - Math.cos(ang) * raggio - avvicina * 0.8 * sc, camera.position);
+    daLocale(G.pos, 0, faccia, 0, guarda);
+    daLocale(G.pos, 0, cam.guarda, -10, daIntro);
+    guarda.lerp(daIntro, k * k);
+    camera.lookAt(guarda);
+    Object.assign(camP, cam);
+    return;
+  }
+  if (G.stato === 'crescita') {
+    // Davanti a Roberto, con un leggero giro, mentre cresce.
+    const cr = G.crescita, k = progressoCrescita();
+    const rel = THREE.MathUtils.lerp(FISICA[cr.da].scala, FISICA[cr.a].scala, k) / 0.8;
+    const dist = 2.3 + 2.6 * rel;
+    const ang = 0.5 * Math.sin(G.timer * 0.8);
+    daLocale(G.pos, Math.sin(ang) * dist * 0.7, 0.6 + 0.75 * rel, -Math.cos(ang) * dist, camera.position);
+    daLocale(G.pos, 0, 0.4 + 0.75 * rel, 0, guarda);
+    camera.lookAt(guarda);
+    Object.assign(camP, FISICA[cr.a].camera);
+    camera.fov = fovBase * 0.95; camera.updateProjectionMatrix();
+    return;
+  }
+  // Valori della camera dell'età: si adattano piano quando Roberto cambia età.
+  const dolce = 1 - Math.exp(-dt * 3);
+  for (const k of ['indietro', 'alto', 'guarda', 'fov', 'segue']) camP[k] += (cam[k] - camP[k]) * dolce;
+  const kAula = avvicinamentoAula();
+  const kInt = perc.quantoInterno(G.pos, 6);
+  const kFr = G.zoomFratello ?? 0;      // si avvicina quando il fratello mostra il creeper
+  // Personaggi a margine (ragazza del corridoio, amico biondo): la camera si sposta verso di loro e si
+  // allarga, così si vedono loro e Roberto insieme.
+  const kAi = aiuto.k, latAi = aiuto.lato * kAi, fuoco = aiuto.fuoco;
+  const largo = aiuto.largo;
+  aiuto.k = 0; aiuto.fuoco = 0; aiuto.largo = false;
+  const indietro = camP.indietro * THREE.MathUtils.lerp(1, 0.84, kInt) - 2.4 * kAula - 1.6 * kFr + 0.6 * kAi;
+  const alto = camP.alto * THREE.MathUtils.lerp(1, 0.88, kInt) - 1.2 * kAula - 0.7 * kFr - 0.3 * kAi;
+  const lat = G.x * camP.segue + 1.2 * latAi;
+
+  perc.punto(G.pos - indietro, tmp);
+  camera.position.set(tmp.x + Math.cos(tmp.psi) * lat, tmp.h + alto + G.y * 0.25, tmp.z + Math.sin(tmp.psi) * lat);
+  perc.punto(G.pos, tmp);
+  const hQui = tmp.h;
+  perc.punto(G.pos + 10, tmp);
+  // La visuale segue solo in parte la pendenza: in salita la strada si vede salire verso l'alto.
+  const hMira = hQui + (tmp.h - hQui) * THREE.MathUtils.lerp(0.2, 0.85, kInt);
+  const latG = lat + 0.25 * latAi;
+  guarda.set(tmp.x + Math.cos(tmp.psi) * latG, hMira + camP.guarda + 0.25 * kAula, tmp.z + Math.sin(tmp.psi) * latG);
+  if (colpoT > 0 || boomT > 0) {
+    const k = Math.max(colpoT / DURATA_COLPO, boomT / 0.6 * 1.6);
+    camera.position.x += Math.sin(G.tempo * 70) * 0.12 * k;
+    camera.position.y += Math.cos(G.tempo * 55) * 0.1 * k;
+  }
+  if (fuoco > 0) guarda.lerp(aiuto.mira, fuoco);
+  camera.lookAt(guarda);
+
+  const fov = fovBase * camP.fov * (1 - 0.22 * kAula - 0.12 * kFr - (largo ? 0 : 0.46 * fuoco));
+  if (Math.abs(camera.fov - fov) > 0.01) { camera.fov = fov; camera.updateProjectionMatrix(); }
+}
+
+const pad2 = n => String(n).padStart(2, '0');
+function aggiornaOrologio() {
+  const visibile = G.mondo === LICEO && G.pos < SEZ_INGRESSO.inizio && !hud.radice.hidden
+    && (G.stato === 'gioco' || G.stato === 'caduto' || G.stato === 'conto' || G.stato === 'pausa');
+  elOrologio.hidden = !visibile;
+  if (!visibile) return;
+  const m = ORA_PARTENZA + (ORA_CAMPANELLA - ORA_PARTENZA) * Math.min(1, G.pos / SEZ_INGRESSO.inizio);
+  elOrologio.textContent = `🔔 ${Math.floor(m / 60)}:${pad2(Math.floor(m % 60))}`;
+  elOrologio.classList.toggle('urgente', m >= ORA_CAMPANELLA - 4);
+}
+
+function controllaCheckpoint() {
+  while (G.cp + 1 < CHECKPOINT.length && G.pos >= CHECKPOINT[G.cp + 1].pos) {
+    salvaCheckpoint(G.cp + 1);
+    const c = CHECKPOINT[G.cp];
+  }
+}
+
+let ultimo = performance.now();
+function ciclo(ora) {
+  const dt = Math.min(0.05, (ora - ultimo) / 1000);
+  ultimo = ora;
+
+  if (G.stato === 'aulaIn' || G.stato === 'aula' || G.stato === 'aulaOut' || G.stato === 'aulaRientro') aggiornaAula(dt);
+
+  if (G.stato === 'intro') {
+    G.timer += dt;
+    if (!G.bannerIntro && G.timer > 0.4) {
+      G.bannerIntro = true;
+      banner(`Roberto Rocco<small>${G.mondo === 0 ? 'Dalla culla alla laurea' : TRATTI[G.mondo].nome}</small>`, 1.5, 'in-basso');
+    }
+    if (G.timer >= DURATA_INTRO) iniziaCorsa();
+  } else if (G.stato === 'conto') {
+    const prima = Math.ceil(G.timer);
+    G.timer -= dt;
+    const n = Math.ceil(G.timer);
+    if (n !== prima || elBanner.hidden) {
+      const sotto = G.sottotitoloConto ? `<small>${G.sottotitoloConto}</small>` : '';
+      banner(n > 0 ? `${n}${sotto}` : 'Via!', n > 0 ? 1.1 : 0.7);
+    }
+    if (G.timer <= 0) G.stato = 'gioco';
+  } else if (G.stato === 'gioco' || G.stato === 'aulaIn') {
+    if (G.stato === 'gioco') G.tempo += dt;
+    G.pos += velocitaIn(G.pos) * (1 - 0.65 * avvicinamentoAula()) * boss.fattore() * (1 - rallentaRagazza()) * (1 - amici.rallenta(G.pos)) * ragazzaBoss.fattore() * triago.fattore() * dt;
+    // Durante lo scontro finale la strada si ripete: se si arriva in fondo al tratto si torna indietro (è tutta uguale).
+    if (ragazzaBoss.attivo && G.pos > SEZ_RAGAZZA_BOSS.fine - 90) G.pos -= 380;
+
+    const bersaglio = CORSIE[G.corsia];
+    G.x += (bersaglio - G.x) * Math.min(1, dt * fisica().cambioCorsia);
+    G.vy -= GRAVITA * dt;
+    G.y = Math.max(0, G.y + G.vy * dt);
+    if (G.y === 0) G.vy = 0;
+    G.scivola = Math.max(0, G.scivola - dt);
+    G.invul = Math.max(0, (G.invul ?? 0) - dt);
+
+    if (G.stato === 'gioco') {
+      const m = mondoDi(G.pos);
+      if (m !== G.mondo) {
+        // Cambio d'età: la crescita parte poco dopo l'arco del nuovo mondo.
+        if (TRATTI[m].eta !== G.eta) { if (G.pos >= TRATTI[m].inizio + 3) avviaCrescita(m); }
+        else entraNelMondo(m);
+      }
+      controllaCheckpoint();
+      if (G.pos >= LUNGHEZZA) { G.pos = LUNGHEZZA; fine(); }
+      else if (EVENTO[G.mondo] && !G.fatti.has(G.mondo) && G.pos >= EVENTO[G.mondo].sez.inizio + 3) avviaAula();
+      else if (!pingpong.fatto && G.pos >= pingpong.inizio && G.pos < pingpong.posTavolo + 1) avviaPingPong();
+      else if (ragazzaBoss.fase === 'finale') avviaBacio();
+      else if (triago.pronto) avviaTriago();
+      else if (G.mondo === MAGISTRALE && !amici.fatto && G.pos >= amici.inizioAnello && G.pos < amici.inizioAnello + 8) avviaAmici();
+      else controllaUrti();
+    }
+  } else if (G.stato === 'pingpong') {
+    G.tempo += dt;
+    if (pingpong.aggiorna(dt, G) === 'fine') { G.stato = 'gioco'; G.statoPosa = null; }
+  } else if (G.stato === 'bacio') {
+    // Il bacetto: tempo fermo; alla fine si salta alla fine del tratto, dove comincia Rennes.
+    G.x += (0 - G.x) * Math.min(1, dt * 5);
+    if (ragazzaBoss.aggiornaBacio(dt, G) === 'fine') {
+      G.pos = SEZ_RAGAZZA_BOSS.fine - 14;
+      G.stato = 'gioco'; G.statoPosa = null; G.invul = 0.5;
+      elSipario.classList.remove('nero');
+    }
+  } else if (G.stato === 'triago') {
+    // Il TRIAGo: Roberto è fermo in mezzo alla strada (il tempo non scorre) finché i freni lo bloccano.
+    G.x += (CORSIE[1] - G.x) * Math.min(1, dt * 6);
+    if (triago.finita) { triago.concludi(); G.stato = 'gioco'; G.statoPosa = null; G.invul = 0.5; }
+  } else if (G.stato === 'amici') {
+    // Il gioco è fermo (il tempo non scorre): Roberto si mette in mezzo alla corsia centrale.
+    G.x += (CORSIE[1] - G.x) * Math.min(1, dt * 6);
+    if (amici.avanza(dt) === 'fine') { G.stato = 'gioco'; G.statoPosa = null; }
+  } else if (G.stato === 'crescita') {
+    G.timer += dt;
+    if (G.timer >= DURATA_CRESCITA) finisciCrescita();
+  } else if (G.stato === 'caduto') {
+    G.tempo += dt;
+    G.timer -= dt;
+    if (G.timer <= 0) ripartiDalCheckpoint();
+  }
+
+  aggiornaComandi(dt);
+  if (durataBanner > 0) {
+    durataBanner -= dt;
+    if (durataBanner <= 0) { elBanner.hidden = true; elBanner.innerHTML = ''; }
+  }
+
+  const inAula = G.stato === 'aula' || G.stato === 'aulaOut';
+  if (!inAula) {
+    aggiornaEntita(ora);
+    aggiornaColori();
+    aggiornaAmico(dt);
+    aggiornaRagazza();
+    aggiornaFratello(dt);
+    aggiornaAmici(dt);
+    aggiornaBoss(dt);
+    ragazzaBoss.aggiorna(dt, G, G.stato === 'gioco');
+    triago.aggiorna(dt, G);
+    aggiornaPannelloPingPong();
+    aggiornaPannelloRagazza();
+    if (G.stato !== 'pingpong') pingpong.aggiorna(dt, G);
+    aggiornaCreeper(dt);
+    animaRoberto(dt);
+    aggiornaCamera(dt);
+    aggiornaPioggia(dt);
+    pingpong.camera(camera);
+    amici.camera(camera);
+    ragazzaBoss.camera(camera, G);
+    triago.camera(camera, G);
+    aggiornaScintille(dt);
+    // Suda nella salita del liceo e quando il gelato lo fa ingrassare (più è grasso, più suda).
+    const salita = G.mondo === LICEO && G.pos < SEZ_INGRESSO.inizio + 120 && (G.stato === 'gioco' || G.stato === 'aulaIn');
+    const gSudore = G.stato === 'gioco' ? boss.grassoVis / MAX_GRASSO : 0;
+    aggiornaSudore(dt, salita || gSudore > 0.15, salita ? Math.min(1, G.pos / SEZ_INGRESSO.inizio) : gSudore);
+
+    // Il sole è fisso rispetto alla direzione di corsa; il riquadro è allungato lungo il percorso.
+    perc.punto(G.pos, tmp);
+    const sn = Math.sin(tmp.psi), cs = Math.cos(tmp.psi);
+    sole.target.position.set(roberto.position.x + sn * 22, roberto.position.y, roberto.position.z - cs * 22);
+    sole.position.set(sole.target.position.x - 4 * cs - 9 * sn, sole.target.position.y + 14, sole.target.position.z - 4 * sn + 9 * cs);
+    sole.shadow.camera.up.set(sn, 0, -cs);
+  }
+
+  if (G.stato !== 'inizio' && G.stato !== 'fine' && G.stato !== 'pausa' && G.stato !== 'intro') {
+    hud.tempo.textContent = formattaTempo(Math.max(0, G.tempo + G.malus - G.caffe * BONUS_CAFFE));
+    hud.caffe.textContent = `${ICONA_BONUS[TRATTI[G.mondo].stile] ?? '☕'} ${G.caffe}`;
+    hud.mondo.textContent = `${TRATTI[G.mondo].tappa + 1}/${N_TAPPE} · ${TRATTI[G.mondo].gruppo ?? TRATTI[G.mondo].nome}${MODALITA_SVILUPPO ? ' · DEV' : ''}`;
+    hud.barra.style.width = `${(G.pos / LUNGHEZZA) * 100}%`;
+  }
+  aggiornaOrologio();
+
+  if (inAula) renderer.render(aulaAttiva.scena, aulaAttiva.camera);
+  else renderer.render(scena, camera);
+  requestAnimationFrame(ciclo);
+}
+
+riposiziona(0);
+requestAnimationFrame(ciclo);
+
+// Aiuto per i test automatici.
+window.__gioco = {
+  G, R, ENTITA, TRATTI, ragazza, SEZIONI, CHECKPOINT, LUNGHEZZA, perc, aula, comando, velocitaIn, FISICA, impostaEta, avviaCrescita, camera, scena, boss, pingpong, amici, ragazzaBoss, triago,
+  mostraAula(esito, secondi = 0, mondo = LICEO) {
+    G.mondo = mondo; configuraScelta(EVENTO[mondo]);
+    G.stato = 'aula'; G.esitoAula = esito; G.congela = true; G.immune = true; elSipario.classList.remove('nero');
+    aulaAttiva.avvia();
+    if (esito) aulaAttiva.scegli(esito);
+    for (let t = 0; t < secondi; t += 0.05) aulaAttiva.aggiorna(0.05);
+  },
+  teletrasporta(pos) {
+    if (pos > pingpong.posTavolo) pingpong.chiudi(); else pingpong.reset();
+    if (pos > amici.centro) amici.chiudi(); else amici.reset();
+    if (pos > SEZ_RAGAZZA_BOSS.fine - 100) ragazzaBoss.chiudi(); else ragazzaBoss.reset();
+    if (pos > SEZ_TRIAGO.fine - 60) triago.chiudi(); else triago.reset();
+    G.pos = pos; G.mondo = mondoDi(pos); G.fatti = new Set(Object.entries(EVENTO).filter(([, ev]) => pos > ev.porta).map(([m]) => Number(m))); impostaEta(TRATTI[G.mondo].eta);
+    G.cp = 0; while (G.cp + 1 < CHECKPOINT.length && pos >= CHECKPOINT[G.cp + 1].pos) G.cp++;
+    G.checkpoint = { pos: CHECKPOINT[G.cp].pos, mondo: CHECKPOINT[G.cp].mondo, caffe: 0, raccolti: new Set() };
+    azzeraGiocatore(); riposiziona(pos);
+    G.stato = 'gioco'; hud.radice.hidden = false; mostraSchermo(null);
+  },
+};

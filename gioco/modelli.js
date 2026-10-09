@@ -1,0 +1,1016 @@
+// Modelli 3D low-poly del gioco: Roberto, ostacoli di ogni mondo, edifici e decorazioni.
+// Tutto è costruito con forme semplici e texture disegnate al volo, senza file esterni,
+// tranne le foto dei luoghi (assets/luoghi) se presenti. Il volto di Roberto è in volto.js.
+
+import * as THREE from './lib/three.module.min.js';
+import { creaTestaRoberto, ETA_VOLTO } from './volto.js';
+
+// ---------------------------------------------------------------------------
+// Utilità condivise
+// ---------------------------------------------------------------------------
+
+const cacheMateriali = new Map();
+export function materiale(colore, extra = {}) {
+  const chiave = colore + JSON.stringify(extra);
+  if (!cacheMateriali.has(chiave)) {
+    cacheMateriali.set(chiave, new THREE.MeshLambertMaterial({ color: colore, ...extra }));
+  }
+  return cacheMateriali.get(chiave);
+}
+
+export const CUBO = new THREE.BoxGeometry(1, 1, 1);
+export const CILINDRO = new THREE.CylinderGeometry(1, 1, 1, 14);
+export const SFERA = new THREE.SphereGeometry(1, 14, 10);
+
+export function ombre(m) {
+  m.castShadow = true;
+  m.receiveShadow = true;
+  return m;
+}
+
+// Parallelepipedo con la base all'altezza y (a terra se non indicata). Lo stesso vale per cilindro().
+export function blocco(w, h, p, mat, x = 0, y = 0, z = 0) {
+  const m = new THREE.Mesh(CUBO, typeof mat === 'number' ? materiale(mat) : mat);
+  m.scale.set(w, h, p);
+  m.position.set(x, y + h / 2, z);
+  return ombre(m);
+}
+
+export function cilindro(r, h, mat, x = 0, y = 0, z = 0) {
+  const m = new THREE.Mesh(CILINDRO, typeof mat === 'number' ? materiale(mat) : mat);
+  m.scale.set(r, h, r);
+  m.position.set(x, y + h / 2, z);
+  return ombre(m);
+}
+
+export function sfera(r, mat, x = 0, y = 0, z = 0) {
+  const m = new THREE.Mesh(SFERA, typeof mat === 'number' ? materiale(mat) : mat);
+  m.scale.setScalar(r);
+  m.position.set(x, y, z);
+  return ombre(m);
+}
+
+export function tela(w, h, disegna) {
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  disegna(c.getContext('2d'), w, h);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
+  return tex;
+}
+
+export const esa = n => '#' + n.toString(16).padStart(6, '0');
+export const FONT = '"Bricolage Grotesque", "Avenir Next", system-ui, sans-serif';
+
+const cacheScritte = new Map();
+// Pannello con una scritta, largo w e alto h metri.
+export function scritta(testo, w, h, sfondo, inchiostro = 0x1C1D2B) {
+  const chiave = `${testo}|${sfondo}|${inchiostro}|${w / h}`;
+  if (!cacheScritte.has(chiave)) {
+    const px = 128;
+    const tex = tela(Math.round(px * w / h), px, (g, W, H) => {
+      g.fillStyle = esa(sfondo); g.fillRect(0, 0, W, H);
+      g.fillStyle = esa(inchiostro);
+      g.font = `800 ${H * 0.55}px ${FONT}`;
+      g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.fillText(testo.toUpperCase(), W / 2, H * 0.54, W * 0.92);
+    });
+    cacheScritte.set(chiave, new THREE.MeshBasicMaterial({ map: tex }));
+  }
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), cacheScritte.get(chiave));
+  m.rotation.y = 0;
+  return m;
+}
+
+// Il lato visibile degli ostacoli guarda verso la telecamera (+z).
+export function fronte(mesh, z) {
+  mesh.position.z = z;
+  return mesh;
+}
+
+// ---------------------------------------------------------------------------
+// Texture degli edifici
+// ---------------------------------------------------------------------------
+
+const facciate = {
+  // Palazzo napoletano: intonaco, finestre con persiane verdi, balconi.
+  napoli: tela(256, 256, (g) => {
+    g.fillStyle = '#ffffff'; g.fillRect(0, 0, 256, 256);
+    g.fillStyle = 'rgba(0,0,0,.06)';
+    for (let y = 0; y < 256; y += 8) g.fillRect(0, y, 256, 1);
+    for (const x of [40, 152]) {
+      for (const y of [30, 158]) {
+        g.fillStyle = '#e9e3d6'; g.fillRect(x - 6, y - 6, 76, 104);
+        g.fillStyle = '#2e5a3c'; g.fillRect(x, y, 30, 80); g.fillRect(x + 34, y, 30, 80);
+        g.fillStyle = 'rgba(0,0,0,.25)';
+        for (let k = y + 4; k < y + 80; k += 6) { g.fillRect(x, k, 30, 2); g.fillRect(x + 34, k, 30, 2); }
+        g.fillStyle = '#3a3a3a'; g.fillRect(x - 12, y + 84, 88, 6);
+        for (let k = x - 10; k < x + 76; k += 8) g.fillRect(k, y + 66, 2, 20);
+      }
+    }
+  }),
+  // Edificio moderno: vetrate in griglia.
+  moderno: tela(256, 256, (g) => {
+    g.fillStyle = '#ffffff'; g.fillRect(0, 0, 256, 256);
+    for (let x = 0; x < 256; x += 64) {
+      for (let y = 0; y < 256; y += 64) {
+        const grad = g.createLinearGradient(x, y, x + 64, y + 64);
+        grad.addColorStop(0, '#5d7a96'); grad.addColorStop(1, '#2c3e52');
+        g.fillStyle = grad; g.fillRect(x + 6, y + 8, 52, 46);
+        g.fillStyle = 'rgba(255,255,255,.25)'; g.fillRect(x + 8, y + 10, 14, 42);
+      }
+    }
+  }),
+  // Case a graticcio bretoni.
+  colombage: tela(256, 256, (g) => {
+    g.fillStyle = '#ffffff'; g.fillRect(0, 0, 256, 256);
+    g.strokeStyle = '#5a3a22'; g.lineWidth = 12;
+    g.strokeRect(6, 6, 244, 244);
+    g.beginPath();
+    g.moveTo(128, 0); g.lineTo(128, 256);
+    g.moveTo(0, 128); g.lineTo(256, 128);
+    g.moveTo(0, 0); g.lineTo(128, 128); g.moveTo(256, 0); g.lineTo(128, 128);
+    g.moveTo(0, 256); g.lineTo(128, 128); g.moveTo(256, 256); g.lineTo(128, 128);
+    g.stroke();
+    g.fillStyle = '#34495e';
+    for (const [x, y] of [[40, 40], [176, 40], [40, 168], [176, 168]]) {
+      g.fillStyle = '#f1ece0'; g.fillRect(x - 6, y - 6, 52, 60);
+      g.fillStyle = '#34495e'; g.fillRect(x, y, 40, 48);
+      g.fillStyle = '#f1ece0'; g.fillRect(x + 18, y, 4, 48); g.fillRect(x, y + 22, 40, 4);
+    }
+  }),
+  // Festival: pannelli scuri con strisce luminose.
+  festival: tela(256, 256, (g) => {
+    g.fillStyle = '#181020'; g.fillRect(0, 0, 256, 256);
+    const colori = ['#ff4fa3', '#3ee0d0', '#ffd23f', '#9b5cff'];
+    for (let i = 0; i < 8; i++) {
+      g.fillStyle = colori[i % 4];
+      g.fillRect(0, 16 + i * 30, 256, 5);
+    }
+    for (let i = 0; i < 40; i++) {
+      g.fillStyle = colori[i % 4];
+      g.beginPath(); g.arc((i * 53) % 256, (i * 97) % 256, 3, 0, Math.PI * 2); g.fill();
+    }
+  }),
+};
+for (const t of Object.values(facciate)) t.wrapS = t.wrapT = THREE.RepeatWrapping;
+
+// Una foto di un luogo vero, se presente in assets/luoghi/, sostituisce la facciata.
+export const loader = new THREE.TextureLoader();
+const fotoLuoghi = new Map();
+export function caricaFotoLuogo(nome) {
+  if (fotoLuoghi.has(nome)) return;
+  fotoLuoghi.set(nome, null);
+  loader.load(`assets/luoghi/${nome}.jpg`, tex => {
+    tex.colorSpace = THREE.SRGBColorSpace;
+    fotoLuoghi.set(nome, tex);
+  }, undefined, () => {});
+}
+
+const STILE_FACCIATA = {
+  liceo: 'napoli', darmon: 'napoli', triennale: 'napoli', magistrale: 'moderno', festival: 'festival', rennes: 'colombage',
+};
+
+export function creaEdificio(e, mondo) {
+  const tipo = STILE_FACCIATA[mondo.stile];
+  const tex = facciate[tipo].clone();
+  tex.needsUpdate = true;
+  tex.repeat.set(Math.max(1, Math.round(e.profondita / 3)), Math.max(1, Math.round(e.altezza / 3)));
+  const texFronte = facciate[tipo].clone();
+  texFronte.needsUpdate = true;
+  texFronte.repeat.set(Math.max(1, Math.round(e.larghezza / 3)), Math.max(1, Math.round(e.altezza / 3)));
+  const opzioni = mondo.stile === 'festival'
+    ? { emissive: 0xffffff, emissiveIntensity: 0.9 }
+    : {};
+  const lato = new THREE.MeshLambertMaterial({ color: e.colore, map: tex, ...opzioni, emissiveMap: opzioni.emissive ? tex : null });
+  const davanti = new THREE.MeshLambertMaterial({ color: e.colore, map: texFronte, ...opzioni, emissiveMap: opzioni.emissive ? texFronte : null });
+  const tetto = materiale(0x55504a);
+  const g = new THREE.Group();
+  const m = new THREE.Mesh(CUBO, [lato, lato, tetto, tetto, davanti, davanti]);
+  m.scale.set(e.larghezza, e.altezza, e.profondita);
+  m.position.y = e.altezza / 2;
+  m.receiveShadow = true;
+  g.add(m);
+  // Cornicione sul tetto.
+  if (mondo.stile !== 'festival') g.add(blocco(e.larghezza + 0.3, 0.3, e.profondita + 0.3, 0xe8e2d4, 0, e.altezza));
+  if (mondo.stile === 'rennes') {
+    // Tetto a punta in ardesia.
+    const tettoPunta = new THREE.Mesh(new THREE.ConeGeometry(1, 1, 4), materiale(0x3d4450));
+    tettoPunta.scale.set(e.larghezza * 0.75, 2.2, e.profondita * 0.75);
+    tettoPunta.rotation.y = Math.PI / 4;
+    tettoPunta.position.y = e.altezza + 1.1;
+    g.add(tettoPunta);
+  }
+  g.position.x = e.lato * (6.2 + e.larghezza / 2 + e.scarto);
+  return g;
+}
+
+// Monumento all'inizio di un mondo, con la foto del luogo se presente.
+export function creaMonumento(e, mondo) {
+  const g = new THREE.Group();
+  const foto = fotoLuoghi.get(mondo.stile);
+  const w = 14, h = 9;
+  const mat = foto
+    ? new THREE.MeshBasicMaterial({ map: foto })
+    : new THREE.MeshLambertMaterial({ color: mondo.edifici[0], map: facciate[STILE_FACCIATA[mondo.stile]] });
+  const quadro = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
+  quadro.position.set(0, h / 2 + 0.5, 0);
+  g.add(quadro);
+  g.add(blocco(w + 0.6, 0.5, 0.6, 0xe8e2d4, 0, 0));
+  g.position.x = e.lato * 14;
+  g.rotation.y = -e.lato * 0.35;
+  return g;
+}
+
+export function creaLampione(lato) {
+  const g = new THREE.Group();
+  g.add(cilindro(0.07, 4.2, 0x2b2f36));
+  g.add(blocco(1.1, 0.08, 0.08, 0x2b2f36, -lato * 0.5, 4.15));
+  g.add(blocco(0.4, 0.14, 0.24, 0xfff3c4, -lato * 1.0, 4.05));
+  g.position.x = lato * 4.4;
+  return g;
+}
+
+export function creaAlbero(lato, scala = 1) {
+  const g = new THREE.Group();
+  g.add(cilindro(0.15, 1.4, 0x6b4a2b));
+  const chioma = new THREE.Mesh(new THREE.IcosahedronGeometry(1.1, 0), materiale(0x4f7d3a, { flatShading: true }));
+  chioma.position.y = 2.2;
+  chioma.castShadow = true;
+  g.add(chioma);
+  g.scale.setScalar(scala);
+  g.position.x = lato * 5.0;
+  return g;
+}
+
+// ---------------------------------------------------------------------------
+// Ostacoli, uno stile per mondo
+// ---------------------------------------------------------------------------
+//
+// Ingombri da rispettare (devono combaciare con il controllo urti in main.js):
+//   basso: da terra fino a 0.85 m   -> si salta
+//   alto:  da 1.2 m in su           -> si scivola sotto
+//   muro:  tutta l'altezza          -> si cambia corsia
+
+const LEGNO = 0xC89B5E, METALLO = 0x3B4A5A;
+
+export const OSTACOLI = {
+  liceo: {
+    basso: () => {
+      // Banco di scuola con pannello frontale e zaino appoggiato.
+      const g = new THREE.Group();
+      g.add(blocco(1.7, 0.06, 0.7, LEGNO, 0, 0.74));
+      for (const x of [-0.78, 0.78]) for (const z of [-0.3, 0.3]) g.add(blocco(0.05, 0.74, 0.05, METALLO, x, 0, z));
+      g.add(fronte(blocco(1.6, 0.45, 0.03, METALLO, 0, 0.28), 0.32));
+      g.add(blocco(0.45, 0.5, 0.25, 0xB03A2E, 0.45, 0, 0.45));
+      return g;
+    },
+    alto: () => {
+      // Lavagna appesa tra due montanti.
+      const g = new THREE.Group();
+      g.add(blocco(1.9, 1.0, 0.08, LEGNO, 0, 1.25));
+      g.add(fronte(blocco(1.75, 0.86, 0.02, 0x2F5D3A, 0, 1.32), 0.05));
+      const gesso = scritta('a² + b² = c²', 1.2, 0.3, 0x2F5D3A, 0xffffff);
+      gesso.position.set(0, 1.78, 0.07);
+      g.add(gesso);
+      for (const x of [-1.0, 1.0]) g.add(blocco(0.08, 2.6, 0.08, METALLO, x, 0));
+      return g;
+    },
+    muro: (p) => {
+      // Fila di armadietti.
+      const g = new THREE.Group();
+      for (const [i, x] of [-0.62, 0, 0.62].entries()) {
+        g.add(blocco(0.6, 2.5, p, [0x5577AA, 0x4B6A99, 0x6A88B8][i], x, 0));
+        for (const y of [0.9, 1.9]) g.add(fronte(blocco(0.3, 0.04, 0.02, 0x1C1D2B, x, y), p / 2 + 0.01));
+        g.add(fronte(blocco(0.04, 0.2, 0.02, 0xdddddd, x + 0.2, 1.3), p / 2 + 0.01));
+      }
+      return g;
+    },
+  },
+  triennale: {
+    basso: () => {
+      // Due pile di libri.
+      const g = new THREE.Group();
+      const colori = [0x2C5F8A, 0xB03A2E, 0xC9962E, 0x2F5D3A, 0x6B4A8E, 0xE8E2D4];
+      for (const [k, cx] of [-0.45, 0.45].entries()) {
+        let y = 0;
+        for (let i = 0; i < 5; i++) {
+          const h = 0.13 + ((i + k) % 3) * 0.03;
+          const libro = blocco(0.8 - (i % 2) * 0.1, h, 0.55, colori[(i + k * 2) % colori.length], cx + ((i % 3) - 1) * 0.04, y);
+          libro.rotation.y = ((i * 37 + k * 11) % 9 - 4) * 0.03;
+          g.add(libro);
+          y += h;
+        }
+      }
+      return g;
+    },
+    alto: () => {
+      // Striscione "Esame" tra due pali.
+      const g = new THREE.Group();
+      for (const x of [-1.0, 1.0]) g.add(cilindro(0.05, 2.6, 0xdddddd, x));
+      const telo = scritta('Esame', 2.0, 0.85, 0xB03A2E, 0xffffff);
+      telo.position.set(0, 1.75, 0);
+      g.add(telo);
+      const retro = telo.clone(); retro.rotation.y = Math.PI; retro.position.z = -0.01;
+      g.add(retro);
+      return g;
+    },
+    muro: (p) => {
+      // Muro di tufo con la porta dell'aula.
+      const g = new THREE.Group();
+      g.add(blocco(1.95, 2.8, p, 0xC9A86A, 0, 0));
+      g.add(fronte(blocco(0.9, 2.0, 0.04, 0x6b4a2b, 0, 0), p / 2 + 0.02));
+      const cartello = scritta('Sessione', 1.4, 0.3, 0xffffff);
+      cartello.position.set(0, 2.35, p / 2 + 0.03);
+      g.add(cartello);
+      return g;
+    },
+  },
+  magistrale: {
+    basso: () => {
+      // Cassa di attrezzature con strisce di sicurezza.
+      const g = new THREE.Group();
+      g.add(blocco(1.6, 0.7, 0.8, 0x4a5563, 0, 0));
+      g.add(blocco(1.65, 0.12, 0.85, 0xF2C14E, 0, 0.7));
+      const etichetta = fronte(scritta('Fragile', 0.8, 0.22, 0xF2C14E), 0.41);
+      etichetta.position.y = 0.4;
+      g.add(etichetta);
+      return g;
+    },
+    alto: () => {
+      // Braccio robotico che attraversa la corsia.
+      const g = new THREE.Group();
+      g.add(cilindro(0.25, 0.3, 0x3A3F4A, 1.0));
+      g.add(cilindro(0.14, 1.6, 0xE07A2E, 1.0, 0.3));
+      g.add(sfera(0.2, 0x3A3F4A, 1.0, 1.95));
+      const link = cilindro(0.13, 1.8, 0xE07A2E, 0.1, 0);
+      link.rotation.z = Math.PI / 2;
+      link.position.y = 1.95;
+      g.add(link);
+      g.add(sfera(0.17, 0x3A3F4A, -0.8, 1.95));
+      g.add(blocco(0.12, 0.45, 0.3, 0x3A3F4A, -0.8, 1.4));
+      g.add(blocco(0.25, 0.08, 0.06, 0x888888, -0.8, 1.32, 0.1));
+      g.add(blocco(0.25, 0.08, 0.06, 0x888888, -0.8, 1.32, -0.1));
+      return g;
+    },
+    muro: (p) => {
+      // Robot a due braccia.
+      const g = new THREE.Group();
+      g.add(blocco(1.3, 0.5, Math.max(p, 0.9), 0x3A3F4A, 0, 0));
+      g.add(blocco(0.7, 1.2, 0.5, 0xF2F2F2, 0, 0.5));
+      g.add(blocco(0.5, 0.45, 0.45, 0xF2F2F2, 0, 1.75));
+      g.add(fronte(blocco(0.42, 0.14, 0.02, 0x1C1D2B, 0, 1.92), 0.235));
+      for (const s of [-1, 1]) {
+        g.add(sfera(0.14, 0xE07A2E, s * 0.45, 1.55));
+        const braccio = blocco(0.12, 0.9, 0.12, 0xE07A2E, s * 0.62, 0.75);
+        braccio.rotation.z = s * 0.35;
+        g.add(braccio);
+      }
+      g.add(cilindro(0.02, 0.4, 0x888888, 0.15, 2.2));
+      g.add(sfera(0.05, 0xff3b30, 0.15, 2.62));
+      return g;
+    },
+  },
+  festival: {
+    basso: () => {
+      // Cassa audio.
+      const g = new THREE.Group();
+      g.add(blocco(1.5, 0.8, 0.7, 0x1A1A1A, 0, 0));
+      for (const x of [-0.4, 0.4]) {
+        const cono = cilindro(0.25, 0.04, 0x444444, x, 0.4, 0.36);
+        cono.rotation.x = Math.PI / 2;
+        g.add(cono);
+        const centro = cilindro(0.08, 0.05, 0x3EE0D0, x, 0.4, 0.37);
+        centro.rotation.x = Math.PI / 2;
+        g.add(centro);
+      }
+      return g;
+    },
+    alto: () => {
+      // Traliccio con luci colorate.
+      const g = new THREE.Group();
+      for (const x of [-1.0, 1.0]) g.add(blocco(0.14, 2.8, 0.14, 0x888888, x, 0));
+      g.add(blocco(2.1, 0.35, 0.35, 0x666666, 0, 1.3));
+      const luci = [0xFF4FA3, 0x3EE0D0, 0xFFD23F, 0x9b5cff];
+      for (let i = 0; i < 4; i++) {
+        g.add(sfera(0.13, new THREE.MeshBasicMaterial({ color: luci[i] }), -0.75 + i * 0.5, 1.42, 0.25));
+      }
+      const telo = scritta('ElRow', 1.6, 0.5, 0xFF4FA3, 0xffffff);
+      telo.position.set(0, 1.95, 0.05);
+      g.add(telo);
+      return g;
+    },
+    muro: (p) => {
+      // Bancone del bar con scaffale di bottiglie.
+      const g = new THREE.Group();
+      g.add(blocco(1.95, 1.15, p, 0x5a2d82, 0, 0));
+      g.add(blocco(2.05, 0.08, p + 0.1, 0x222222, 0, 1.15));
+      g.add(blocco(1.95, 1.5, 0.3, 0x2a1640, 0, 1.23, -p / 2 + 0.15));
+      const colori = [0x3EE0D0, 0xFFD23F, 0xFF4FA3, 0x7bd389, 0xffffff];
+      for (let i = 0; i < 7; i++) {
+        g.add(cilindro(0.06, 0.32, new THREE.MeshBasicMaterial({ color: colori[i % 5] }), -0.75 + i * 0.25, 1.55, -p / 2 + 0.3));
+      }
+      const insegna = scritta('Bar', 0.9, 0.35, 0x3EE0D0);
+      insegna.position.set(0, 0.6, p / 2 + 0.01);
+      g.add(insegna);
+      g.add(blocco(0.4, 2.8, 0.3, 0x2a1640, -0.8, 0, -p / 2 + 0.15));
+      return g;
+    },
+  },
+  rennes: {
+    basso: () => {
+      // Transenna con cartello.
+      const g = new THREE.Group();
+      for (const x of [-0.8, 0.8]) g.add(blocco(0.06, 0.82, 0.5, 0x8a9199, x, 0));
+      g.add(blocco(1.7, 0.06, 0.06, 0x8a9199, 0, 0.76));
+      const pannello = scritta('Travaux', 1.5, 0.45, 0xE9E4D8, 0xB03A2E);
+      pannello.position.set(0, 0.45, 0.04);
+      g.add(pannello);
+      return g;
+    },
+    alto: () => {
+      // Insegna "Bienvenue à Rennes".
+      const g = new THREE.Group();
+      for (const x of [-1.0, 1.0]) g.add(cilindro(0.05, 2.6, 0x1F2A44, x));
+      const insegna = scritta('Bienvenue', 2.0, 0.7, 0x1F2A44, 0xffffff);
+      insegna.position.set(0, 1.7, 0.02);
+      g.add(insegna);
+      g.add(blocco(2.05, 0.75, 0.03, 0x1F2A44, 0, 1.33));
+      return g;
+    },
+    muro: (p) => {
+      // Robot mobile: base circolare, colonna, testa con due telecamere, un braccio.
+      const g = new THREE.Group();
+      g.add(cilindro(0.65, 0.45, 0xE9E4D8));
+      g.add(cilindro(0.66, 0.06, 0x3A3F4A, 0, 0.45));
+      g.add(blocco(0.45, 1.3, 0.45, 0xE9E4D8, 0, 0.5));
+      g.add(blocco(0.75, 0.45, 0.55, 0xE9E4D8, 0, 1.8));
+      g.add(blocco(0.4, 0.35, 0.38, 0xE9E4D8, 0, 2.25));
+      for (const x of [-0.1, 0.1]) {
+        const occhio = cilindro(0.05, 0.04, 0x1C1D2B, x, 2.42, 0.2);
+        occhio.rotation.x = Math.PI / 2;
+        g.add(occhio);
+      }
+      const braccio = blocco(0.14, 0.75, 0.14, 0x3A3F4A, 0.5, 1.35);
+      braccio.rotation.z = -0.4;
+      g.add(braccio);
+      g.add(blocco(0.14, 0.6, 0.14, 0x3A3F4A, 0.62, 0.95, 0.2));
+      // Ingombro pieno: la base del robot copre la corsia anche ai lati.
+      g.add(blocco(1.8, 0.12, Math.max(p, 0.6), 0x3A3F4A, 0, 0));
+      return g;
+    },
+  },
+};
+
+// Pareti lunghe dei corridoi: stesse tinte del mondo, con fasce decorative.
+function muroLungo(mondo, p) {
+  const g = new THREE.Group();
+  const col = mondo.ostacoli.muro;
+  g.add(blocco(1.95, 2.7, p, col, 0, 0));
+  g.add(blocco(2.0, 0.25, p + 0.02, 0xffffff, 0, 2.2));
+  g.add(blocco(2.0, 0.15, p + 0.02, 0x1C1D2B, 0, 0.1));
+  return g;
+}
+
+export function creaOstacolo(e, mondo) {
+  const p = e.profondita;
+  const stile = OSTACOLI[e.stile ?? mondo.stile];
+  if (stile.proprio) return stile[e.tipo](p, e);
+  return e.tipo === 'muro' && p > 2 ? muroLungo(mondo, p) : stile[e.tipo](p, e);
+}
+
+// ---------------------------------------------------------------------------
+// Caffè e archi
+// ---------------------------------------------------------------------------
+
+const TORO = new THREE.TorusGeometry(0.1, 0.03, 8, 16);
+export function creaCaffe() {
+  const g = new THREE.Group();
+  g.add(cilindro(0.2, 0.28, 0xffffff, 0, 0));
+  g.add(cilindro(0.17, 0.02, 0x6B3E1F, 0, 0.27));
+  g.add(cilindro(0.32, 0.03, 0xffffff, 0, -0.03));
+  const manico = new THREE.Mesh(TORO, materiale(0xffffff));
+  manico.position.set(0.22, 0.14, 0);
+  g.add(manico);
+  const alone = new THREE.Mesh(
+    new THREE.RingGeometry(0.42, 0.5, 24),
+    new THREE.MeshBasicMaterial({ color: 0xffd23f, transparent: true, opacity: 0.6, side: THREE.DoubleSide }),
+  );
+  alone.position.y = 0.14;
+  g.add(alone);
+  return g;
+}
+
+export function creaArco(e) {
+  // Alto abbastanza da restare fuori dall'inquadratura quando il giocatore riparte sotto l'arco.
+  const H = 7.4;
+  const g = new THREE.Group();
+  for (const x of [-4, 4]) {
+    g.add(blocco(0.5, H, 0.5, e.colore, x, 0));
+    g.add(blocco(0.7, 0.3, 0.7, 0xffffff, x, H));
+  }
+  const cartello = scritta(e.testo, 8, 1, e.colore);
+  cartello.position.y = H + 0.6;
+  g.add(cartello);
+  g.add(blocco(8.6, 0.25, 0.4, e.colore, 0, H + 1.0));
+  if (e.traguardo) {
+    // Corona d'alloro stilizzata.
+    const corona = new THREE.Mesh(new THREE.TorusGeometry(0.7, 0.12, 8, 24), materiale(0x4f7d3a, { flatShading: true }));
+    corona.position.y = H + 2.3;
+    g.add(corona);
+    for (let i = 0; i < 12; i++) {
+      const foglia = new THREE.Mesh(SFERA, materiale(0x5f9445, { flatShading: true }));
+      const a = (i / 12) * Math.PI * 2;
+      foglia.scale.set(0.12, 0.22, 0.08);
+      foglia.position.set(Math.cos(a) * 0.75, H + 2.3 + Math.sin(a) * 0.75, 0);
+      foglia.rotation.z = a;
+      g.add(foglia);
+    }
+  } else {
+    // Bandierine del checkpoint.
+    for (const x of [-4, 4]) {
+      g.add(blocco(0.04, 1.0, 0.04, 0x333333, x, H + 0.3));
+      g.add(blocco(0.6, 0.4, 0.02, 0xB03A2E, x + 0.3, H + 0.9));
+    }
+  }
+  return g;
+}
+
+// ---------------------------------------------------------------------------
+// Roberto
+// ---------------------------------------------------------------------------
+
+const PELLE_R = 0xE0B08A, CAPELLI_R = 0x2B1D14, MAGLIA_R = 0x1F5F8B, PANTALONI_R = 0x2A2D3A, SCARPE_R = 0xF2F2F2;
+
+// Volto disegnato per i personaggi generici (Roberto ha la testa di volto.js).
+function voltoDisegnato(pelle, capelli, serio = false) {
+  return tela(256, 256, (g) => {
+    g.fillStyle = esa(pelle); g.fillRect(0, 0, 256, 256);
+    g.fillStyle = esa(capelli); g.fillRect(0, 0, 256, serio ? 18 : 50);
+    if (serio) {
+      // Volto severo: sopracciglia grigie folte e inclinate, occhi stretti, borse, rughe, bocca dritta.
+      g.fillStyle = '#8C8F96';
+      g.save(); g.translate(80, 88); g.rotate(0.28); g.fillRect(-34, -8, 68, 16); g.restore();
+      g.save(); g.translate(176, 88); g.rotate(-0.28); g.fillRect(-34, -8, 68, 16); g.restore();
+      g.fillStyle = '#ffffff'; g.fillRect(58, 112, 44, 14); g.fillRect(154, 112, 44, 14);
+      g.fillStyle = '#2b2118'; g.fillRect(72, 112, 18, 14); g.fillRect(168, 112, 18, 14);
+      g.fillStyle = 'rgba(0,0,0,.18)'; g.fillRect(58, 130, 44, 6); g.fillRect(154, 130, 44, 6);
+      g.fillStyle = 'rgba(0,0,0,.10)'; for (const y of [34, 50, 66]) g.fillRect(70, y, 116, 4);
+      g.fillStyle = 'rgba(0,0,0,.12)'; g.fillRect(116, 120, 24, 52);
+      g.fillStyle = '#C9CCD2'; g.fillRect(84, 172, 88, 14);               // baffi grigi
+      g.fillStyle = '#6a3b33'; g.fillRect(96, 196, 64, 8);
+      return;
+    }
+    g.fillStyle = '#2b1d14';
+    g.fillRect(52, 86, 56, 10); g.fillRect(148, 86, 56, 10);
+    g.fillStyle = '#ffffff'; g.fillRect(60, 108, 40, 24); g.fillRect(156, 108, 40, 24);
+    g.fillStyle = '#3b2a1e'; g.fillRect(72, 110, 18, 20); g.fillRect(168, 110, 18, 20);
+    g.fillStyle = 'rgba(0,0,0,.12)'; g.fillRect(116, 120, 24, 50);
+    g.fillStyle = '#9b4a3c'; g.fillRect(92, 188, 72, 12);
+  });
+}
+
+// Un disegno da bambino: cielo, sole, casa, prato e la famiglia di omini.
+let texDisegno = null;
+function disegnoBambino() {
+  texDisegno ??= tela(256, 192, (g, W, H) => {
+    g.fillStyle = '#FFFDF5'; g.fillRect(0, 0, W, H);
+    g.fillStyle = '#9AD0F5'; g.fillRect(0, 0, W, 34);
+    g.fillStyle = '#6CC46A'; g.fillRect(0, H - 40, W, 40);
+    g.fillStyle = '#FFD23F'; g.beginPath(); g.arc(214, 40, 20, 0, Math.PI * 2); g.fill();
+    g.strokeStyle = '#FFB000'; g.lineWidth = 4;
+    for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4; g.beginPath(); g.moveTo(214 + Math.cos(a) * 26, 40 + Math.sin(a) * 26); g.lineTo(214 + Math.cos(a) * 36, 40 + Math.sin(a) * 36); g.stroke(); }
+    g.fillStyle = '#E0533F'; g.fillRect(30, 86, 80, 66);
+    g.fillStyle = '#8C3B2E'; g.beginPath(); g.moveTo(22, 88); g.lineTo(70, 46); g.lineTo(118, 88); g.fill();
+    g.fillStyle = '#7A4A2A'; g.fillRect(60, 118, 20, 34);
+    g.fillStyle = '#9AD0F5'; g.fillRect(38, 98, 16, 14); g.fillRect(86, 98, 16, 14);
+    g.strokeStyle = '#1C1D2B'; g.lineWidth = 4; g.lineCap = 'round';
+    [[138, 1], [168, 1], [196, 0.75]].forEach(([x, k]) => {
+      const y = H - 46;
+      g.beginPath(); g.arc(x, y - 52 * k, 9 * k, 0, Math.PI * 2); g.stroke();
+      g.beginPath(); g.moveTo(x, y - 43 * k); g.lineTo(x, y - 18 * k); g.moveTo(x - 12 * k, y - 34 * k); g.lineTo(x + 12 * k, y - 34 * k);
+      g.moveTo(x, y - 18 * k); g.lineTo(x - 8 * k, y); g.moveTo(x, y - 18 * k); g.lineTo(x + 8 * k, y); g.stroke();
+    });
+  });
+  return texDisegno;
+}
+
+// Proporzioni e abiti di Roberto nelle varie età: testa (scala), braccia e gambe (scala), colori, zaino, grembiule.
+export const ETA_ROBERTO = {
+  neonato: { testa: 1.45, arti: 0.68, gambe: 0.6, maglia: 0xA9D6CC, polsi: 0xA9D6CC, pantaloni: 0xA9D6CC, scarpe: 0xF4F1E8, zaino: false, grembiule: false, anni: '0 anni' },
+  bimbo:   { testa: 1.14, arti: 0.92, gambe: 0.84, busto: 0.88, corpo: 1.15, maglia: 0x233A73, polsi: 0x233A73, pantaloni: 0x3A3F52, scarpe: 0xF2F2F2, zaino: true, grembiule: true, cartellina: true, anni: '8 anni' },
+  liceo:   { testa: 1.0, arti: 1.0, gambe: 1.0, corpo: 1.13, maglia: MAGLIA_R, polsi: null, pantaloni: PANTALONI_R, scarpe: SCARPE_R, zaino: true, grembiule: false, anni: '14 anni' },
+  // All'università Roberto è più snello e curato: camicia azzurra con le maniche arrotolate, jeans scuri
+  // stretti, sneakers bianche, zaino grigio scuro; gambe un filo più lunghe e spalle dritte.
+  universita: { testa: 0.97, arti: 0.97, gambe: 1.04, corpo: 0.96, maglia: 0x8DB6DE, polsi: null, pantaloni: 0x24324A, scarpe: 0xF7F7F5, zaino: true, coloreZaino: [0x3A4048, 0x2B3036], grembiule: false, camicia: true, anni: '19 anni' },
+};
+const VOLTO_ETA = { neonato: 'neonato', bimbo: 'bimbo', liceo: 'adulto', universita: 'universita' };
+const ETA_PELLE = { neonato: ETA_VOLTO.neonato.pelle, bimbo: ETA_VOLTO.bimbo.pelle, liceo: ETA_VOLTO.adulto.pelle, universita: ETA_VOLTO.universita.pelle };
+
+// Personaggio a blocchi. Con `roberto: true` ha il volto di Roberto con le espressioni e si può
+// rivestire per età con `vesti('neonato' | 'bimbo' | 'liceo')`.
+export function creaPersona(o = {}) {
+  const rob = Boolean(o.roberto);
+  const PELLE = o.pelle ?? PELLE_R, CAPELLI = o.capelli ?? CAPELLI_R, MAGLIA = o.maglia ?? MAGLIA_R;
+  const PANTALONI = o.pantaloni ?? PANTALONI_R, SCARPE = o.scarpe ?? SCARPE_R;
+  // Roberto ha materiali propri, così cambiano colore con l'età senza toccare gli altri personaggi.
+  const mat = c => (rob ? new THREE.MeshLambertMaterial({ color: c }) : c);
+  const matMaglia = mat(MAGLIA), matPantaloni = mat(PANTALONI), matScarpe = mat(SCARPE), matPelle = mat(PELLE);
+  const matPolsi = rob ? new THREE.MeshLambertMaterial({ color: PELLE }) : PELLE;
+  const radice = new THREE.Group();
+  const corpo = new THREE.Group();
+  radice.add(corpo);
+  // Busto, testa e braccia stanno in `superiore`: serve a piegarlo in avanti a gattoni.
+  const superiore = new THREE.Group();
+  corpo.add(superiore);
+
+  // Busto: maglia leggermente rastremata, cintura, collo. Il `tronco` si allarga per Roberto più robusto.
+  const tronco = new THREE.Group();
+  superiore.add(tronco);
+  tronco.add(blocco(0.56, 0.08, 0.31, 0x1C1D2B, 0, 1.0));
+  tronco.add(blocco(0.58, 0.42, 0.3, matMaglia, 0, 1.04));
+  tronco.add(blocco(0.66, 0.32, 0.34, matMaglia, 0, 1.42));
+  superiore.add(blocco(0.16, 0.1, 0.16, matPelle, 0, 1.72));
+  // Un po' di pancia (solo Roberto, quando l'età la prevede): due strati arrotondati sul davanti.
+  const pancia = new THREE.Group();
+  if (rob) {
+    pancia.add(blocco(0.52, 0.4, 0.1, matMaglia, 0, 0.9, -0.19));
+    pancia.add(blocco(0.4, 0.28, 0.07, matMaglia, 0, 0.95, -0.255));
+    pancia.visible = false;
+    tronco.add(pancia);
+  }
+
+  // Camicia (Roberto all'università): colletto e abbottonatura; le maniche arrotolate lasciano gli avambracci scoperti.
+  const camicia = new THREE.Group();
+  if (rob) {
+    camicia.add(blocco(0.36, 0.08, 0.05, matMaglia, -0.0, 1.66, -0.16));
+    for (const s of [-1, 1]) { const c = blocco(0.15, 0.1, 0.04, 0xA9CBEA, s * 0.09, 1.63, -0.178); c.rotation.z = s * 0.5; camicia.add(c); }
+    camicia.add(blocco(0.03, 0.5, 0.02, 0xE8EEF5, 0, 1.06, -0.158));
+    camicia.visible = false;
+    tronco.add(camicia);
+  }
+
+  // Grembiule da scolaro: gonna sopra i fianchi, colletto bianco e fiocco.
+  const grembiule = new THREE.Group();
+  if (rob) {
+    grembiule.add(blocco(0.62, 0.44, 0.36, matMaglia, 0, 0.72));
+    grembiule.add(blocco(0.5, 0.1, 0.2, 0xFFFFFF, 0, 1.76, -0.08));
+    grembiule.add(blocco(0.22, 0.12, 0.06, 0xE3B23C, 0, 1.62, -0.19));
+    grembiule.visible = false;
+    tronco.add(grembiule);
+  }
+
+  const testa = new THREE.Group();
+  testa.position.y = 2.02;
+  let volti = null;          // le teste di Roberto per età, create al primo uso
+  let voltoCorrente = null;
+  let cranio, voltoMat = null;
+  const pelle = materiale(PELLE);
+  const capelli = materiale(CAPELLI);
+  if (!rob) {
+    voltoMat = new THREE.MeshLambertMaterial({ map: o.volto ?? voltoDisegnato(PELLE, CAPELLI, o.serio) });
+    // Ordine delle facce del cubo: +x, -x, +y, -y, +z, -z. Il volto guarda verso -z (avanti).
+    cranio = new THREE.Mesh(CUBO, [pelle, pelle, capelli, pelle, capelli, voltoMat]);
+    cranio.scale.set(0.42, 0.48, 0.42);
+    cranio.castShadow = true;
+    testa.add(cranio);
+    if (o.acconciatura === 'calvo') {
+      // Testa pelata con i capelli solo ai lati e dietro (il maestro).
+      cranio.material = [pelle, pelle, pelle, pelle, pelle, voltoMat];
+      testa.add(blocco(0.06, 0.2, 0.34, CAPELLI, -0.235, 0.0, 0.04));
+      testa.add(blocco(0.06, 0.2, 0.34, CAPELLI, 0.235, 0.0, 0.04));
+      testa.add(blocco(0.4, 0.14, 0.05, CAPELLI, 0, 0.0, 0.225));
+    } else if (o.acconciatura === 'pelato') {
+      // Rasato a zero: solo pelle (il volto passato con `volto` non deve avere la fascia dei capelli).
+      cranio.material = [pelle, pelle, pelle, pelle, pelle, voltoMat];
+    } else {
+      testa.add(blocco(0.46, 0.12, 0.46, CAPELLI, 0, 0.2));
+      testa.add(blocco(0.46, 0.34, 0.12, CAPELLI, 0, -0.02, 0.18));
+    }
+    if (o.acconciatura === 'caschetto' || o.acconciatura === 'nonna') {
+      // Capelli ai lati e dietro: alle spalle (caschetto) o fino alla nuca (nonna), con frangia di lato.
+      const giu = o.acconciatura === 'caschetto' ? 0.52 : 0.3;
+      testa.add(blocco(0.1, giu, 0.46, CAPELLI, -0.25, 0.2 - giu / 2 - 0.02, 0.0));
+      testa.add(blocco(0.1, giu, 0.46, CAPELLI, 0.25, 0.2 - giu / 2 - 0.02, 0.0));
+      testa.add(blocco(0.52, giu + 0.1, 0.12, CAPELLI, 0, 0.2 - (giu + 0.1) / 2 - 0.0, 0.2));
+      testa.add(blocco(0.4, 0.1, 0.07, CAPELLI, 0.04, 0.12, -0.225));
+    }
+    if (o.acconciatura === 'ricci') {
+      // Riccioli corti: tante palline di capelli sulla testa.
+      const N = 26;
+      for (let i = 0; i < N; i++) {
+        const t = (i + 0.5) / N, ang = i * 2.399963;
+        const y = 1 - t * 1.25, r = Math.sqrt(Math.max(0, 1 - y * y));
+        const px = Math.cos(ang) * r * 0.27, py = 0.06 + y * 0.3, pz = Math.sin(ang) * r * 0.27 + 0.01;
+        if (pz < -0.1 && py < 0.16) continue;
+        const b = new THREE.Mesh(new THREE.IcosahedronGeometry(0.1, 0), capelli);
+        b.position.set(px, py, pz); b.castShadow = true;
+        testa.add(b);
+      }
+    }
+    if (o.occhiali) {
+      // Occhiali sottili sul volto.
+      for (const x of [-0.1, 0.1]) {
+        testa.add(blocco(0.15, 0.015, 0.02, 0x1C1D2B, x, 0.0, -0.226));
+        testa.add(blocco(0.15, 0.015, 0.02, 0x1C1D2B, x, -0.1, -0.226));
+        testa.add(blocco(0.015, 0.1, 0.02, 0x1C1D2B, x - 0.075, -0.05, -0.226));
+        testa.add(blocco(0.015, 0.1, 0.02, 0x1C1D2B, x + 0.075, -0.05, -0.226));
+      }
+      testa.add(blocco(0.05, 0.015, 0.02, 0x1C1D2B, 0, -0.03, -0.226));
+    }
+    if (o.acconciatura === 'ciuffo') {
+      // Ciuffo che cade sulla fronte, più lungo da un lato.
+      testa.add(blocco(0.44, 0.13, 0.07, CAPELLI, 0, 0.09, -0.225));
+      testa.add(blocco(0.2, 0.12, 0.07, CAPELLI, 0.1, -0.02, -0.225));
+    } else if (o.acconciatura === 'lato') {
+      // Capelli lisci pettinati da un lato: massa che scende sulla tempia sinistra e frangia obliqua.
+      testa.add(blocco(0.1, 0.36, 0.42, CAPELLI, -0.245, -0.14, 0));
+      testa.add(blocco(0.3, 0.12, 0.07, CAPELLI, -0.07, 0.1, -0.225));
+      testa.add(blocco(0.12, 0.16, 0.07, CAPELLI, -0.17, -0.02, -0.225));
+    }
+    for (const s of [-1, 1]) testa.add(blocco(0.05, 0.12, 0.08, PELLE, s * 0.23, -0.04));
+  }
+  superiore.add(testa);
+
+  function gamba(x) {
+    const anca = new THREE.Group();
+    anca.position.set(x, 1.0, 0);
+    anca.add(blocco(0.22, 0.48, 0.24, matPantaloni, 0, -0.48));
+    const ginocchio = new THREE.Group();
+    ginocchio.position.y = -0.48;
+    ginocchio.add(blocco(0.2, 0.46, 0.22, matPantaloni, 0, -0.46));
+    ginocchio.add(blocco(0.22, 0.1, 0.34, matScarpe, 0, -0.52, -0.05));
+    anca.add(ginocchio);
+    corpo.add(anca);
+    return { anca, ginocchio };
+  }
+  function braccio(x) {
+    const spalla = new THREE.Group();
+    spalla.position.set(x * corpo_x, 1.66, 0);
+    if (corpo_x !== 1) spalla.scale.setScalar(1 + (corpo_x - 1) * 0.6);   // braccia un po' più robuste
+    spalla.add(blocco(0.17, 0.34, 0.18, matMaglia, 0, -0.34));
+    const gomito = new THREE.Group();
+    gomito.position.y = -0.34;
+    gomito.add(blocco(0.14, 0.3, 0.15, matPolsi, 0, -0.3));
+    gomito.add(blocco(0.15, 0.12, 0.15, matPelle, 0, -0.4));
+    spalla.add(gomito);
+    attacco.add(spalla);
+    return { spalla, gomito };
+  }
+
+  // Corporatura robusta: busto più largo e profondo. Testa e braccia stanno in `attacco`, che annulla
+  // l'allargamento: così ruotano senza deformarsi (una scala non uniforme storcerebbe le braccia).
+  let attacco = superiore, corpo_x = 1;
+  if (o.corpulenza && o.corpulenza !== 1) {
+    const c = o.corpulenza, cz = 1 + (c - 1) * 0.8;
+    superiore.scale.set(c, 1, cz);
+    attacco = new THREE.Group();
+    attacco.scale.set(1 / c, 1, 1 / cz);
+    superiore.add(attacco);
+    superiore.remove(testa); attacco.add(testa);
+    corpo_x = c;
+  }
+  // Abito elegante: camicia bianca e cravatta sul davanti.
+  if (o.abito === 'elegante') {
+    superiore.add(blocco(0.2, 0.6, 0.02, 0xFFFFFF, 0, 1.3, -0.172));
+    superiore.add(blocco(0.075, 0.42, 0.02, 0xB3202A, 0, 1.3, -0.186));
+    for (const x of [-0.14, 0.14]) superiore.add(blocco(0.1, 0.6, 0.02, 0x14182A, x, 1.3, -0.182));
+  }
+  // Gonna lunga fino al ginocchio (donne della famiglia).
+  if (o.gonna != null) {
+    corpo.add(blocco(0.64 * (o.corpulenza ?? 1), 0.62, 0.4 * (1 + ((o.corpulenza ?? 1) - 1) * 0.8), o.gonna, 0, 0.5));
+  }
+
+  // Zaino sulla schiena (la schiena è verso +z).
+  const zaino = new THREE.Group();
+  const matZaino = rob ? new THREE.MeshLambertMaterial({ color: 0xB03A2E }) : (o.zaino ?? 0xB03A2E);
+  const matTasca = rob ? new THREE.MeshLambertMaterial({ color: 0x8C2D23 }) : 0x8C2D23;
+  zaino.add(blocco(0.5, 0.62, 0.22, matZaino, 0, 1.08, 0.27));
+  zaino.add(blocco(0.4, 0.26, 0.1, matTasca, 0, 1.12, 0.4));
+  zaino.visible = Boolean(o.conZaino);
+  superiore.add(zaino);
+
+  // Valigetta trasparente da disegno nella mano sinistra (Roberto alle elementari): guscio di plastica
+  // azzurrina con i bordi blu, maniglia, chiusura gialla e dentro un disegno con matite e pennello.
+  const cartellina = new THREE.Group();
+  if (rob) {
+    const BLU = 0x2F6FD6;
+    const guscio = new THREE.MeshPhongMaterial({ color: 0xDDF2FF, transparent: true, opacity: 0.3, shininess: 90, specular: 0xffffff, depthWrite: false });
+    const disegno = new THREE.MeshLambertMaterial({ map: disegnoBambino() });
+    const carta = materiale(0xFFFDF5);
+    const y0 = -0.95, h = 0.46, p = 0.62, sp = 0.11, x = -0.05;
+    const v = new THREE.Mesh(CUBO, guscio);
+    v.scale.set(sp, h, p); v.position.set(x, y0 + h / 2, 0); v.renderOrder = 2;
+    cartellina.add(v);
+    // Bordi blu: sopra, sotto e ai lati.
+    cartellina.add(blocco(sp + 0.02, 0.05, p + 0.02, BLU, x, y0 + h - 0.05, 0));
+    cartellina.add(blocco(sp + 0.02, 0.04, p + 0.02, BLU, x, y0, 0));
+    for (const z of [-1, 1]) cartellina.add(blocco(sp + 0.02, h, 0.03, BLU, x, y0, z * (p / 2 - 0.005)));
+    // Maniglia: due attacchi e l'impugnatura stretta nella mano.
+    for (const z of [-1, 1]) cartellina.add(blocco(0.05, 0.08, 0.04, BLU, x, y0 + h, z * 0.1));
+    cartellina.add(blocco(0.07, 0.05, 0.26, BLU, x, y0 + h + 0.07, 0));
+    // Chiusure gialle.
+    for (const z of [-1, 1]) cartellina.add(blocco(sp + 0.04, 0.07, 0.06, 0xF2C14E, x, y0 + h - 0.09, z * 0.2));
+    // Dentro: il disegno (si vede da entrambi i lati), un foglio colorato, matite e pennello.
+    const foglio = new THREE.Mesh(CUBO, [disegno, disegno, carta, carta, carta, carta]);
+    foglio.scale.set(0.015, h - 0.13, p - 0.1); foglio.position.set(x + 0.02, y0 + 0.05 + (h - 0.13) / 2, 0.01);
+    cartellina.add(foglio);
+    [0xE0533F, 0x4CAF6A, 0xF2C14E].forEach((c, i) => {
+      const m = blocco(0.02, 0.02, 0.3, c, x - 0.035, y0 + 0.06 + i * 0.03, 0.05 - i * 0.05);
+      cartellina.add(m);
+    });
+    cartellina.add(blocco(0.018, 0.018, 0.34, 0xB5835A, x + 0.04, y0 + 0.05, -0.04));
+    // Un po' girata, così si vede anche da dietro mentre corre.
+    cartellina.rotation.y = 0.55;
+    cartellina.visible = false;
+  }
+
+  const parti = {
+    radice, corpo, superiore, testa, cranio, voltoMat, zaino, grembiule, cartellina,
+    gambe: [gamba(-0.14), gamba(0.14)],
+    braccia: [braccio(-0.43), braccio(0.43)],
+    eta: null,
+    dim: ETA_ROBERTO.liceo,
+    // Espressioni del viso di Roberto (vedi volto.js); per gli altri personaggi non fanno nulla.
+    espressione(nome) { voltoCorrente?.imposta(nome); },
+    aggiornaVolto(dt) { voltoCorrente?.aggiorna(dt); },
+    volto: () => voltoCorrente,
+  };
+
+  if (rob) {
+    volti = {};
+    // Veste Roberto per l'età: testa, proporzioni, colori e accessori.
+    parti.vesti = (eta) => {
+      const d = ETA_ROBERTO[eta];
+      parti.eta = eta; parti.dim = d;
+      const ve = VOLTO_ETA[eta];
+      if (!volti[eta]) {
+        volti[eta] = creaTestaRoberto(ve);
+        volti[eta].gruppo.visible = false;
+        testa.add(volti[eta].gruppo);
+      }
+      for (const [k, v] of Object.entries(volti)) v.gruppo.visible = k === eta;
+      const prima = voltoCorrente?.corrente() ?? 'neutro';
+      voltoCorrente = volti[eta];
+      voltoCorrente.imposta(prima);
+      matMaglia.color.setHex(d.maglia); matPantaloni.color.setHex(d.pantaloni); matScarpe.color.setHex(d.scarpe);
+      const pel = new THREE.Color(ETA_PELLE[eta]);
+      matPelle.color.copy(pel);
+      matPolsi.color.set(d.polsi ?? ETA_PELLE[eta]);
+      grembiule.visible = d.grembiule;
+      camicia.visible = Boolean(d.camicia);
+      zaino.visible = d.zaino;
+      matZaino.color.setHex(d.coloreZaino?.[0] ?? 0xB03A2E);
+      matTasca.color.setHex(d.coloreZaino?.[1] ?? 0x8C2D23);
+      cartellina.visible = Boolean(d.cartellina);
+      // Il busto si accorcia con l'età (`busto`); la testa resta della misura `testa`.
+      const busto = d.busto ?? 1;
+      superiore.scale.setScalar(busto);
+      testa.scale.setScalar(d.testa / busto);
+      testa.position.y = 2.02 + (d.testa / busto - 1) * 0.17;
+      superiore.position.y = d.gambe - busto;
+      for (const { spalla } of parti.braccia) spalla.scale.setScalar(d.arti);
+      parti.corporatura(d.corpo ?? 1);
+      azzeraPosa(parti);
+    };
+    // Corporatura: busto più largo e profondo, spalle e gambe un po' più distanti, pancia. Si può
+    // cambiare anche durante la corsa (il boss del gelato fa ingrassare Roberto).
+    parti.corporatura = (c) => {
+      const d = parti.dim, cz = 1 + (c - 1) * 0.9;
+      tronco.scale.set(c, 1, cz);
+      pancia.visible = c > 1;
+      pancia.scale.set(1 + Math.max(0, c - 1.2) * 0.25, 1, 1 + Math.max(0, c - 1.15) * 2.2);    // oltre una certa misura la pancia sporge di più
+      // Braccia più grosse (solo in larghezza, come le gambe) e faccia un po' più piena.
+      for (const [i, { spalla }] of parti.braccia.entries()) {
+        spalla.position.x = (i ? 1 : -1) * 0.43 * c;
+        spalla.scale.set(d.arti * (1 + Math.max(0, c - (d.corpo ?? 1)) * 0.7), d.arti, d.arti);
+      }
+      const sTesta = d.testa / (d.busto ?? 1);
+      testa.scale.set(sTesta * (1 + Math.max(0, c - (d.corpo ?? 1)) * 0.12), sTesta, sTesta);
+      for (const [i, { anca }] of parti.gambe.entries()) anca.position.x = (i ? 1 : -1) * 0.14 * (1 + (c - 1) * 1.3);
+      zaino.position.z = (cz - 1) * 0.2;
+      // Gambe più robuste solo in larghezza (x): non si mescola con il piegamento, che ruota attorno a x.
+      for (const { anca } of parti.gambe) { anca.scale.set(d.gambe * (1 + (c - 1) * 0.9), d.gambe, d.gambe); anca.position.y = d.gambe; }
+    };
+    parti.braccia[0].gomito.add(cartellina);
+    parti.vesti('liceo');
+  }
+  return parti;
+}
+
+export const creaRoberto = (eta = 'liceo') => {
+  const r = creaPersona({ roberto: true, conZaino: true });
+  r.vesti(eta);
+  return r;
+};
+
+// Riporta ogni articolazione alla posa neutra. Le pose qui sotto impostano comunque tutti gli assi
+// di ogni giunto a ogni chiamata, così nessun valore residuo di una posa precedente può restare.
+export function azzeraPosa(r) {
+  for (const { anca, ginocchio } of r.gambe) { anca.rotation.set(0, 0, 0); ginocchio.rotation.set(0, 0, 0); anca.position.y = r.dim.gambe; }
+  for (const { spalla, gomito } of r.braccia) { spalla.rotation.set(0, 0, 0); gomito.rotation.set(0, 0, 0); }
+  r.testa.rotation.set(0, 0, 0);
+  r.corpo.rotation.set(0, 0, 0);
+  r.corpo.position.set(0, 0, 0);
+  r.superiore.rotation.set(0, 0, 0);
+  r.superiore.position.set(0, r.dim.gambe - (r.dim.busto ?? 1), 0);
+}
+
+// Posa di corsa: fase in radianti, ampiezza 0..1.
+export function posaCorsa(r, fase, ampiezza) {
+  const s = Math.sin(fase);
+  for (const [i, { anca, ginocchio }] of r.gambe.entries()) {
+    const v = i === 0 ? s : -s;
+    anca.rotation.set(v * 0.85 * ampiezza, 0, 0);
+    ginocchio.rotation.set(Math.max(0, -Math.cos(fase + (i === 0 ? 0 : Math.PI))) * 1.3 * ampiezza, 0, 0);
+  }
+  for (const [i, { spalla, gomito }] of r.braccia.entries()) {
+    const v = i === 0 ? -s : s;
+    spalla.rotation.set(v * 0.7 * ampiezza, 0, 0);
+    gomito.rotation.set(-0.9 * ampiezza, 0, 0);
+  }
+}
+
+// Posa ferma, con saluto della mano destra se `saluto` > 0.
+export function posaFerma(r, t, saluto) {
+  for (const { anca, ginocchio } of r.gambe) { anca.rotation.set(0, 0, 0); ginocchio.rotation.set(0, 0, 0); }
+  const [sx, dx] = r.braccia;
+  sx.spalla.rotation.set(0, 0, -0.08);
+  sx.gomito.rotation.set(-0.15, 0, 0);
+  dx.spalla.rotation.set(0, 0, 0.08 + saluto * 2.6);
+  dx.gomito.rotation.set(0, 0, saluto * Math.sin(t * 10) * 0.5);
+  r.corpo.position.y = Math.sin(t * 2.5) * 0.015;
+}
+
+// Primi passi del neonato: in piedi, passetti corti e barcollanti, braccia alzate per l'equilibrio,
+// il corpo che dondola da un lato all'altro. `fase` in radianti, `ampiezza` 0..1.
+export function posaPrimiPassi(r, fase, ampiezza) {
+  const s = Math.sin(fase), c = Math.cos(fase);
+  for (const [i, { anca, ginocchio }] of r.gambe.entries()) {
+    const v = i === 0 ? s : -s;
+    anca.rotation.set(v * 0.5 * ampiezza, 0, (i === 0 ? -1 : 1) * 0.09 * ampiezza);
+    ginocchio.rotation.set(Math.max(0, -Math.cos(fase + (i === 0 ? 0 : Math.PI))) * 0.7 * ampiezza, 0, 0);
+  }
+  // Braccia sollevate ai lati, gomiti piegati, che ballonzolano a turno.
+  for (const [i, { spalla, gomito }] of r.braccia.entries()) {
+    const lato = i === 0 ? -1 : 1, v = i === 0 ? s : -s;
+    spalla.rotation.set(0, 0, lato * (1.85 + v * 0.22 * ampiezza));
+    gomito.rotation.set(-0.35 + v * 0.2 * ampiezza, 0, lato * 0.5);
+  }
+  // Dondolo: il busto pende dalla parte del piede che si appoggia, la testa contro-ruota un po'.
+  r.corpo.rotation.set(-0.08 * ampiezza, 0, s * 0.16 * ampiezza);
+  r.corpo.position.set(0, Math.abs(c) * 0.035 * ampiezza, 0);
+  r.testa.rotation.set(0.05, s * 0.12 * ampiezza, -s * 0.12 * ampiezza);
+}
+
+// Seduto per terra, a gambe in avanti (il neonato che è caduto): `abbassa` = altezza dell'anca.
+export function posaPerTerra(r) {
+  const d = r.dim;
+  for (const { anca, ginocchio } of r.gambe) { anca.rotation.set(-Math.PI / 2 + 0.15, 0, 0); ginocchio.rotation.set(0.1, 0, 0); }
+  r.corpo.position.set(0, -d.gambe + 0.14, 0);
+  r.corpo.rotation.set(-0.12, 0, 0);
+}
+
+// A gattoni: busto quasi orizzontale, mani a terra, ginocchia a terra. `fase` in radianti, `ampiezza` 0..1,
+// `bassa` 0..1 abbassa il busto fino a strisciare sulla pancia.
+export function posaGattona(r, fase, ampiezza, bassa = 0) {
+  const d = r.dim;
+  const braccioLungo = 0.74 * d.arti;
+  const anca = 0.48 * d.gambe + 0.08 - 0.12 * bassa;
+  const lungBusto = 0.66;
+  const alza = Math.asin(THREE.MathUtils.clamp((braccioLungo - anca - 0.1 * bassa) / lungBusto, -0.3, 0.7));
+  const th = -(Math.PI / 2 - alza);                          // busto inclinato in avanti
+  const s = Math.sin(fase), c = Math.cos(fase);
+  // Il busto ruota attorno al bacino, che resta all'altezza `anca`.
+  r.superiore.rotation.set(th, 0, s * 0.07 * ampiezza);
+  r.superiore.position.set(0, anca - 1.0 * Math.cos(th) - (1 - d.gambe) * 0, -1.0 * Math.sin(th));
+  r.corpo.position.y = Math.abs(c) * 0.025 * ampiezza;
+  // Mani: scendono in verticale, avanti e indietro a turno.
+  for (const [i, { spalla, gomito }] of r.braccia.entries()) {
+    const v = i === 0 ? s : -s;
+    spalla.rotation.set(-th + v * 0.55 * ampiezza, 0, 0);
+    gomito.rotation.set(Math.max(0, -v) * -0.7 * ampiezza, 0, 0);
+  }
+  // Gambe: cosce in verticale, stinchi indietro lungo il pavimento, un po' di oscillazione.
+  for (const [i, { anca: a, ginocchio }] of r.gambe.entries()) {
+    const v = i === 0 ? -s : s;
+    a.position.y = anca;
+    a.rotation.set(v * 0.45 * ampiezza, 0, 0);
+    ginocchio.rotation.set(-(Math.PI / 2 - 0.15) + Math.max(0, v) * 0.4 * ampiezza, 0, 0);
+  }
+  // Testa: contro-ruota per guardare avanti, un po' in su.
+  r.testa.rotation.set(-th + 0.1, 0, 0);
+}
+
+// Seduto su una sedia: cosce in avanti (verso -z), busto abbassato di `abbassa` metri.
+export function posaSeduto(r, abbassa = 0.5) {
+  for (const { anca, ginocchio } of r.gambe) { anca.rotation.x = -Math.PI / 2; ginocchio.rotation.x = Math.PI / 2; }
+  r.corpo.position.y = -abbassa;
+}
+
+// Ripristina le gambe dopo una posa da seduto.
+export function posaInPiedi(r) {
+  for (const { anca, ginocchio } of r.gambe) { anca.rotation.x = 0; ginocchio.rotation.x = 0; }
+  r.corpo.position.y = 0;
+}

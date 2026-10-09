@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#12141C">
+<title>Corri, Roberto · Gioco</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,800&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="gioco.css">
+<script>
+// Se questa pagina arriva dalla cache del browser ed è più vecchia dell'ultima versione, si ricarica da sola.
+(()=>{const V=38;try{fetch('../versione.json?t='+Date.now(),{cache:'no-store'}).then(r=>r.json()).then(d=>{if(d.v!==V){const k='ricarica-'+location.pathname+d.v;if(!sessionStorage.getItem(k)){sessionStorage.setItem(k,1);const u=new URL(location.href);u.searchParams.set('v',d.v);location.replace(u)}}}).catch(()=>{})}catch(e){}})();
+</script>
+</head>
+<body>
+
+<div id="scena" aria-hidden="true"></div>
+
+<div id="hud" hidden>
+  <div class="riga">
+    <span id="hud-tempo" class="tempo">0:00.0</span>
+    <span id="hud-caffe" class="caffe">☕ 0</span>
+    <button id="hud-pausa" class="pausa" type="button" aria-label="Pausa">II</button>
+  </div>
+  <div id="hud-mondo" class="mondo"></div>
+  <div class="progresso"><div id="hud-barra" class="barra"></div><div id="hud-tacche"></div></div>
+</div>
+
+<div id="banner" class="banner" hidden></div>
+<div id="comandi" class="comandi" hidden></div>
+<div id="vs" class="vs" hidden>
+  <div class="vs-lato vs-a"><span>Il Bulimico Roby</span></div>
+  <div class="vs-x">VS</div>
+  <div class="vs-lato vs-b"><span>Cono Gelato</span></div>
+</div>
+<div id="boss" class="boss" hidden>
+  <span aria-hidden="true">🍦</span>
+  <div class="boss-barra"><div id="boss-barra"></div></div>
+</div>
+<div id="orologio" class="orologio" hidden></div>
+
+<div id="sipario" class="sipario"></div>
+<div id="eta-conto" class="eta-conto" hidden></div>
+<div id="lampo" class="lampo"></div>
+
+<div id="scelta" class="scelta" hidden>
+  <p id="domanda-scelta" class="domanda">5ª H. Dove ti siedi?</p>
+  <div class="bottoni">
+    <button type="button" data-scelta="prima">Prima fila</button>
+    <button type="button" data-scelta="ultima">Ultima fila</button>
+  </div>
+  <div class="tempo-scelta"><div id="barra-scelta"></div></div>
+</div>
+
+<section id="schermo-inizio" class="schermo">
+  <div class="carta">
+    <a class="indietro" href="../">← Menù</a>
+    <div class="eyebrow">Dalla culla alla laurea</div>
+    <h1>Corri, Roberto<span class="dot">.</span></h1>
+    <p>Il cronometro non si ferma: ogni oggetto raccolto toglie 2 secondi.</p>
+    <form id="modulo-nome">
+      <label class="dev-mondo" hidden>Sviluppo: parti dal mondo<select id="dev-mondo"></select></label>
+      <label for="nome">Il tuo nome, per la classifica</label>
+      <input id="nome" name="nome" maxlength="24" autocomplete="given-name" required placeholder="Es. Zia Anna">
+      <button type="submit" class="primario">Inizia</button>
+      <span class="versione">v38</span>
+    </form>
+    <button type="button" class="link" data-apri="classifica">Guarda la classifica</button>
+  </div>
+</section>
+
+<section id="schermo-pausa" class="schermo" hidden>
+  <div class="carta">
+    <h2>In pausa</h2>
+    <p>Il cronometro è fermo.</p>
+    <button id="riprendi" type="button" class="primario">Riprendi</button>
+    <button type="button" class="link" data-ricomincia>Ricomincia da capo</button>
+  </div>
+</section>
+
+<section id="schermo-fine" class="schermo" hidden>
+  <div class="carta">
+    <div class="eyebrow" id="fine-data"></div>
+    <h2>Laureato<span class="dot">!</span></h2>
+    <p class="risultato"><span id="fine-tempo" class="tempo-grande">0:00.0</span></p>
+    <p id="fine-dettaglio" class="dettaglio"></p>
+    <ol id="fine-classifica" class="classifica"></ol>
+    <button type="button" class="primario" data-ricomincia>Rigioca</button>
+    <div class="link-fondo">
+      <a href="../ringraziamenti/">Leggi i ringraziamenti</a>
+      <a href="../">Menù</a>
+    </div>
+  </div>
+</section>
+
+<section id="schermo-classifica" class="schermo" hidden>
+  <div class="carta">
+    <div class="eyebrow">Tempo totale, bonus inclusi</div>
+    <h2>Classifica</h2>
+    <ol id="classifica" class="classifica"></ol>
+    <button type="button" class="primario" data-chiudi-classifica>Gioca</button>
+    <div class="link-fondo"><a href="../">Menù</a></div>
+  </div>
+</section>
+
+<!-- Il numero di versione in fondo ai file (?v=) evita che il telefono usi codice vecchio in cache: va cambiato a ogni versione, insieme all'etichetta. -->
+<script type="importmap">{"imports":{"./aula.js":"./aula.js?v=38","./aula-darmon.js":"./aula-darmon.js?v=38","./aula-esame.js":"./aula-esame.js?v=38","./classifica.js":"./classifica.js?v=38","./config.js":"./config.js?v=38","./livello.js":"./livello.js?v=38","./modelli-liceo.js":"./modelli-liceo.js?v=38","./modelli-universita.js":"./modelli-universita.js?v=38","./modelli-rennes.js":"./modelli-rennes.js?v=38","./modelli.js":"./modelli.js?v=38","./mondi.js":"./mondi.js?v=38","./modelli-infanzia.js":"./modelli-infanzia.js?v=38","./volto.js":"./volto.js?v=38","./percorso.js":"./percorso.js?v=38","./boss-gelato.js":"./boss-gelato.js?v=38","./boss-pingpong.js":"./boss-pingpong.js?v=38","./boss-ragazza.js":"./boss-ragazza.js?v=38","./boss-triago.js":"./boss-triago.js?v=38","./volto-ragazza.js":"./volto-ragazza.js?v=38","./amici-uni.js":"./amici-uni.js?v=38","./scena-amici.js":"./scena-amici.js?v=38","./lib/three.module.min.js":"./lib/three.module.min.js?v=38"}}</script>
+<script type="module" src="main.js?v=38"></script>
+</body>
+</html>
