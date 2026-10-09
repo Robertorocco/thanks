@@ -694,7 +694,7 @@ function voltoPelato(pelle) {
 }
 
 // Capelli lunghi e lisci: frangia di lato, ciocche ai lati del viso, massa dietro fino a metà schiena.
-function capelliLunghi(p, colore, lunghezza = 0.75, frangia = true) {
+export function capelliLunghi(p, colore, lunghezza = 0.75, frangia = true) {
   const t = p.testa;
   t.add(blocco(0.5, lunghezza, 0.12, colore, 0, 0.13 - lunghezza, 0.19));
   for (const s of [-1, 1]) {

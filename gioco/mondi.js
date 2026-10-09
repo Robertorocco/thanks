@@ -188,7 +188,7 @@ export const MONDI = [
       { id: 'scalinata',     lung: 6,   amb: 'est', pend: 0.28, gradini: true },
       { id: 'davanti-ed',    lung: 8,   amb: 'est' },
       { id: 'atrio-uni',     lung: 8,   amb: 'int' },
-      { id: 'corridoio-uni', lung: 40,  amb: 'int' },
+      { id: 'corridoio-uni', lung: 110, amb: 'int' },
       { id: 'esame',         lung: 6,   amb: 'int', evento: 'esame' },
       { id: 'uscita-uni',    lung: 22,  amb: 'int' },
       { id: 'portone-uni',   lung: 10,  amb: 'int' },

@@ -465,9 +465,7 @@ export function generaLivello(TRATTI, perc, velocitaIn) {
         case 'gradoni':
           riempi(a + 12, b - 8, { stile: 'magistrale', tipi: ['basso', 'alto', 'muro'], corridoi: false, spazio: 1.1 });
           break;
-        case 'corridoio-uni': case 'uscita-uni':
-          riempi(a + 6, b - 5, { stile: 'magistraleInt', tipi: ['basso', 'alto', 'muro'], corridoi: 0.1, spazio: 1.15 });
-          break;
+        case 'corridoio-uni': case 'uscita-uni': break;      // dentro l'edificio niente ostacoli: ci sono gli amici
         case 'esame': break;
         case 'dopo-esame':
           riempi(a + 30, b - 30, { stile: 'magistrale', tipi: ['basso', 'alto', 'muro'], corridoi: true });
@@ -486,7 +484,7 @@ export function generaLivello(TRATTI, perc, velocitaIn) {
           const k = Math.round(q / 3);
           for (const lato of [-1, 1]) {
             const spoglia = (lato > 0 && sz.portaFratello && Math.abs(q + 1.5 - a - sz.portaFratello) < 3.6)
-              || (sz.id === 'corridoio-uni' && Math.abs(q + 1.5 - a - (lato < 0 ? 12 : 26)) < 2.6);
+              || (sz.id === 'corridoio-uni' && (lato < 0 ? [12, 58] : [26]).some(o => Math.abs(q + 1.5 - a - o) < 2.6));
             ENTITA.push({ d: q + 1.5, genere: 'parete', lato, idx: k + (lato > 0 ? 1 : 0), mondo: t.indice, stile: t.stile, spoglia });
           }
           ENTITA.push({ d: q + 1.5, genere: 'soffitto', luce: k % 3 === 0, mondo: t.indice, stile: t.stile });
@@ -506,7 +504,7 @@ export function generaLivello(TRATTI, perc, velocitaIn) {
         if (sz.id === 'uscita-d') ENTITA.push({ d: b - 1.2, genere: 'portone', mondo: t.indice, stile: 'darmon' });
         // Facoltà: le aule Ia1 e Ia2 lungo il corridoio, in fondo la Ia3 dove si fa l'esame.
         if (sz.id === 'corridoio-uni') {
-          ENTITA.push({ d: a + 12, genere: 'uni', tipo: 'portaLat', lato: -1, testo: 'Ia1', mondo: t.indice });
+          // Ia1 (a sinistra) e l'aula RWC sono porte animate gestite da scena-amici.js.
           ENTITA.push({ d: a + 26, genere: 'uni', tipo: 'portaLat', lato: 1, testo: 'Ia2', mondo: t.indice });
         }
         if (sz.id === 'esame' && t.stile === 'magistrale') ENTITA.push({ d: b, genere: 'portaAula', mondo: t.indice, stile: 'ia3' });

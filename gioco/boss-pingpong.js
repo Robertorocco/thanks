@@ -7,8 +7,9 @@
 // di rovescio (il 10° colpo) e la partita finisce.
 
 import * as THREE from './lib/three.module.min.js';
-import { blocco, cilindro, tela, creaPersona, posaCorsa, azzeraPosa } from './modelli.js';
+import { blocco, cilindro, tela, creaPersona, posaCorsa, posaFerma, azzeraPosa } from './modelli.js';
 import { fumetto } from './aula.js';
+import { creaRagazzaCugino } from './amici-uni.js';
 
 // Il tavolo: il bordo dalla parte di Roberto è a z = 0, quello del cugino a z = -LUNGO.
 // Il tavolo è molto più largo di uno vero: le tre corsie occupano tutta la larghezza dello schermo.
@@ -107,6 +108,10 @@ export function creaPingPong(scena, d, metti, ui = {}) {
 
   const cugino = creaCugino();
   radice.add(cugino.radice);
+  // La ragazza con cui il cugino se ne va dopo la sconfitta: arriva da destra e vanno via insieme, piano.
+  const ragazza = creaRagazzaCugino();
+  ragazza.radice.visible = false;
+  radice.add(ragazza.radice);
   const racchettaC = creaRacchetta(0x1C1D22);
   racchettaC.position.y = -0.42;
   cugino.braccia[1].gomito.add(racchettaC);
@@ -152,9 +157,51 @@ export function creaPingPong(scena, d, metti, ui = {}) {
     p: 0, pBersaglio: 0,                    // racchetta di Roberto: -1 sinistra, 0 centro, 1 destra
     swingR: 0, tipoSwingR: 1, swingC: 0,
     cuginoX: 0, cuginoBersaglio: 0,
-    volo: null, inquadra: 0, scossa: 0, bolle: [],
+    volo: null, inquadra: 0, scossa: 0, bolle: [], esodoT: -1, fasePassi: 0,
     punti: [new THREE.Vector3(-CORSIA, PIANO + 0.18, 0.05), new THREE.Vector3(0, PIANO + 0.18, 0.05), new THREE.Vector3(CORSIA, PIANO + 0.18, 0.05)],
   };
+
+  // Dopo la sconfitta il cugino si gira e se ne va lentamente con la ragazza (tempo `S.esodoT` in secondi).
+  const ESODO_FINE = 16, MEETING = [2.0, -LUNGO - 2.3], X_RAGAZZA = 3.1, VEL_VIA = 1.25;
+  const yaw = (dx, dz) => Math.atan2(-dx, -dz);
+  function esodo(dt) {
+    const e = S.esodoT;
+    if (e < 0) { ragazza.radice.visible = false; return; }
+    S.esodoT += dt;
+    const ss = THREE.MathUtils.smoothstep;
+    if (e > ESODO_FINE) { cugino.radice.visible = false; ragazza.radice.visible = false; return; }
+    cugino.radice.visible = true;
+    // Il cugino si gira (0-0,8 s), poi va incontro al punto d'incontro; da lì cammina via sempre più spedito.
+    const x0 = S.cuginoX + 0.24, z0 = -LUNGO;
+    const k = ss(e, 0.6, 2.9);                                    // verso il punto d'incontro
+    const via = Math.max(0, e - 2.9) * VEL_VIA * ss(e, 2.9, 4.3);    // metri percorsi dopo l'incontro
+    const cx = THREE.MathUtils.lerp(x0, MEETING[0], k) + (MEETING[0] < 2.6 ? Math.max(0, e - 2.9) * 0.05 : 0);
+    const cz = THREE.MathUtils.lerp(z0, MEETING[1], k) - via;
+    const dirC = e < 2.9 ? Math.atan2(-(MEETING[0] - x0), -(MEETING[1] - z0)) : 0;
+    cugino.radice.position.set(cx, 0, cz);
+    cugino.radice.rotation.y = e < 0.6 ? THREE.MathUtils.lerp(Math.PI, dirC, ss(e, 0.1, 0.6)) : dirC;
+    // La ragazza entra da destra, ai margini, verso di lui.
+    const eg = e - 0.5;
+    ragazza.radice.visible = eg > 0;
+    const gx0 = 5.2, gz0 = -LUNGO - 1.2;
+    const kg = ss(eg, 0, 2.4);
+    const gx = THREE.MathUtils.lerp(gx0, X_RAGAZZA, kg);
+    const gz = THREE.MathUtils.lerp(gz0, MEETING[1] - 0.2, kg) - via;
+    ragazza.radice.position.set(gx, 0, gz);
+    ragazza.radice.rotation.y = eg < 2.4 ? yaw(X_RAGAZZA - gx0, MEETING[1] - 0.2 - gz0) : 0;
+    // Passi: solo quando si muovono.
+    const muove = e > 0.9;
+    S.fasePassi += dt * (muove ? 5.2 : 0);
+    for (const [p, amp, ritardo] of [[cugino, 0.5, 0], [ragazza, 0.42, 0.4]]) {
+      const attivoP = p === cugino ? e > 0.9 : eg > 0.1;
+      azzeraPosa(p);
+      if (attivoP) posaCorsa(p, S.fasePassi + ritardo, amp); else posaFerma(p, e, 0);
+    }
+    // Lui con le spalle un po' basse (ha perso), si volta indietro un attimo verso Roberto.
+    cugino.testa.rotation.y = -0.5 * Math.sin(Math.PI * ss(e, 2.4, 3.2)) * (1 - ss(e, 3.2, 3.5));
+    cugino.corpo.rotation.x = 0.08;
+    ragazza.testa.rotation.y = 0.25 * Math.sin(e * 1.3);
+  }
 
   function posizionaCugino(dt, t) {
     S.cuginoX = THREE.MathUtils.damp(S.cuginoX, S.cuginoBersaglio, 6, dt);
@@ -276,19 +323,22 @@ export function creaPingPong(scena, d, metti, ui = {}) {
     get inquadra() { return S.inquadra; },
     reset() {
       S.attivo = false; S.fatto = false; S.fase = 'ferma'; S.colpo = 0; S.ripresi = 0; S.inquadra = 0;
-      S.cuginoX = 0; S.cuginoBersaglio = 0; S.volo = null; S.taps = 0;
+      S.cuginoX = 0; S.cuginoBersaglio = 0; S.volo = null; S.taps = 0; S.esodoT = -1;
+      cugino.radice.visible = true; cugino.radice.rotation.y = Math.PI; ragazza.radice.visible = false;
       palla.visible = false; ombra.visible = false;
       for (const b of [bollaCugino, bollaPallettaro, bollaCherato]) b.visible = false;
       for (const s of [blu, rosso, viola, lampo, ...scia]) s.visible = false;
       anello.visible = false;
       posizionaCugino(1, 0); posaCugino(0);
     },
+    _esodoT: () => S.esodoT,
+    _vis: () => [blu, rosso, viola, lampo, anello, palla, ...scia].map(x => x.visible),
     // Per le prove automatiche: dove va il colpo in volo e dove sta la racchetta.
     _debug() { const c = COLPI[S.colpo]; return S.fase === 'volo' && S.volo ? { u: S.volo.u, a: c.a, finta: c.finta, p: S.p } : { u: 0, a: 1, p: S.p }; },
     _duello() { S.colpo = COLPI.length - 1; S.fase = 'duello'; S.t = 0; S.taps = 0; S.orbZ = 0.3; S.pBersaglio = 0; ui.banner?.(`TOCCA!<small>${TAP_RICHIESTI} volte in ${TAP_TEMPO} secondi</small>`, TAP_TEMPO + 0.3); },
     _hollow() { S.colpo = COLPI.length - 1; S.ripresi = S.colpo; S.fase = 'hollow'; S.t = 0; palla.visible = false; },
     // Sfida già fatta (si riparte da più avanti).
-    chiudi() { api.reset(); S.fatto = true; },
+    chiudi() { api.reset(); S.fatto = true; S.esodoT = 99; },
     // Roberto arriva al tavolo: si prende la racchetta e si calcola dove sta per ciascuna corsia.
     avvia(R, G) {
       S.posArrivo = G.pos;
@@ -317,6 +367,7 @@ export function creaPingPong(scena, d, metti, ui = {}) {
       if (!S.attivo) {
         S.inquadra = Math.max(0, S.inquadra - dt);
         posizionaCugino(dt, 0); posaCugino(performance.now() / 1000);
+        esodo(dt);
         return null;
       }
       S.t += dt;
@@ -387,12 +438,14 @@ export function creaPingPong(scena, d, metti, ui = {}) {
         } else if (S.fase === 'vincente') {
           if (f.u > 1.5) palla.visible = false;
           G.exprNome = 'gioia'; G.exprTemp = 0.5;
-          if (S.t > 1.2) {
+          // Il cugino se ne va con la ragazza mentre Roberto gode e li guarda.
+          if (S.t >= 0.8 && S.esodoT < 0) S.esodoT = 0;
+          if (S.t > 4.4) {
             // Roberto fa un passo a sinistra per girare attorno al tavolo e riparte.
             G.corsia = 0;
             G.x = THREE.MathUtils.damp(G.x, -2.2, 4, dt);
           }
-          if (S.t > 2.3) {
+          if (S.t > 5.5) {
             S.fase = 'fine'; S.attivo = false; S.fatto = true;
             racchettaR.visible = false; racchettaR.removeFromParent();
             palla.visible = false; ombra.visible = false;
@@ -467,7 +520,7 @@ export function creaPingPong(scena, d, metti, ui = {}) {
         }
       }
       // La palla viola dell'Hollow Purple: alone che la segue.
-      const hollowInVolo = S.volo?.hollow && S.fase === 'volo';
+      const hollowInVolo = Boolean(S.volo?.hollow) && S.fase === 'volo';
       viola.visible = viola.visible && (S.fase === 'hollow' || S.fase === 'duello' || hollowInVolo);
       if (hollowInVolo) { viola.visible = true; viola.position.copy(palla.position); viola.scale.setScalar(1.1 + Math.sin(S.t * 30) * 0.1); }
       palla.material.color.setHex(hollowInVolo ? 0xD9A6FF : 0xFF8C1A);
@@ -495,12 +548,13 @@ export function creaPingPong(scena, d, metti, ui = {}) {
       posizionaCugino(dt, t);
       const alza = S.fase === 'hollow' ? THREE.MathUtils.smoothstep(S.t / DURATA_HOLLOW, 0, 0.12) * (1 - THREE.MathUtils.smoothstep(S.t / DURATA_HOLLOW, 0.9, 1)) : 0;
       posaCugino(t, alza);
-      if (S.fase === 'vincente') {
+      if (S.fase === 'vincente' && S.esodoT < 0) {
         // Il cugino si allunga verso l'angolo, ma tardi.
         cugino.corpo.rotation.z = -0.35 * THREE.MathUtils.smoothstep(S.t, 0.15, 0.5);
       }
       // Roberto si sposta di lato insieme alla racchetta.
       if (S.fase !== 'arrivo' && S.fase !== 'vincente') G.x = S.p * CORSIA;
+      esodo(dt);
       return esito;
     },
     posa(R, dt, G) {
@@ -509,7 +563,7 @@ export function creaPingPong(scena, d, metti, ui = {}) {
         posaCorsa(R, G.passo, 0.5 * (1 - S.t / 0.9));
         return;
       }
-      if (S.fase === 'vincente' && S.t > 1.2) {
+      if (S.fase === 'vincente' && S.t > 4.4) {
         G.passo += dt * 12;
         posaCorsa(R, G.passo, 0.6);
         return;
@@ -517,8 +571,9 @@ export function creaPingPong(scena, d, metti, ui = {}) {
       posaRoberto(R, S.p);
       if (S.fase === 'vincente') {
         // Pugno alzato.
-        R.braccia[0].spalla.rotation.set(2.8 * THREE.MathUtils.smoothstep(S.t, 0.3, 0.6), 0, -0.2);
+        R.braccia[0].spalla.rotation.set(2.8 * THREE.MathUtils.smoothstep(S.t, 0.3, 0.6) * (1 - THREE.MathUtils.smoothstep(S.t, 1.8, 2.4)), 0, -0.2);
         R.braccia[0].gomito.rotation.set(0.5, 0, 0);
+        R.testa.rotation.y = -0.55 * THREE.MathUtils.smoothstep(S.t, 1.4, 2.4);      // guarda il cugino che se ne va
       }
     },
     // Telecamera dietro e sopra Roberto, che guarda il tavolo e il cugino.
@@ -528,7 +583,8 @@ export function creaPingPong(scena, d, metti, ui = {}) {
       radice.updateMatrixWorld(true);
       camPos.set(0, 4.7, ROBERTO_Z + 2.7);
       radice.localToWorld(camPos);
-      camGuarda.set(0, 0, -LUNGO * 0.5);
+      // Quando il cugino se ne va con la ragazza la camera li segue con lo sguardo.
+      camGuarda.set(1.2 * THREE.MathUtils.smoothstep(S.esodoT, 1.2, 3.5), 0, -LUNGO * 0.5 - 7 * THREE.MathUtils.smoothstep(S.esodoT, 1.2, 3.5));
       radice.localToWorld(camGuarda);
       // Durante l'Hollow Purple la telecamera si avvicina al cugino.
       const zoom = S.fase === 'hollow' ? 0.75 * THREE.MathUtils.smoothstep(S.t, 0, 0.5) * (1 - THREE.MathUtils.smoothstep(S.t, DURATA_HOLLOW - 0.35, DURATA_HOLLOW)) : 0;
