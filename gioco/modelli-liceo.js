@@ -561,7 +561,7 @@ export function creaSegnaleSalita(lato, testo = '15%') {
 // Il motorino dell'amico, parcheggiato sul marciapiede: guarda avanti (-z).
 export function creaMotorino() {
   const g = new THREE.Group();
-  const carena = 0xD8352A, nero = 0x1C1D2B, grigio = 0x9AA3AD;
+  const carena = 0x2F6DB5, nero = 0x1C1D2B, grigio = 0x9AA3AD;
   const ruota = z => {
     const r = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.12, 14), new THREE.MeshLambertMaterial({ color: nero }));
     r.rotation.z = Math.PI / 2; r.position.set(0, 0.24, z); r.castShadow = true; g.add(r);

@@ -11,7 +11,7 @@
 <link rel="stylesheet" href="gioco.css">
 <script>
 // Se questa pagina arriva dalla cache del browser ed è più vecchia dell'ultima versione, si ricarica da sola.
-(()=>{const V=30;try{fetch('../versione.json?t='+Date.now(),{cache:'no-store'}).then(r=>r.json()).then(d=>{if(d.v!==V){const k='ricarica-'+location.pathname+d.v;if(!sessionStorage.getItem(k)){sessionStorage.setItem(k,1);const u=new URL(location.href);u.searchParams.set('v',d.v);location.replace(u)}}}).catch(()=>{})}catch(e){}})();
+(()=>{const V=31;try{fetch('../versione.json?t='+Date.now(),{cache:'no-store'}).then(r=>r.json()).then(d=>{if(d.v!==V){const k='ricarica-'+location.pathname+d.v;if(!sessionStorage.getItem(k)){sessionStorage.setItem(k,1);const u=new URL(location.href);u.searchParams.set('v',d.v);location.replace(u)}}}).catch(()=>{})}catch(e){}})();
 </script>
 </head>
 <body>
@@ -65,7 +65,7 @@
       <label for="nome">Il tuo nome, per la classifica</label>
       <input id="nome" name="nome" maxlength="24" autocomplete="given-name" required placeholder="Es. Zia Anna">
       <button type="submit" class="primario">Inizia</button>
-      <span class="versione">v30</span>
+      <span class="versione">v31</span>
     </form>
     <button type="button" class="link" data-apri="classifica">Guarda la classifica</button>
   </div>
@@ -106,7 +106,7 @@
 </section>
 
 <!-- Il numero di versione in fondo ai file (?v=) evita che il telefono usi codice vecchio in cache: va cambiato a ogni versione, insieme all'etichetta. -->
-<script type="importmap">{"imports":{"./aula.js":"./aula.js?v=30","./aula-darmon.js":"./aula-darmon.js?v=30","./aula-esame.js":"./aula-esame.js?v=30","./classifica.js":"./classifica.js?v=30","./config.js":"./config.js?v=30","./livello.js":"./livello.js?v=30","./modelli-liceo.js":"./modelli-liceo.js?v=30","./modelli-universita.js":"./modelli-universita.js?v=30","./modelli.js":"./modelli.js?v=30","./mondi.js":"./mondi.js?v=30","./modelli-infanzia.js":"./modelli-infanzia.js?v=30","./volto.js":"./volto.js?v=30","./percorso.js":"./percorso.js?v=30","./boss-gelato.js":"./boss-gelato.js?v=30","./boss-pingpong.js":"./boss-pingpong.js?v=30","./lib/three.module.min.js":"./lib/three.module.min.js?v=30"}}</script>
-<script type="module" src="main.js?v=30"></script>
+<script type="importmap">{"imports":{"./aula.js":"./aula.js?v=31","./aula-darmon.js":"./aula-darmon.js?v=31","./aula-esame.js":"./aula-esame.js?v=31","./classifica.js":"./classifica.js?v=31","./config.js":"./config.js?v=31","./livello.js":"./livello.js?v=31","./modelli-liceo.js":"./modelli-liceo.js?v=31","./modelli-universita.js":"./modelli-universita.js?v=31","./modelli.js":"./modelli.js?v=31","./mondi.js":"./mondi.js?v=31","./modelli-infanzia.js":"./modelli-infanzia.js?v=31","./volto.js":"./volto.js?v=31","./percorso.js":"./percorso.js?v=31","./boss-gelato.js":"./boss-gelato.js?v=31","./boss-pingpong.js":"./boss-pingpong.js?v=31","./lib/three.module.min.js":"./lib/three.module.min.js?v=31"}}</script>
+<script type="module" src="main.js?v=31"></script>
 </body>
 </html>

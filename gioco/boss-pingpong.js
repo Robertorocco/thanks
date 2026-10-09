@@ -11,11 +11,13 @@ import { blocco, cilindro, tela, creaPersona, posaCorsa, azzeraPosa } from './mo
 import { fumetto } from './aula.js';
 
 // Il tavolo: il bordo dalla parte di Roberto è a z = 0, quello del cugino a z = -LUNGO.
-const LUNGO = 3.2, LARGO = 1.9, ALTO = 0.76, RAGGIO = 0.055;
+// Il tavolo è molto più largo di uno vero: le tre corsie occupano tutta la larghezza dello schermo.
+const LUNGO = 4.2, LARGO = 3.9, ALTO = 0.76, RAGGIO = 0.06;
 const PIANO = ALTO + RAGGIO;
 const ROBERTO_Z = 0.62;                     // dove sta Roberto, dietro al bordo
 const CUGINO_Z = -LUNGO - 0.62;
-const CORSIA = 0.6;                         // distanza tra le corsie del tavolo
+const CORSIA = 1.25;                        // distanza tra le corsie del tavolo (anche lo spostamento di Roberto)
+const SPOSTA_CUGINO = 2.8;                  // `da` dei colpi → posizione laterale del cugino
 
 // La sequenza dei colpi del cugino, sempre uguale. `a`: corsia d'arrivo (0 sinistra, 1 centro, 2 destra
 // per chi guarda da dietro Roberto); `T`: secondi di volo; `finta`: la palla punta prima su un'altra
@@ -29,7 +31,8 @@ const COLPI = [
   { a: 2, T: 1.0, da: 0, finta: 0 },
   { a: 1, T: 0.72, da: 0.3, frase: 'Pallettaro!' },
   { a: 0, T: 0.95, da: -0.2, finta: 2 },
-  { a: 0, T: 0.6, da: 0, hollow: true },    // l'Hollow Purple: schiacciata
+  // L'Hollow Purple: schiacciata velocissima che zigzaga (destra, poi sinistra) e finisce al centro, con la palla che sfarfalla.
+  { a: 1, T: 0.46, da: 0, hollow: true, via: [[0.3, 2], [0.62, 0]] },
 ];
 export const N_COLPI = COLPI.length + 1;    // con il rovescio finale di Roberto
 const DURATA_HOLLOW = 2.6;
@@ -195,13 +198,19 @@ export function creaPingPong(scena, d, metti) {
 
   // Traiettoria: dal punto `da` al punto `a` in T secondi, con un rimbalzo sul tavolo a z = zr.
   function lancia(da, a, T, zr, o = {}) {
-    S.volo = { da: da.clone(), a: a.clone(), T, u: 0, ur: (zr - da.z) / (a.z - da.z), h1: o.h1 ?? 0.3, h2: o.h2 ?? 0.22, finta: o.finta, hollow: o.hollow };
+    S.volo = { da: da.clone(), a: a.clone(), T, u: 0, ur: (zr - da.z) / (a.z - da.z), h1: o.h1 ?? 0.3, h2: o.h2 ?? 0.22, finta: o.finta, hollow: o.hollow, via: o.via };
     storia.length = 0;
   }
   function puntoVolo(f, u, out) {
     out.z = THREE.MathUtils.lerp(f.da.z, f.a.z, u);
     let x = THREE.MathUtils.lerp(f.da.x, f.a.x, u);
-    if (f.finta !== undefined) {
+    if (f.via) {
+      // Tappe laterali: ogni tratto si muove con una curva dolce da una corsia all'altra.
+      const pts = [[0, f.da.x], ...f.via, [1, f.a.x]];
+      for (let i = 0; i < pts.length - 1; i++) {
+        if (u <= pts[i + 1][0] || i === pts.length - 2) { x = THREE.MathUtils.lerp(pts[i][1], pts[i + 1][1], THREE.MathUtils.smoothstep(u, pts[i][0], pts[i + 1][0])); break; }
+      }
+    } else if (f.finta !== undefined) {
       const xf = THREE.MathUtils.lerp(f.da.x, f.finta, u);
       x = THREE.MathUtils.lerp(xf, x, THREE.MathUtils.smoothstep(u, 0.42, 0.78));
     }
@@ -233,7 +242,10 @@ export function creaPingPong(scena, d, metti) {
     racchettaCuginoLocale(v2);
     S.swingC = 0.28;
     const arrivo = S.punti[c.a];
-    lancia(v2, arrivo, c.T, -0.85, { finta: c.finta !== undefined ? S.punti[c.finta].x : undefined, h1: c.hollow ? 0.0 : 0.3, hollow: c.hollow });
+    lancia(v2, arrivo, c.T, -1.1, {
+      finta: c.finta !== undefined ? S.punti[c.finta].x : undefined, h1: c.hollow ? 0.0 : 0.3, hollow: c.hollow,
+      via: c.via?.map(([u, lane]) => [u, S.punti[lane].x]),
+    });
     if (c.hollow) S.volo.da.y = 1.55;
     if (c.frase) dici(bollaPallettaro, 1.3, 'cugino');
     S.fase = 'volo';
@@ -277,7 +289,7 @@ export function creaPingPong(scena, d, metti) {
         posaRoberto(R, p);
         R.radice.updateMatrixWorld(true);
         racchettaR.userData.pala.getWorldPosition(v);
-        S.punti[p + 1].set(p * 0.4 + v.x, v.y, ROBERTO_Z + v.z);
+        S.punti[p + 1].set(p * CORSIA + v.x, v.y, ROBERTO_Z + v.z);
       }
       R.radice.position.copy(pos0); R.radice.quaternion.copy(rot0);
     },
@@ -308,7 +320,7 @@ export function creaPingPong(scena, d, metti) {
         if (S.t > 3.0) { S.fase = 'battuta'; S.t = 0; }
       } else if (S.fase === 'battuta') {
         // Il cugino palleggia sulla racchetta, poi batte.
-        S.cuginoBersaglio = COLPI[0].da;
+        S.cuginoBersaglio = COLPI[0].da * SPOSTA_CUGINO;
         racchettaCuginoLocale(v2);
         palla.visible = true;
         palla.position.set(v2.x, v2.y + 0.05 + Math.abs(Math.sin(S.t * 6)) * 0.3, v2.z + 0.05);
@@ -330,15 +342,15 @@ export function creaPingPong(scena, d, metti) {
               // Il rovescio vincente: angolo lontano, il cugino non ci arriva.
               S.ripresi = N_COLPI;
               v.copy(palla.position);
-              lancia(v, v2.set(0.85, 0.5, -LUNGO - 1.6), 0.55, -LUNGO + 0.5, { h1: 0.18, h2: 0.25 });
+              lancia(v, v2.set(1.7, 0.5, -LUNGO - 1.6), 0.55, -LUNGO + 0.6, { h1: 0.18, h2: 0.25 });
               S.fase = 'vincente'; S.t = 0;
-              S.cuginoBersaglio = 0.1;
+              S.cuginoBersaglio = 0.3;
             } else {
               S.colpo++;
               const prossimo = COLPI[S.colpo];
-              S.cuginoBersaglio = prossimo.da;
+              S.cuginoBersaglio = prossimo.da * SPOSTA_CUGINO;
               v.copy(palla.position);
-              lancia(v, v2.set(prossimo.da - 0.2, PIANO + 0.25, CUGINO_Z + 0.4), 0.7, -LUNGO + 0.75, { h1: 0.32, h2: 0.15 });
+              lancia(v, v2.set(prossimo.da * SPOSTA_CUGINO - 0.3, PIANO + 0.25, CUGINO_Z + 0.4), 0.7, -LUNGO + 0.9, { h1: 0.32, h2: 0.15 });
               S.fase = 'ritorno';
             }
           } else {
@@ -412,8 +424,10 @@ export function creaPingPong(scena, d, metti) {
       // La palla viola dell'Hollow Purple: alone che la segue.
       const hollowInVolo = S.volo?.hollow && S.fase === 'volo';
       viola.visible = viola.visible && (S.fase === 'hollow' || hollowInVolo);
-      if (hollowInVolo) { viola.position.copy(palla.position); viola.scale.setScalar(0.75 + Math.sin(S.t * 40) * 0.08); }
+      if (hollowInVolo) { viola.visible = true; viola.position.copy(palla.position); viola.scale.setScalar(0.75 + Math.sin(S.t * 40) * 0.08); }
       palla.material.color.setHex(hollowInVolo ? 0xD9A6FF : 0xFF8C1A);
+      // Nel mezzo del tiro la palla viola sfarfalla: si vede a tratti.
+      if (hollowInVolo && S.volo.u > 0.2 && S.volo.u < 0.7 && Math.floor(S.volo.u * 22) % 2 === 1) { palla.visible = false; viola.visible = false; }
 
       // Ombra della palla sul tavolo (aiuta a capire dove arriva) e scia.
       ombra.visible = palla.visible && palla.position.z < 0 && palla.position.z > -LUNGO && Math.abs(palla.position.x) < LARGO / 2;
@@ -443,7 +457,7 @@ export function creaPingPong(scena, d, metti) {
         cugino.corpo.rotation.z = -0.35 * THREE.MathUtils.smoothstep(S.t, 0.15, 0.5);
       }
       // Roberto si sposta di lato insieme alla racchetta.
-      if (S.fase !== 'arrivo' && S.fase !== 'vincente') G.x = S.p * 0.4;
+      if (S.fase !== 'arrivo' && S.fase !== 'vincente') G.x = S.p * CORSIA;
       return esito;
     },
     posa(R, dt, G) {
@@ -469,14 +483,14 @@ export function creaPingPong(scena, d, metti) {
       if (S.inquadra <= 0) return;
       const k = THREE.MathUtils.smoothstep(S.inquadra, 0, 1);
       radice.updateMatrixWorld(true);
-      camPos.set(0, 4.3, ROBERTO_Z + 2.1);
+      camPos.set(0, 5.0, ROBERTO_Z + 2.8);
       radice.localToWorld(camPos);
-      camGuarda.set(0, 0, -LUNGO * 0.78);
+      camGuarda.set(0, 0, -LUNGO * 0.5);
       radice.localToWorld(camGuarda);
       // Durante l'Hollow Purple la telecamera si avvicina al cugino.
-      const zoom = S.fase === 'hollow' ? 0.55 * THREE.MathUtils.smoothstep(S.t, 0, 0.5) * (1 - THREE.MathUtils.smoothstep(S.t, DURATA_HOLLOW - 0.35, DURATA_HOLLOW)) : 0;
+      const zoom = S.fase === 'hollow' ? 0.75 * THREE.MathUtils.smoothstep(S.t, 0, 0.5) * (1 - THREE.MathUtils.smoothstep(S.t, DURATA_HOLLOW - 0.35, DURATA_HOLLOW)) : 0;
       if (zoom > 0) {
-        camPos.lerp(radice.localToWorld(v2.set(S.cuginoX * 0.5, 2.5, CUGINO_Z + 3.4)), zoom);
+        camPos.lerp(radice.localToWorld(v2.set(S.cuginoX * 0.4, 4.6, ROBERTO_Z + 1.4)), zoom);
         camGuarda.lerp(radice.localToWorld(v2.set(S.cuginoX, 1.7, CUGINO_Z)), zoom);
       }
       if (S.scossa > 0) camPos.x += Math.sin(performance.now() / 14) * 0.06, camPos.y += Math.cos(performance.now() / 17) * 0.05;

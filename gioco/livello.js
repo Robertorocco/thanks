@@ -629,6 +629,18 @@ export function generaLivello(TRATTI, perc, velocitaIn) {
       if (libera !== undefined) c.corsia = libera;
     }
   }
+  // Un bonus sopra una buca (la pozza sulle scale) non si riesce a prendere: va nella corsia di destra e,
+  // se anche lì c'è una buca, qualche metro prima, su terreno libero.
+  const sullaBuca = (c, corsia) => ENTITA.find(o => o.genere === 'ostacolo' && o.tipo === 'buco' && o.corsia === corsia && Math.abs(o.d - c.d) < o.profondita / 2 + 1.4);
+  for (const e of ENTITA) {
+    if (e.genere !== 'caffe' || !sullaBuca(e, e.corsia)) continue;
+    e.corsia = 2;
+    for (let n = 0; n < 4; n++) {
+      const b = sullaBuca(e, 2);
+      if (!b) break;
+      e.d = b.d - b.profondita / 2 - 1.6;
+    }
+  }
   ENTITA.spostati = [];
   for (const e of ENTITA) {
     if (e.genere !== 'caffe' || !chiusa(e.corsia, e.d)) continue;
