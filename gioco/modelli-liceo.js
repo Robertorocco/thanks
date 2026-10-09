@@ -618,6 +618,67 @@ export function voltoRagazza(pelle, capelli, iride) {
   });
 }
 
+// Volto della ragazza del corridoio, dalla foto: occhiali tondi sottili (bordo nero sopra, metallo
+// chiaro sotto), occhi grigio-azzurri con ciglia lunghe, sopracciglia castane piene e quasi dritte,
+// naso con la punta tonda e rosata, labbra piene rosa, pelle chiara con le guance rosate.
+export function voltoRagazzaFoto(capelli) {
+  return tela(256, 256, (g) => {
+    g.fillStyle = '#F3D2BE'; g.fillRect(0, 0, 256, 256);
+    g.fillStyle = esa(capelli); g.fillRect(0, 0, 256, 34);
+    // Guance e punta del naso rosate.
+    g.fillStyle = 'rgba(232,130,130,.28)';
+    g.beginPath(); g.ellipse(56, 168, 24, 16, 0, 0, Math.PI * 2); g.ellipse(200, 168, 24, 16, 0, 0, Math.PI * 2); g.fill();
+    // Sopracciglia piene, quasi dritte, che salgono appena verso l'esterno.
+    g.fillStyle = '#6A4632';
+    for (const [x, v] of [[80, -1], [176, 1]]) {
+      g.beginPath();
+      g.moveTo(x - 32 * -v, 86); g.quadraticCurveTo(x, 77, x + 34 * -v, 81);
+      g.lineTo(x + 34 * -v, 89); g.quadraticCurveTo(x, 88, x - 32 * -v, 97); g.fill();
+    }
+    // Occhi a mandorla: bianco, iride grigio-azzurra con il bordo scuro, pupilla, riflesso, ciglia.
+    for (const x of [82, 174]) {
+      g.fillStyle = '#ffffff';
+      g.beginPath(); g.moveTo(x - 24, 120); g.quadraticCurveTo(x, 104, x + 24, 120); g.quadraticCurveTo(x, 132, x - 24, 120); g.fill();
+      g.fillStyle = '#5F7682'; g.beginPath(); g.arc(x + 4, 119, 11, 0, Math.PI * 2); g.fill();
+      g.fillStyle = '#9DB8C6'; g.beginPath(); g.arc(x + 4, 119, 8, 0, Math.PI * 2); g.fill();
+      g.fillStyle = '#1C1D2B'; g.beginPath(); g.arc(x + 4, 119, 4, 0, Math.PI * 2); g.fill();
+      g.fillStyle = '#ffffff'; g.fillRect(x + 6, 113, 4, 4);
+      g.strokeStyle = '#1C1D2B'; g.lineWidth = 4;
+      g.beginPath(); g.moveTo(x - 25, 121); g.quadraticCurveTo(x, 102, x + 25, 119); g.stroke();
+      // Ciglia folte: un tratto spesso che si allunga verso l'esterno.
+      const fuori = x < 128 ? -1 : 1;
+      g.fillStyle = '#1C1D2B';
+      g.beginPath(); g.moveTo(x + fuori * 10, 108); g.quadraticCurveTo(x + fuori * 24, 108, x + fuori * 32, 101);
+      g.lineTo(x + fuori * 25, 115); g.closePath(); g.fill();
+    }
+    // Occhiali: lenti tonde grandi, bordo superiore nero, il resto in metallo chiaro, ponte sul naso.
+    for (const x of [80, 176]) {
+      g.strokeStyle = '#C9C6C0'; g.lineWidth = 3;
+      g.beginPath(); g.ellipse(x, 124, 38, 33, 0, 0, Math.PI * 2); g.stroke();
+      g.strokeStyle = '#1C1D2B'; g.lineWidth = 5;
+      g.beginPath(); g.ellipse(x, 124, 38, 33, 0, Math.PI * 1.08, Math.PI * 1.92); g.stroke();
+      g.fillStyle = 'rgba(255,255,255,.10)'; g.beginPath(); g.ellipse(x, 124, 36, 31, 0, 0, Math.PI * 2); g.fill();
+    }
+    g.strokeStyle = '#C9C6C0'; g.lineWidth = 3;
+    g.beginPath(); g.moveTo(114, 112); g.quadraticCurveTo(128, 104, 142, 112); g.stroke();
+    g.beginPath(); g.moveTo(42, 116); g.lineTo(0, 112); g.moveTo(214, 116); g.lineTo(256, 112); g.stroke();
+    // Naso: ombra laterale, punta tonda e rosata, narici.
+    g.fillStyle = 'rgba(150,90,70,.16)'; g.fillRect(117, 122, 7, 40);
+    g.fillStyle = '#EDB8A6'; g.beginPath(); g.ellipse(128, 166, 15, 11, 0, 0, Math.PI * 2); g.fill();
+    g.fillStyle = 'rgba(110,50,45,.55)';
+    g.beginPath(); g.ellipse(120, 172, 4, 2.5, 0.3, 0, Math.PI * 2); g.ellipse(136, 172, 4, 2.5, -0.3, 0, Math.PI * 2); g.fill();
+    // Labbra piene: labbro superiore con l'arco di Cupido, inferiore più grande.
+    g.fillStyle = '#E39CA0';
+    g.beginPath();
+    g.moveTo(88, 202); g.quadraticCurveTo(106, 184, 123, 189); g.lineTo(128, 193); g.lineTo(133, 189);
+    g.quadraticCurveTo(150, 184, 168, 202); g.closePath(); g.fill();
+    g.beginPath(); g.moveTo(90, 203); g.quadraticCurveTo(128, 236, 166, 203); g.closePath(); g.fill();
+    g.strokeStyle = '#B45A66'; g.lineWidth = 3;
+    g.beginPath(); g.moveTo(89, 202); g.quadraticCurveTo(128, 208, 167, 202); g.stroke();
+    g.fillStyle = 'rgba(255,255,255,.35)'; g.fillRect(114, 212, 24, 4);
+  });
+}
+
 // Volto rasato a zero: niente fascia di capelli in alto, sopracciglia folte, mezzo sorriso.
 function voltoPelato(pelle) {
   return tela(256, 256, (g) => {
@@ -633,25 +694,35 @@ function voltoPelato(pelle) {
 }
 
 // Capelli lunghi e lisci: frangia di lato, ciocche ai lati del viso, massa dietro fino a metà schiena.
-function capelliLunghi(p, colore, lunghezza = 0.75) {
+function capelliLunghi(p, colore, lunghezza = 0.75, frangia = true) {
   const t = p.testa;
   t.add(blocco(0.5, lunghezza, 0.12, colore, 0, 0.13 - lunghezza, 0.19));
   for (const s of [-1, 1]) {
     t.add(blocco(0.09, lunghezza - 0.12, 0.3, colore, s * 0.25, 0.25 - lunghezza, 0.04));
     t.add(blocco(0.1, 0.42, 0.08, colore, s * 0.22, -0.5, -0.13));              // ciocche davanti alle spalle
   }
-  t.add(blocco(0.46, 0.1, 0.07, colore, 0.04, 0.12, -0.225));
-  t.add(blocco(0.16, 0.12, 0.07, colore, 0.16, 0.03, -0.225));
+  if (frangia) {
+    t.add(blocco(0.46, 0.1, 0.07, colore, 0.04, 0.12, -0.225));
+    t.add(blocco(0.16, 0.12, 0.07, colore, 0.16, 0.03, -0.225));
+  } else {
+    // Riga in mezzo: due bande che scendono ai lati della fronte, il viso resta scoperto.
+    for (const s of [-1, 1]) {
+      const banda = blocco(0.2, 0.09, 0.07, colore, s * 0.12, 0.14, -0.225);
+      banda.rotation.z = s * -0.25;
+      t.add(banda);
+    }
+  }
 }
 
-// La ragazza del corridoio: occhi azzurri, capelli biondi lunghi, sedere grande. Top rosa e jeans.
+// La ragazza del corridoio: viso dalla foto (con gli occhiali), capelli biondi lunghi, sedere grande.
+// Top rosa e jeans.
 export function creaRagazza() {
-  const PELLE = 0xF1D0B5, CAPELLI = 0xE8C872, JEANS = 0x4A6FA5;
+  const PELLE = 0xF3D2BE, CAPELLI = 0xE8C872, JEANS = 0x4A6FA5;
   const p = creaPersona({
     pelle: PELLE, capelli: CAPELLI, maglia: 0xF29CB7, pantaloni: JEANS, scarpe: 0xF7F4EE,
-    corpulenza: 0.86, conZaino: false, volto: voltoRagazza(PELLE, CAPELLI, 0x3FA0E8),
+    corpulenza: 0.86, conZaino: false, volto: voltoRagazzaFoto(CAPELLI),
   });
-  capelliLunghi(p, CAPELLI, 0.8);
+  capelliLunghi(p, CAPELLI, 0.8, false);
   // Fianchi larghi e un sedere bello tondo, dietro (la schiena è verso +z).
   const jeans = materiale(JEANS);
   p.corpo.add(blocco(0.56, 0.22, 0.34, jeans, 0, 0.86));

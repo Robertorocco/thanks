@@ -1364,20 +1364,16 @@ function aggiornaFratello(dt) {
   let d, x, sterza = 0, mostra = 0;
   azzeraPosa(fratello);
   if (G.pos < FRATELLO_GIRA) {
-    // Lungo il muro dal lato della sua porta (a destra), fuori dalle corsie, un po' davanti a Roberto.
-    fr.x = MARGINE; fr.avviato = true;
+    // Accanto a Roberto, dal lato della porta (a destra), a sinistra se Roberto è già nella corsia di destra.
+    const bersaglio = G.x < 1 ? G.x + 1.0 : G.x - 1.0;
+    if (!fr.avviato) { fr.x = bersaglio; fr.avviato = true; }
+    fr.x += (bersaglio - fr.x) * Math.min(1, dt * 6);
     // All'inizio si presenta: un po' più avanti, girato verso di noi, con il creeper alzato in mano.
     const pr = G.pos - FRATELLO_INIZIO;
     mostra = 1 - THREE.MathUtils.smoothstep(pr, FRATELLO_MOSTRA, FRATELLO_MOSTRA + 7);
-    x = fr.x;
-    d = G.pos + 2.2 + 1.6 * mostra;
-    // La camera si sposta verso di lui e, mentre mostra il creeper, lo guarda un po' di più.
-    aiutoCamera(1, THREE.MathUtils.smoothstep(pr, 0, 3));
-    if (mostra > 0) {
-      perc.punto(d, tmp);
-      aiuto.mira.set(tmp.x + Math.cos(tmp.psi) * x, tmp.h + 0.8, tmp.z + Math.sin(tmp.psi) * x);
-      aiuto.fuoco = 0.35 * mostra * THREE.MathUtils.smoothstep(pr, 0, 3);
-    }
+    G.zoomFratello = THREE.MathUtils.smoothstep(pr, 0, 3) * mostra;
+    x = THREE.MathUtils.lerp(fr.x, G.x + Math.sign(bersaglio - G.x) * 0.85, mostra);
+    d = G.pos - 0.2 - Math.min(1, Math.abs(bersaglio - fr.x) / 1.2) + 2.6 * mostra;
     fr.d0 = d; fr.x0 = x;
     posaCorsa(fratello, G.passo + 0.7, 0.75 - 0.35 * mostra);
     fratello.testa.rotation.y = -Math.sign(x - G.x) * 0.35 * (0.5 + 0.5 * Math.sin(G.tempo * 1.7)) * (1 - mostra);
@@ -1385,8 +1381,6 @@ function aggiornaFratello(dt) {
     sterza = -mostra * (Math.PI - Math.sign(x - G.x) * 0.45);
   } else {
     // Scatta avanti (più veloce di Roberto) e piega verso la porta, così si vede entrare in classe.
-    // Intanto la camera torna dietro a Roberto, in tempo per il creeper.
-    aiutoCamera(1, 1 - THREE.MathUtils.smoothstep(G.pos, FRATELLO_GIRA, FRATELLO_GIRA + 8));
     const u = Math.min(1, (G.pos - FRATELLO_GIRA) * 2.3 / Math.hypot(FRATELLO_PORTA - fr.d0, 4.6 - fr.x0));
     d = fr.d0 + (FRATELLO_PORTA - fr.d0) * (1 - (1 - u) * (1 - u) * 0.6 - 0.4 * (1 - u));
     x = fr.x0 + (4.6 - fr.x0) * Math.pow(u, 2.2);
