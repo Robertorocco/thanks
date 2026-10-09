@@ -57,6 +57,8 @@ const PROF = {
   casa:       { basso: 0.6, alto: 0.9, muro: 1.2, persona: 0.7 },
   darmon:     { basso: 0.6, alto: 0.6, muro: 4.2, persona: 0.6 },
   darmonInt:  { basso: 0.6, alto: 0.5, muro: 1.4, persona: 0.6 },
+  triennale:  { basso: 0.65, alto: 0.4, muro: 4.2, parcheggiatore: 0.7 },
+  magistrale: { basso: 0.65, alto: 0.4, muro: 4.2 },
   _:          { basso: 0.8, alto: 0.4, muro: 0.9 },
 };
 const profondita = (stile, tipo, e = {}) => (PROF[stile] ?? PROF._)[tipo] ?? 0.9;
@@ -231,6 +233,61 @@ export function generaLivello(TRATTI, perc, velocitaIn) {
       }
     }
 
+    // Scenografia dell'università (vedi modelli-universita.js): Via Claudio con lo stadio a sinistra e la
+    // facoltà a destra, il piazzale pieno di motorini, l'ingresso, il viale dentro la facoltà.
+    function scenaUni(sz, a, b) {
+      const metti = (tipo, lato, d, extra = {}) => ENTITA.push({ d, genere: 'uni', tipo, lato, mondo: t.indice, var: Math.floor(r() * 12), ...extra });
+      const palazzi = (lato, da, a2, distanza, hMin, hMax) => {
+        for (let q = da; q < a2;) {
+          const prof = 18 + r() * 12;
+          if (q + prof / 2 > a2) break;
+          metti('palazzo', lato, q + prof / 2, { profondita: prof, larghezza: 12 + r() * 6, altezza: hMin + r() * (hMax - hMin), distanza });
+          q += prof + 3 + r() * 5;
+        }
+      };
+      switch (sz.id) {
+        case 'via-claudio': {
+          for (let q = a + 14; q < b - 4; q += 12) { metti('stadio', -1, q); metti('autoSpina', -1, q); }
+          for (let q = a + 10; q < b - 6; q += 8) if (Math.abs(q - (a + 300)) > 9 && r() > 0.12) metti('motorini', 1, q);
+          for (let q = a + 6; q < b + 6; q += 12) metti('recinzione', 1, q);
+          for (let q = a + 22; q < b; q += 26) metti('albero', 1, q, { x: 11.6, rosso: r() < 0.6, scala: 0.9 + r() * 0.4 });
+          for (let q = a + 18; q < b; q += 30) metti('lampione', 1, q);
+          palazzi(1, a + 4, b + 20, 13.5, 13, 22);
+          metti('panini', 1, a + 300);
+          metti('targa', 1, a + 16);
+          break;
+        }
+        case 'piazzale-ing':
+          for (const lato of [-1, 1]) {
+            for (let q = a + 6; q < b - 4; q += 8) metti('motorini', lato, q, { file: 3 });
+            palazzi(lato, a + (lato < 0 ? 4 : 30), b - 18, 16, 10, 16);
+            for (let q = a + 4; q < b + 6; q += 12) if (lato > 0) metti('recinzione', lato, q, { x: 12.4 });
+          }
+          for (const lato of [-1, 1]) for (const q of [b - 14, b - 9]) metti('jersey', lato, q, { x: 3.75 });
+          metti('bancarella', 1, b - 7);
+          metti('albero', 1, b - 16, { x: 14, rosso: true, scala: 1.3 });
+          metti('albero', 1, b - 30, { x: 14, rosso: false, scala: 1.2 });
+          metti('lampione', 1, b - 3);
+          break;
+        case 'ingresso-ing':
+          metti('ingresso', 0, a + 4);
+          break;
+        case 'campus': case 'esame': case 'dopo-esame':
+          for (const lato of [-1, 1]) {
+            palazzi(lato, a + (sz.id === 'campus' ? 26 : 2), b, 9, 12, 24);
+            for (let q = a + 8; q < b - 4; q += 12) if (r() > 0.25) metti('autoFila', lato, q);
+            for (let q = a + 14 + (lato > 0 ? 0 : 13); q < b; q += 26) metti('albero', lato, q, { x: 7.2, rosso: r() < 0.35, scala: 0.8 + r() * 0.3 });
+            for (let q = a + 20 + (lato > 0 ? 15 : 0); q < b; q += 30) metti('lampione', lato, q);
+          }
+          break;
+        default: break;
+      }
+    }
+
+    // Il parcheggiatore abusivo: aspetta a lato della strada e ti viene incontro nella tua corsia, con la
+    // mano tesa (main.js). Attorno a lui la strada resta libera da altri ostacoli.
+    const parcheggiatore = (d, lato) => ostacolo(d, 1, 'parcheggiatore', 'triennale', { lato, prof: 0.7 });
+
     // --- Sezioni -----------------------------------------------------------
     const dopo = [];     // generati a fine mondo, quando tutti gli ostacoli fissi sono già al loro posto
     for (const sz of sezioni) {
@@ -359,6 +416,24 @@ export function generaLivello(TRATTI, perc, velocitaIn) {
           // Prima un tratto libero con il fratello accanto e il creeper che lui lancia, poi gli ostacoli.
           riempi(a + sz.portaFratello + 36, b - 10, { stile: 'darmonInt', tipi: ['basso', 'alto', 'muro'], corridoi: 0.1, spazio: 1.2 });
           break;
+        // --- Triennale: Via Claudio, il piazzale e l'ingresso di Ingegneria ---
+        case 'via-claudio': {
+          const p1 = a + 130, p2 = a + 330;
+          parcheggiatore(p1, -1);
+          parcheggiatore(p2, 1);
+          const opz = { stile: 'triennale', tipi: ['basso', 'alto', 'muro'], corridoi: 0.12, spazio: 1.05 };
+          riempi(a + 40, p1 - 22, opz);
+          riempi(p1 + 16, p2 - 22, opz);
+          riempi(p2 + 16, b - 4, opz);
+          break;
+        }
+        case 'piazzale-ing': {
+          const p3 = a + 34;
+          parcheggiatore(p3, -1);
+          riempi(p3 + 16, b - 18, { stile: 'triennale', tipi: ['basso', 'alto', 'muro'], corridoi: false, spazio: 1.1 });
+          break;
+        }
+        case 'ingresso-ing': break;
         // --- Magistrale: prima e dopo l'esame ---
         case 'campus':
           riempi(a + 45, b - 40, { stile: t.stile, tipi: ['basso', 'alto', 'muro'], corridoi: true });
@@ -398,6 +473,9 @@ export function generaLivello(TRATTI, perc, velocitaIn) {
         if (sz.id === 'portone') ENTITA.push({ d: b - 1.2, genere: 'portone', mondo: t.indice });
         if (sz.id === 'soglia') ENTITA.push({ d: b - 1.2, genere: 'portone', mondo: t.indice, stile: 'casa' });
         if (sz.id === 'uscita-d') ENTITA.push({ d: b - 1.2, genere: 'portone', mondo: t.indice, stile: 'darmon' });
+      } else if (t.stile === 'triennale' || t.stile === 'magistrale') {
+        scenaUni(sz, a, b);
+        if (sz.id === 'esame') ENTITA.push({ d: b, genere: 'portaAula', mondo: t.indice, stile: 'facolta' });
       } else {
         // Edifici, lampioni e alberi lungo la strada. Vicino alla scuola restano bassi e lontani.
         const vicinoScuola = sz.id === 'avvicinamento';
@@ -445,7 +523,12 @@ export function generaLivello(TRATTI, perc, velocitaIn) {
     // Davanti alla facciata della facoltà niente edifici, alberi o lampioni che la attraversino.
     for (const f of ENTITA) {
       if (f.genere !== 'portaAula' || f.stile !== 'facolta' || f.mondo !== t.indice) continue;
-      for (const e of ENTITA) if (e.mondo === t.indice && ['edificio', 'albero', 'lampione'].includes(e.genere) && Math.abs(e.d - f.d) < 8) e.nascosto = true;
+      for (const e of ENTITA) {
+        if (e.mondo !== t.indice) continue;
+        if (['edificio', 'albero', 'lampione'].includes(e.genere) && Math.abs(e.d - f.d) < 8) e.nascosto = true;
+        // All'università: niente palazzi, alberi o auto davanti alla facciata della facoltà.
+        if (e.genere === 'uni' && Math.abs(e.d - f.d) < 8 + (e.profondita ?? 0) / 2) e.nascosto = true;
+      }
     }
     // Edifici, lampioni e alberi generati prima dell'inizio del mondo sono quelli del mondo precedente.
     for (let i = primaDelMondo; i < ENTITA.length; i++) {
@@ -454,7 +537,7 @@ export function generaLivello(TRATTI, perc, velocitaIn) {
     }
 
     // Scenografia per i mondi senza sezioni: monumento con foto del luogo.
-    if (!t.sezioni || t.stile === 'magistrale') {
+    if (!t.sezioni) {
       const latoMonumento = t.indice % 2 ? 1 : -1;
       const dMonumento = t.inizio + 70;
       ENTITA.push({ d: dMonumento, genere: 'monumento', lato: latoMonumento, mondo: t.indice });
@@ -462,7 +545,8 @@ export function generaLivello(TRATTI, perc, velocitaIn) {
     }
     // Un arco all'ingresso di ogni tappa: i mondi dello stesso gruppo (triennale e magistrale) ne hanno uno solo.
     const stessoGruppo = t.gruppo && TRATTI[t.indice - 1]?.gruppo === t.gruppo;
-    if (t.indice > 0 && !stessoGruppo) ENTITA.push({ d: t.inizio, genere: 'arco', testo: t.gruppo ?? t.nome, colore: 0xC9962E });
+    // L'università non ha l'arco: la sua porta è l'ingresso vero della facoltà, in fondo a Via Claudio.
+    if (t.indice > 0 && !stessoGruppo && t.gruppo !== 'Università Federico II') ENTITA.push({ d: t.inizio, genere: 'arco', testo: t.gruppo ?? t.nome, colore: 0xC9962E });
   }
 
   // Chi cammina nella stessa corsia di un bonus, poco oltre, resta nascosto dietro al bonus (e al suo

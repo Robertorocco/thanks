@@ -16,6 +16,9 @@ export const ETA_VOLTO = {
   // A scuola Roberto aveva pochi ricci: capelli neri corti, quasi rasati (`corti`).
   bimbo:   { pelle: 0xD29468, guance: 'rgba(225,105,90,.3)', barba: 0, occhi: 1.2, sopracciglia: 0.6, naso: 0.62, riccioli: 150, ricciolo: 0.04, capelli: 0x141010, cranio: [0.47, 0.46, 0.45], corti: true },
   adulto:  { pelle: 0xC48A62, guance: 'rgba(205,95,80,.18)', barba: 0.2, occhi: 1.0, sopracciglia: 1.0, naso: 1.0, riccioli: 46, ricciolo: 0.105, capelli: 0x17100A },
+  // All'università: viso più asciutto, barba corta curata, capelli in ordine (ricci più piccoli sopra,
+  // lati sfumati).
+  universita: { pelle: 0xC48A62, guance: 'rgba(205,95,80,.14)', barba: 0.34, occhi: 1.0, sopracciglia: 0.95, naso: 0.97, riccioli: 44, ricciolo: 0.092, capelli: 0x17100A, cranio: [0.445, 0.5, 0.44], sfumati: true },
 };
 const BARBA = '#2E1D13';
 
@@ -336,6 +339,7 @@ export function creaTestaRoberto(eta = 'adulto') {
     if (z < -0.15 && y < 0.72) continue;
     if (Math.abs(x) > 0.6 && y < 0.2) continue;
     if (P.corti && Math.abs(x) > 0.5 && y < 0.38 && z < 0.3) continue;   // basette corte, orecchie libere
+    if (P.sfumati && Math.abs(x) > 0.55 && y < 0.5) continue;           // lati sfumati, volume sopra
     const raggio = P.ricciolo * (0.85 + r() * 0.35);
     const m = new THREE.Mesh(GEO_RICCIOLO, i % 3 === 0 ? capelliChiari : capelli);
     m.scale.set(raggio * 1.1, raggio, raggio * 1.05);

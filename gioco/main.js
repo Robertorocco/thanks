@@ -21,6 +21,7 @@ import { CORSIE, PENDENZA_CROCIERA, generaLivello, distanzaPersona, distanzaLanc
 import { creaAula, fumetto } from './aula.js';
 import { creaAulaDarmon } from './aula-darmon.js';
 import { creaAulaEsame, creaFacolta } from './aula-esame.js';
+import { creaScenaUni, creaParcheggiatore } from './modelli-universita.js';
 import { creaBossGelato, MALUS_COLPO, MAX_GRASSO } from './boss-gelato.js';
 
 // L'etichetta mostra la versione del codice che sta davvero girando (dal ?v= con cui è caricato).
@@ -85,7 +86,7 @@ function velocitaIn(pos) {
 }
 
 const ENTITA = generaLivello(TRATTI, perc, velocitaIn);
-for (const t of TRATTI) if (!t.sezioni || t.stile === 'magistrale') caricaFotoLuogo(t.stile);
+for (const t of TRATTI) if (!t.sezioni) caricaFotoLuogo(t.stile);
 // I bonus sono numerati nell'ordine del percorso: C1, C2... in casa, D1... all'Istituto, 1, 2... dopo.
 const contatori = { C: 0, D: 0, '': 0 };
 for (const e of ENTITA) {
@@ -454,9 +455,13 @@ function creaMesh(e) {
   const t = TRATTI[e.mondo ?? 0];
   let m;
   if (e.genere === 'ostacolo') {
-    if (e.lungo && (e.stile === 'liceo' || e.stile === 'liceoInt' || e.stile === 'darmon')) m = creaMuroLungo(e);
+    if (e.tipo === 'parcheggiatore') {
+      m = creaParcheggiatore(e.var);
+      Object.assign(e, { xLat: e.lato * MARGINE_PARCHEGGIATORE, insegue: 0, passo: 0, tPrec: null });
+    }
+    else if (e.lungo && (e.stile === 'liceo' || e.stile === 'liceoInt' || e.stile === 'darmon')) m = creaMuroLungo(e);
     else m = creaOstacolo(e, t);
-    if (e.tipo !== 'crociera' && e.tipo !== 'lancio') m.position.x = CORSIE[e.corsia];
+    if (e.tipo !== 'crociera' && e.tipo !== 'lancio' && e.tipo !== 'parcheggiatore') m.position.x = CORSIE[e.corsia];
   }
   else if (e.genere === 'caffe') {
     m = creaBonus(t.stile);
@@ -478,6 +483,7 @@ function creaMesh(e) {
   else if (e.genere === 'parete') m = creaPareteStile(e);
   else if (e.genere === 'soffitto') m = creaSoffittoStile(e);
   else if (e.genere === 'arredo') m = creaArredo(e);
+  else if (e.genere === 'uni') m = creaScenaUni(e);
   else if (e.genere === 'lanciatore') m = creaLanciatore(e);
   else if (e.genere === 'cartello') m = creaCartelloAppeso(e.testo, e.w, e.colore);
   else if (e.genere === 'portaAula') m = e.stile === 'darmon' ? creaPortaAula('3ª B', 0xE0533F) : e.stile === 'facolta' ? creaFacolta() : creaPortaAula();
@@ -491,7 +497,42 @@ function creaMesh(e) {
 }
 
 const bucoInStrada = e => e.genere === 'ostacolo' && e.tipo === 'buco' && e.stile === 'liceo';
-const dinamico = e => e.genere === 'caffe' || bucoInStrada(e) || (e.genere === 'ostacolo' && (e.tipo === 'persona' || e.tipo === 'crociera' || e.tipo === 'lancio'));
+const dinamico = e => e.genere === 'caffe' || bucoInStrada(e) || (e.genere === 'ostacolo' && (e.tipo === 'persona' || e.tipo === 'crociera' || e.tipo === 'lancio' || e.tipo === 'parcheggiatore'));
+
+// Il parcheggiatore abusivo (Via Claudio): aspetta sul bordo della strada; quando Roberto è a
+// PARCHEGGIATORE_DA metri entra in strada e si sposta verso la sua corsia con la mano tesa ("Un euro a
+// piacere"), più lento di un cambio di corsia. Negli ultimi PARCHEGGIATORE_FERMO metri non corregge più:
+// lo si evita cambiando corsia all'ultimo, non prima (altrimenti ti segue).
+const MARGINE_PARCHEGGIATORE = 3.7;
+const PARCHEGGIATORE_DA = 34, PARCHEGGIATORE_FERMO = 9, PARCHEGGIATORE_VEL = 5.2;
+const bollaEuro = fumetto('Un euro a piacere', '#ffffff', '#1C1D2B', 1.75, 2);
+scena.add(bollaEuro);
+function aggiornaParcheggiatore(e, ora) {
+  const t = ora / 1000, dt = e.tPrec === null ? 0 : Math.min(0.1, t - e.tPrec);
+  e.tPrec = t;
+  const dist = e.d - G.pos;
+  const inStrada = dist < PARCHEGGIATORE_DA && dist > -2;
+  let meta = e.lato * MARGINE_PARCHEGGIATORE;
+  if (inStrada) {
+    if (dist > PARCHEGGIATORE_FERMO) e.mira = THREE.MathUtils.clamp(G.x, CORSIE[0], CORSIE[2]);
+    meta = e.mira ?? meta;
+  }
+  if (dist > PARCHEGGIATORE_DA + 6) { e.xLat = e.lato * MARGINE_PARCHEGGIATORE; e.mira = null; }
+  const dx = meta - e.xLat, passo = PARCHEGGIATORE_VEL * dt;
+  e.xLat += Math.abs(dx) <= passo ? dx : Math.sign(dx) * passo;
+  e.insegue = THREE.MathUtils.damp(e.insegue, inStrada ? 1 : 0, 6, dt);
+  if (Math.abs(dx) > 0.05) e.passo += dt * 9;
+  mettiSulPercorso(e.mesh, e.d, true);
+  e.mesh.position.x += Math.cos(tmp.psi) * e.xLat;
+  e.mesh.position.z += Math.sin(tmp.psi) * e.xLat;
+  e.anima?.(t, Math.abs(dx) > 0.05 ? 1 : e.insegue, e.passo);
+  // Il fumetto sopra la testa mentre ti viene incontro.
+  if (inStrada && dist > 0.5 && G.stato === 'gioco') {
+    bollaEuro.visible = true;
+    bollaEuro.position.copy(e.mesh.position);
+    bollaEuro.position.y += 2.25;
+  }
+}
 
 // Distanza effettiva lungo il percorso: i compagni ti vengono incontro.
 function distanza(e, pos) {
@@ -545,7 +586,7 @@ const G = {
   passo: 0,
   cadute: 0,
   nome: '',
-  eta: null,           // neonato | bimbo | liceo
+  eta: null,           // neonato | bimbo | liceo | universita
   bassa: 0,            // 0..1: a gattoni, quanto si striscia sulla pancia
   exprTemp: 0, exprNome: 'neutro',
 };
@@ -647,7 +688,7 @@ function entraNelMondo(i) {
 // ---------------------------------------------------------------------------
 
 const DURATA_CRESCITA = 5.4;
-const ANNI = { neonato: 0, bimbo: 8, liceo: 14 };
+const ANNI = { neonato: 0, bimbo: 8, liceo: 14, universita: 19 };
 const elEta = document.getElementById('eta-conto');
 const elLampo = document.getElementById('lampo');
 const SCINTILLE = Array.from({ length: 36 }, (_, i) => {
@@ -1034,6 +1075,7 @@ const aperturaPorta = distanza => THREE.MathUtils.smoothstep(18 - distanza, 0, 1
 
 function aggiornaEntita(ora) {
   const pos = G.pos;
+  bollaEuro.visible = false;
   while (prossima < ENTITA.length && ENTITA[prossima].d - mezzaLunghezza(ENTITA[prossima]) < pos + VISTA) {
     const e = ENTITA[prossima++];
     if (distanza(e, pos) + mezzaLunghezza(e) < pos - DIETRO) continue;
@@ -1061,6 +1103,8 @@ function aggiornaEntita(ora) {
       const v = velocitaIn(pos);
       const p = THREE.MathUtils.clamp((v * 1.15 - (e.d - pos)) / (v * 0.3), 0, 1), x = p - 1;
       e.interno.scale.setScalar(p === 0 ? 0.001 : Math.max(0.001, 1 + 2.70158 * x * x * x + 1.70158 * x * x));
+    } else if (e.tipo === 'parcheggiatore') {
+      aggiornaParcheggiatore(e, ora);
     } else if (e.tipo === 'persona') {
       mettiSulPercorso(e.mesh, d, true);
       e.anima?.(ora / 1000);
@@ -1104,6 +1148,7 @@ function controllaUrti() {
       continue;
     }
     if (e.tipo === 'lancio') { if (!e.lanciato || Math.abs(e.xLat - G.x) > 1.0) continue; }
+    else if (e.tipo === 'parcheggiatore') { if (Math.abs(e.xLat - G.x) > 0.95) continue; }
     else if (Math.abs(CORSIE[e.corsia] - G.x) > 1.15) continue;
     if (e.genere === 'caffe') {
       G.caffe++;

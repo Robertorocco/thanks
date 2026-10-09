@@ -31,6 +31,8 @@ export const FISICA = {
     camera: { indietro: 6.2, alto: 3.3, guarda: 1.3, fov: 1.0, segue: 0.45 },
   },
 };
+// All'università stessa fisica del liceo; cambia l'aspetto (più snello, vedi modelli.js).
+FISICA.universita = { ...FISICA.liceo, nome: 'Universitario' };
 
 // Gli archi del racconto: gruppi di mondi con un nome.
 export const ARCHI = {
@@ -141,16 +143,21 @@ export const MONDI = [
     // Triennale e magistrale sono due mondi diversi ma un'unica tappa: un solo cartello all'ingresso.
     arco: 'universita',
     gruppo: 'Università Federico II',
-    eta: 'liceo',
+    eta: 'universita',
     ordine: 1,
     stile: 'triennale',
     anni: '2020 – 2023',
     luogo: 'Napoli',
-    lunghezza: 600,
+    // Via Claudio, fuori dallo stadio Maradona, fino all'ingresso della Facoltà di Ingegneria.
+    sezioni: [
+      { id: 'via-claudio',   lung: 470, amb: 'est' },
+      { id: 'piazzale-ing',  lung: 110, amb: 'est' },
+      { id: 'ingresso-ing',  lung: 20,  amb: 'est' },
+    ],
     velocita: 13.5,
-    cielo: 0xCFE0F0,
-    terreno: 0x8E8A84,
-    corsie: 0xB9B4AC,
+    cielo: 0xA9D0F2,
+    terreno: 0x9C9890,
+    corsie: 0xACA8A0,
     edifici: [0xC9962E, 0xE2D3B5, 0xA9A397],
     ostacoli: { basso: 0x2C5F8A, alto: 0xC9962E, muro: 0x5B5E72 },
   },
@@ -158,28 +165,29 @@ export const MONDI = [
     nome: 'Federico II · Magistrale',
     arco: 'universita',
     gruppo: 'Università Federico II',
-    eta: 'liceo',
+    eta: 'universita',
     ordine: 2,
     stile: 'magistrale',
     anni: '2023 – 2026',
     luogo: 'Napoli',
-    // A metà, l'esame: Roberto corre verso la facoltà ed entra in aula (vedi aula-esame.js).
+    // Il viale dentro la Facoltà di Ingegneria. A metà, l'esame: Roberto corre verso la facoltà ed entra
+    // in aula (vedi aula-esame.js).
     sezioni: [
       { id: 'campus',     lung: 300, amb: 'est' },
       { id: 'esame',      lung: 6,   amb: 'est', evento: 'esame' },
       { id: 'dopo-esame', lung: 294, amb: 'est' },
     ],
     velocita: 15,
-    cielo: 0xDDE6EE,
-    terreno: 0x5F6B78,
-    corsie: 0x8A97A5,
+    cielo: 0xA9D0F2,
+    terreno: 0x8F8B84,
+    corsie: 0x9E9A92,
     edifici: [0xE9EEF3, 0xB8C4D0, 0x6C7A89],
     ostacoli: { basso: 0xE07A2E, alto: 0x3A3F4A, muro: 0xF2C14E },
   },
   {
     nome: 'Rennes',
     arco: 'universita',
-    eta: 'liceo',
+    eta: 'universita',
     ordine: 3,
     stile: 'rennes',
     anni: '2026',

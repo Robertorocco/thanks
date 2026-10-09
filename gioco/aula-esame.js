@@ -90,7 +90,7 @@ const texTablet = tela(256, 176, (g, W, H) => {
 
 export function creaFacolta() {
   const g = new THREE.Group();
-  const muro = materiale(0xE6DAC2), pietra = materiale(0xC4B394);
+  const muro = materiale(0xA85B3F), pietra = materiale(0xE4DED0);     // mattoni e fasce chiare, come i palazzi di Ingegneria
   g.add(blocco(7.6, 9, 0.8, muro, -5.1, 0, -0.2));
   g.add(blocco(7.6, 9, 0.8, muro, 5.1, 0, -0.2));
   g.add(blocco(2.6, 5.6, 0.8, muro, 0, 3.4, -0.2));
@@ -206,6 +206,7 @@ export function creaAulaEsame() {
     return p;
   }
   const roberto = persona({ roberto: true });
+  roberto.vesti('universita');
   roberto.volto().prepara(['neutro', 'sorriso', 'gioia', 'furbo', 'imbarazzo', 'sforzo', 'triste', 'sorpresa']);
 
   const PELLE_PROF = 0xE6BC98;

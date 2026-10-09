@@ -601,9 +601,12 @@ export const ETA_ROBERTO = {
   neonato: { testa: 1.45, arti: 0.68, gambe: 0.6, maglia: 0xA9D6CC, polsi: 0xA9D6CC, pantaloni: 0xA9D6CC, scarpe: 0xF4F1E8, zaino: false, grembiule: false, anni: '0 anni' },
   bimbo:   { testa: 1.14, arti: 0.92, gambe: 0.84, busto: 0.88, corpo: 1.15, maglia: 0x233A73, polsi: 0x233A73, pantaloni: 0x3A3F52, scarpe: 0xF2F2F2, zaino: true, grembiule: true, cartellina: true, anni: '8 anni' },
   liceo:   { testa: 1.0, arti: 1.0, gambe: 1.0, corpo: 1.13, maglia: MAGLIA_R, polsi: null, pantaloni: PANTALONI_R, scarpe: SCARPE_R, zaino: true, grembiule: false, anni: '14 anni' },
+  // All'università Roberto è più snello e curato: camicia azzurra con le maniche arrotolate, jeans scuri
+  // stretti, sneakers bianche, zaino grigio scuro; gambe un filo più lunghe e spalle dritte.
+  universita: { testa: 0.97, arti: 0.97, gambe: 1.04, corpo: 0.96, maglia: 0x8DB6DE, polsi: null, pantaloni: 0x24324A, scarpe: 0xF7F7F5, zaino: true, coloreZaino: [0x3A4048, 0x2B3036], grembiule: false, camicia: true, anni: '19 anni' },
 };
-const VOLTO_ETA = { neonato: 'neonato', bimbo: 'bimbo', liceo: 'adulto' };
-const ETA_PELLE = { neonato: ETA_VOLTO.neonato.pelle, bimbo: ETA_VOLTO.bimbo.pelle, liceo: ETA_VOLTO.adulto.pelle };
+const VOLTO_ETA = { neonato: 'neonato', bimbo: 'bimbo', liceo: 'adulto', universita: 'universita' };
+const ETA_PELLE = { neonato: ETA_VOLTO.neonato.pelle, bimbo: ETA_VOLTO.bimbo.pelle, liceo: ETA_VOLTO.adulto.pelle, universita: ETA_VOLTO.universita.pelle };
 
 // Personaggio a blocchi. Con `roberto: true` ha il volto di Roberto con le espressioni e si può
 // rivestire per età con `vesti('neonato' | 'bimbo' | 'liceo')`.
@@ -636,6 +639,16 @@ export function creaPersona(o = {}) {
     pancia.add(blocco(0.4, 0.28, 0.07, matMaglia, 0, 0.95, -0.255));
     pancia.visible = false;
     tronco.add(pancia);
+  }
+
+  // Camicia (Roberto all'università): colletto e abbottonatura; le maniche arrotolate lasciano gli avambracci scoperti.
+  const camicia = new THREE.Group();
+  if (rob) {
+    camicia.add(blocco(0.36, 0.08, 0.05, matMaglia, -0.0, 1.66, -0.16));
+    for (const s of [-1, 1]) { const c = blocco(0.15, 0.1, 0.04, 0xA9CBEA, s * 0.09, 1.63, -0.178); c.rotation.z = s * 0.5; camicia.add(c); }
+    camicia.add(blocco(0.03, 0.5, 0.02, 0xE8EEF5, 0, 1.06, -0.158));
+    camicia.visible = false;
+    tronco.add(camicia);
   }
 
   // Grembiule da scolaro: gonna sopra i fianchi, colletto bianco e fiocco.
@@ -771,8 +784,10 @@ export function creaPersona(o = {}) {
 
   // Zaino sulla schiena (la schiena è verso +z).
   const zaino = new THREE.Group();
-  zaino.add(blocco(0.5, 0.62, 0.22, o.zaino ?? 0xB03A2E, 0, 1.08, 0.27));
-  zaino.add(blocco(0.4, 0.26, 0.1, 0x8C2D23, 0, 1.12, 0.4));
+  const matZaino = rob ? new THREE.MeshLambertMaterial({ color: 0xB03A2E }) : (o.zaino ?? 0xB03A2E);
+  const matTasca = rob ? new THREE.MeshLambertMaterial({ color: 0x8C2D23 }) : 0x8C2D23;
+  zaino.add(blocco(0.5, 0.62, 0.22, matZaino, 0, 1.08, 0.27));
+  zaino.add(blocco(0.4, 0.26, 0.1, matTasca, 0, 1.12, 0.4));
   zaino.visible = Boolean(o.conZaino);
   superiore.add(zaino);
 
@@ -844,7 +859,10 @@ export function creaPersona(o = {}) {
       matPelle.color.copy(pel);
       matPolsi.color.set(d.polsi ?? ETA_PELLE[eta]);
       grembiule.visible = d.grembiule;
+      camicia.visible = Boolean(d.camicia);
       zaino.visible = d.zaino;
+      matZaino.color.setHex(d.coloreZaino?.[0] ?? 0xB03A2E);
+      matTasca.color.setHex(d.coloreZaino?.[1] ?? 0x8C2D23);
       cartellina.visible = Boolean(d.cartellina);
       // Il busto si accorcia con l'età (`busto`); la testa resta della misura `testa`.
       const busto = d.busto ?? 1;
