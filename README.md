@@ -74,3 +74,4 @@ v45: nel piazzale di Via Claudio (triennale) un ragazzo castano chiaro, secco ma
 v46: pagina Ringraziamenti completa: una lista con tutti i ringraziamenti (nome e breve anteprima), ognuno si apre toccandolo per leggerlo per intero. Testi come scritti da Roberto, con sole correzioni ortografiche e grammaticali.
 v47: nei Ringraziamenti ogni scheda ha un bottone "Leggi tutto" con freccia (che diventa "Chiudi" quando è aperta) al posto del + giallo.
 v48: sopra i Ringraziamenti un disclaimer ("l'ordine è puramente casuale"); dopo 15 secondi la lista si rimescola (l'ultimo, "Altri", resta in fondo; se ne è aperto uno si aspetta che venga chiuso).
+v49: tolti il disclaimer e il rimescolamento dei Ringraziamenti; in fondo alla lista una riga piccola e discreta: "L'ordine non indica un ordine di importanza."

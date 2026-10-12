@@ -9,15 +9,8 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,800&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=JetBrains+Mono:wght@400;500&display=swap">
 <link rel="stylesheet" href="../stile.css">
 <style>
-  .nota {
-    margin: 0; padding: 12px 16px;
-    font-family: var(--mono); font-size: 13px; line-height: 1.5; letter-spacing: 0.01em;
-    color: var(--ink); background: var(--tuff-soft);
-    border: 1px solid var(--tuff); border-radius: 14px;
-  }
-  .lista { display: grid; gap: 12px; transition: opacity .25s; }
-  .lista.sfuma { opacity: 0; }
-  @media (prefers-reduced-motion: reduce) { .lista { transition: none; } }
+  .lista { display: grid; gap: 12px; }
+  .ordine { margin: -16px 0 0; font-size: 12px; color: var(--muted); opacity: .7; text-align: center; }
   .grazie {
     background: var(--paper);
     border: 1px solid var(--line);
@@ -71,9 +64,7 @@
     <p class="lede">Una tesi ha un solo nome in copertina, ma non è mai il lavoro di una persona sola. Questa pagina è per chi mi ha accompagnato fin qui. Se hai inquadrato il codice, <em>probabilmente sei uno di loro.</em></p>
   </header>
 
-  <p class="nota">Disclaimer: l'ordine dei ringraziamenti è puramente casuale. Se resti qui 15 secondi li rimescolo pure, così nessuno si offende.</p>
-
-  <main class="lista" id="lista">
+  <main class="lista">
     <details class="grazie" name="grazie">
       <summary>
         <span class="nome">Mamma e papà</span>
@@ -273,6 +264,8 @@
     </details>
   </main>
 
+  <p class="ordine">L'ordine non indica un ordine di importanza.</p>
+
   <footer>
     <span>Roberto Rocco</span>
     <span class="thesis">Shared-autonomy teleoperation of a bimanual manipulator</span>
@@ -281,29 +274,11 @@
 </div>
 <script>
 // Aprendo un ringraziamento, la pagina lo porta in alto (gli altri si chiudono da soli).
-const ridotto = matchMedia('(prefers-reduced-motion: reduce)').matches;
 document.querySelectorAll('.grazie').forEach(d => d.addEventListener('toggle', () => {
   if (!d.open) return;
+  const ridotto = matchMedia('(prefers-reduced-motion: reduce)').matches;
   setTimeout(() => d.scrollIntoView({ block: 'start', behavior: ridotto ? 'auto' : 'smooth' }), 30);
 }));
-
-// Dopo 15 secondi i ringraziamenti si rimescolano (l'ultimo, "Altri", resta in fondo). Se uno è aperto
-// si aspetta che venga chiuso, per non spostare il testo mentre lo si legge.
-const lista = document.getElementById('lista');
-function rimescola() {
-  if (lista.querySelector('details[open]')) { setTimeout(rimescola, 3000); return; }
-  const voci = [...lista.children], ultimo = voci.pop();
-  for (let i = voci.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [voci[i], voci[j]] = [voci[j], voci[i]];
-  }
-  lista.classList.add('sfuma');
-  setTimeout(() => {
-    for (const v of [...voci, ultimo]) lista.appendChild(v);
-    lista.classList.remove('sfuma');
-  }, ridotto ? 0 : 260);
-}
-setTimeout(rimescola, 15000);
 </script>
 </body>
 </html>
