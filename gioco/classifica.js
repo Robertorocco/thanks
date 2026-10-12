@@ -13,6 +13,9 @@ function intestazioni() {
   return h;
 }
 
+// Le registrazioni col nome "0" (prove) non contano.
+const valida = v => !/^\s*0*\s*$/.test(String(v.nome ?? ''));
+
 function leggiLocale() {
   try {
     const dati = JSON.parse(localStorage.getItem(CHIAVE) || '[]');
@@ -34,7 +37,7 @@ function salvaLocale(nome, tempo) {
 
 function miglioriLocali(limite) {
   const migliori = new Map();
-  for (const v of leggiLocale()) {
+  for (const v of leggiLocale().filter(valida)) {
     const k = v.nome.toLowerCase();
     if (!migliori.has(k) || v.tempo < migliori.get(k).tempo) migliori.set(k, v);
   }
@@ -62,10 +65,10 @@ export async function leggiClassifica(limite = 10) {
   if (condivisa) {
     try {
       const r = await fetch(
-        `${SUPABASE_URL}/rest/v1/classifica?select=nome,tempo&order=tempo.asc&limit=${limite}`,
+        `${SUPABASE_URL}/rest/v1/classifica?select=nome,tempo&nome=neq.0&order=tempo.asc&limit=${limite + 20}`,
         { headers: intestazioni() },
       );
-      if (r.ok) return { voci: await r.json(), condivisa: true };
+      if (r.ok) return { voci: (await r.json()).filter(valida).slice(0, limite), condivisa: true };
     } catch {
       // Rete assente: si mostra la classifica locale.
     }

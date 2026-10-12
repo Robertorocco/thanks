@@ -9,24 +9,37 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,800&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=JetBrains+Mono:wght@400;500&display=swap">
 <link rel="stylesheet" href="../stile.css">
 <style>
-  .status { display: grid; gap: 16px; }
-  .wip {
-    display: inline-flex; align-items: center; gap: 10px;
-    justify-self: start;
-    font-family: var(--mono); font-size: 13px; letter-spacing: 0.04em;
-    color: var(--ink); background: var(--tuff-soft);
-    border: 1px solid var(--tuff);
-    border-radius: 999px; padding: 8px 16px; margin: 0;
+  .lista { display: grid; gap: 12px; }
+  .grazie {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    transition: border-color .15s;
   }
-  .wip::before {
-    content: ""; width: 8px; height: 8px; border-radius: 50%;
-    background: var(--tuff);
-    animation: pulse 1.6s ease-in-out infinite;
+  .grazie:hover, .grazie[open] { border-color: var(--tuff); }
+  .grazie[open] { background: var(--tuff-soft); }
+  .grazie summary {
+    display: grid; gap: 4px;
+    padding: 18px 22px;
+    cursor: pointer; list-style: none;
+    border-radius: 18px;
+    -webkit-tap-highlight-color: transparent;
   }
-  @keyframes pulse { 50% { opacity: .25; } }
-  @media (prefers-reduced-motion: reduce) {
-    .wip::before { animation: none; }
+  .grazie summary::-webkit-details-marker { display: none; }
+  .grazie summary:focus-visible { outline: 2px solid var(--sea); outline-offset: 2px; }
+  .nome {
+    font-family: var(--display); font-weight: 800;
+    font-size: 28px; line-height: 1.1; letter-spacing: -0.02em;
   }
+  .nome::after { content: " +"; color: var(--tuff); }
+  .grazie[open] .nome::after { content: " −"; }
+  .anteprima {
+    color: var(--muted); font-size: 16px; line-height: 1.45;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .grazie[open] .anteprima { display: none; }
+  .testo { padding: 0 22px 22px; display: grid; gap: 14px; }
+  .testo p { margin: 0; text-wrap: pretty; }
 </style>
 </head>
 <body>
@@ -39,10 +52,187 @@
     <p class="lede">Una tesi ha un solo nome in copertina, ma non è mai il lavoro di una persona sola. Questa pagina è per chi mi ha accompagnato fin qui. Se hai inquadrato il codice, <em>probabilmente sei uno di loro.</em></p>
   </header>
 
-  <div class="status">
-    <p class="wip">Lavori in corso</p>
-    <p class="lede">I ringraziamenti sono in fase di scrittura. Torna presto a trovarmi.</p>
-  </div>
+  <main class="lista">
+    <details class="grazie" name="grazie">
+      <summary>
+        <span class="nome">Mamma e papà</span>
+        <span class="anteprima">Vi ringrazio per aver accompagnato i miei studi sin da quando ero molto piccolo.</span>
+      </summary>
+      <div class="testo">
+        <p>Vi ringrazio per aver accompagnato i miei studi sin da quando ero molto piccolo.</p>
+        <p>Nessuno meglio di voi sa quanto ho studiato controvoglia fino all'università, dove finalmente ho iniziato a fare le cose che mi piacevano. Per tutti questi anni avete assecondato tutte le mie decisioni, anche se mi allontanavano da casa. A voi dedico i miei successi e la mia felicità, cose per le quali vi siete sempre messi in secondo piano. È grazie ai vostri insegnamenti se oggi sono un Ingegnere di tutto rispetto.</p>
+      </div>
+    </details>
+    <details class="grazie" name="grazie">
+      <summary>
+        <span class="nome">Valentina</span>
+        <span class="anteprima">Amore, spero di riuscire a trovare le parole giuste da usare in questa pagina per farti capire quanto tu sia stata…</span>
+      </summary>
+      <div class="testo">
+        <p>Amore, spero di riuscire a trovare le parole giuste da usare in questa pagina per farti capire quanto tu sia stata importante per me nel mio percorso universitario.</p>
+        <p>Da quando ci siamo conosciuti mi hai spronato a dare il meglio di me per terminare gli studi, condividendo momenti di studio regolari da un timer pomodoro e risate in un'aula arancione. Parlando ci siamo innamorati, e ad oggi sei una delle persone più importanti della mia vita.</p>
+        <p>Averti a mio fianco nella vita di tutti i giorni, nelle scelte importanti e in quelle facili, mi dà la sicurezza di proseguire spedito sui miei passi, sapendo che in ogni caso mi sosterrai.</p>
+        <p>Nel raggiungimento dei miei traguardi, nei momenti di stress o quando semplicemente mi sento stanco, so di poter trovare in te un viso familiare che mi fa sentire la persona più interessante del mondo.</p>
+        <p>Non dimostro la gratitudine di molti dei tuoi aspetti nella vita di tutti i giorni, e raramente mi mostro stanco o affranto per qualcosa, ma spesso la cosa più importante è sapere di avere a fianco una donna su cui posso contare in ogni momento, se necessario. La certezza stessa che tu sei come sei, mi rende una persona migliore e pronta ad affrontare le sfide della vita.</p>
+      </div>
+    </details>
+    <details class="grazie" name="grazie">
+      <summary>
+        <span class="nome">Armando</span>
+        <span class="anteprima">Oggi sei qui ma di fatto c'eri anche alla triennale, nonché al diploma, fino al giorno che sono nato. Siamo così…</span>
+      </summary>
+      <div class="testo">
+        <p>Oggi sei qui ma di fatto c'eri anche alla triennale, nonché al diploma, fino al giorno che sono nato. Siamo così legati da darci per scontato: a parte le poche volte che ci vediamo parliamo poco, ma in fondo, so che se mai avrò una difficoltà tu sarai lì a sorreggere la mia spalla.</p>
+        <p>Non esiste cosa per cui potremmo litigare, e sapere che ci sarà sempre un cugino a mio fianco, nonché un fratello, mi dà sicurezza nelle scelte della mia vita. Allontanarsi da casa per mesi è stato più facile sapendo che una parte della tua famiglia era lì ad attendere il tuo ritorno.</p>
+      </div>
+    </details>
+    <details class="grazie" name="grazie">
+      <summary>
+        <span class="nome">Peppe</span>
+        <span class="anteprima">La nostra intesa è così forte che a volte dimentico la fortuna di aver trovato un fratello che ha le mie stesse…</span>
+      </summary>
+      <div class="testo">
+        <p>La nostra intesa è così forte che a volte dimentico la fortuna di aver trovato un fratello che ha le mie stesse passioni e il mio stesso senso dell'umorismo. Su alcuni aspetti caratteriali siamo diversi, ma è proprio questa diversità a darci un valore aggiunto reciproco. Raramente parliamo del nostro stare male, ma siamo sempre l'uno affianco all'altro per ridere. Crescendo la vita diventerà probabilmente meno divertente e più dura: so che con te avrò sempre lo spirito per trollare dove nessuno oserebbe, e so che il nostro rapporto evolverà di conseguenza verso qualcosa di più maturo.</p>
+        <p>Qualunque siano le difficoltà che ci si presenteranno nella vita, con te al mio fianco so che ne uscirò col sorriso, sempre.</p>
+      </div>
+    </details>
+    <details class="grazie" name="grazie">
+      <summary>
+        <span class="nome">Chiara</span>
+        <span class="anteprima">Non ho mai condiviso la vita con qualcuno quanto con te. Classificarti nelle mie conoscenze è difficile per il tipo…</span>
+      </summary>
+      <div class="testo">
+        <p>Non ho mai condiviso la vita con qualcuno quanto con te. Classificarti nelle mie conoscenze è difficile per il tipo di legame che ci contraddistingue: sei più di un'amica alla quale vuoi un bene dell'anima e te ne vuoi prendere cura, più di un amico con il quale condividi tutto e ti conosce come le sue tasche.</p>
+        <p>Spero che la nostra vita ci faccia condividere ancora tanto altro anche professionalmente, perché è quando siamo insieme che diamo la nostra versione migliore e siamo indistruttibili.</p>
+        <p>Sei sicuramente la persona con cui sono cresciuto di più professionalmente: con te ho superato tutte le sfide universitarie, e se ci sono riuscito è solo grazie al fatto che c'eri tu al mio fianco (e si è visto cosa è successo quando non c'eri).</p>
+        <p>Con te ho imparato un 'metodo' di studio (se procrastinare e arrivare tardi agli esami si può chiamare così), che mi ha reso possibile superare questi anni facendomi anche piacere quello che abbiamo studiato. Dove io non capivo, c'eri sempre tu a spiegarmi. Quando io ero a bordo piscina, c'eri tu a coprirmi le spalle. E so che lo farai, per sempre, così come io lo farò per te.</p>
+      </div>
+    </details>
+    <details class="grazie" name="grazie">
+      <summary>
+        <span class="nome">Alessio</span>
+        <span class="anteprima">Fratello non per scelta, so che ci viviamo poco per via dei tuoi ritmi, ma questo non toglie niente al bene che ti…</span>
+      </summary>
+      <div class="testo">
+        <p>Fratello non per scelta, so che ci viviamo poco per via dei tuoi ritmi, ma questo non toglie niente al bene che ti voglio. Ma alla fine va bene così: unemployed roby durerà ancora poco (si spera), e piano piano prenderemo strade ancora più diverse, non condividendo nemmeno più la casa. A quel punto saremo pronti: anche non parlando sapremo di essere fratelli, e le volte che ci vedremo avranno un peso maggiore. Ora sei grande e grosso (semp a sott), ma rimani sempre il fratellino di cui mi devo prendere cura.</p>
+      </div>
+    </details>
+    <details class="grazie" name="grazie">
+      <summary>
+        <span class="nome">Giuan</span>
+        <span class="anteprima">Compagno di vita dall'asilo, pochi mi conoscono come te e sanno tante cose di me. Alterniamo periodi in cui ci…</span>
+      </summary>
+      <div class="testo">
+        <p>Compagno di vita dall'asilo, pochi mi conoscono come te e sanno tante cose di me. Alterniamo periodi in cui ci frequentiamo assiduamente ad assenze prolungate, e siamo sicuramente due persone che non parlano molto di se stessi. Nonostante ciò nessuno ricoprirà mai il ruolo che l'uno ha per l'altro: un fedele amico che non ti farà sentire solo nemmeno a chilometri da casa.</p>
+        <p>Grazie per esserci sempre stato, puoi contare sulla mia spalla quando vorrai, ovunque tu sia.</p>
+      </div>
+    </details>
+    <details class="grazie" name="grazie">
+      <summary>
+        <span class="nome">Francesca</span>
+        <span class="anteprima">Amica mia, ormai sono tanti anni, con qualche piccola interruzione, che siamo vicini. Forse ultimamente un po' di…</span>
+      </summary>
+      <div class="testo">
+        <p>Amica mia, ormai sono tanti anni, con qualche piccola interruzione, che siamo vicini. Forse ultimamente un po' di meno, con te mi sono sempre sentito di poter avere un confronto per le difficoltà della mia vita con una persona che su molte cose la pensa come me. La nostra stessa amicizia è stata più volte per me qualcosa per cui combattere, e non smetterò mai di chiederti scusa se talvolta mi sono arreso. Delle tante sfumature di cui il nostro rapporto si è arricchito, la mia preferita è quella della mia amica di cui prendermi cura. Se mai ti servirà una spalla su cui piangere, la mia avrà sempre un posto per te.</p>
+      </div>
+    </details>
+    <details class="grazie" name="grazie">
+      <summary>
+        <span class="nome">Rennes</span>
+        <span class="anteprima">Amici, per me avete rappresentato tutto per i 6 mesi che abbiamo trascorso insieme. Siete stati casa, lavoro…</span>
+      </summary>
+      <div class="testo">
+        <p>Amici, per me avete rappresentato tutto per i 6 mesi che abbiamo trascorso insieme. Siete stati casa, lavoro, palestra, risate e divertimento. Non avrei potuto trovare persone migliori ad accompagnare questa esperienza: grazie a voi mi sono sentito raramente lontano da casa.</p>
+        <p>In ogni angolo di Rennes c'era almeno uno di voi a riempirlo di gioia: sono veramente felice di aver avuto l'occasione di conoscervi e portarvi con me a Napoli.</p>
+        <p>Mi porterò nel cuore ogni serata passata a cucinare, pausa pranzo/caffè, partita a ping pong o momento di vita quotidiana, perché, incredibilmente, avete reso speciale ognuno di essi.</p>
+      </div>
+    </details>
+    <details class="grazie" name="grazie">
+      <summary>
+        <span class="nome">Uni</span>
+        <span class="anteprima">Ormai siamo una famiglia di ingegneri (quasi) al completo. Mi mancano tanto le giornate passate a seguire insieme a…</span>
+      </summary>
+      <div class="testo">
+        <p>Ormai siamo una famiglia di ingegneri (quasi) al completo. Mi mancano tanto le giornate passate a seguire insieme a voi, ma avete saputo rappresentare molto altro anche al di fuori delle mura universitarie. Sapete, degli ingegneri si dice che non si sanno divertire. Con voi non mi sono mai sentito così: dai cambi ora, alle uscite fino ai viaggi, siete sempre i coglioni con cui ho amato trascorrere ogni secondo di questa fase della mia vita. Siete i migliori colleghi che mi potessero capitare, e spero che anche ora che l'università è conclusa possiamo continuare a condividere momenti intensi.</p>
+      </div>
+    </details>
+    <details class="grazie" name="grazie">
+      <summary>
+        <span class="nome">Gabri</span>
+        <span class="anteprima">Anche se da poco tempo nella mia vita, sei tra le persone con cui trascorro più tempo ad oggi. Non ho mai costruito…</span>
+      </summary>
+      <div class="testo">
+        <p>Anche se da poco tempo nella mia vita, sei tra le persone con cui trascorro più tempo ad oggi. Non ho mai costruito un rapporto con una persona velocemente quanto con te: in pochi mesi avevi già invaso tutti i miei spazi. Il nostro rapporto è sopravvissuto anche a 6 mesi di silenzio, e, una volta tornato, è come se non ci fossimo mai salutati.</p>
+        <p>Sarai anche un sequestratore, ma sappi che ti stimo molto: sei tra i pochi a sopportare la mia personalità non mollando la presa, e con te sono sicuro che mi divertirò ovunque mi inviterai.</p>
+      </div>
+    </details>
+    <details class="grazie" name="grazie">
+      <summary>
+        <span class="nome">Vittorini</span>
+        <span class="anteprima">Sono felice che molti di voi appartengano a questa fase della mia vita, ed oggi, siete ancora qui. Vi ringrazio…</span>
+      </summary>
+      <div class="testo">
+        <p>Sono felice che molti di voi appartengano a questa fase della mia vita, ed oggi, siete ancora qui. Vi ringrazio perché è grazie a voi, compagni di classe o di corridoio, se sono cresciuto così tanto fino ad oggi. Avete forgiato il mio carattere negli anni passati al liceo, rendendomi piano piano sempre meno timido. Vi ringrazio per aver tenuto vicino un ragazzo che di qualità non ne aveva molte, e di averle coltivate insieme a me, fino ad oggi.</p>
+      </div>
+    </details>
+    <details class="grazie" name="grazie">
+      <summary>
+        <span class="nome">Antonino</span>
+        <span class="anteprima">Anto, sei tra le persone più simili a me che io conosca. Ci conosciamo da non so quanti anni, ma ci siamo vissuti in…</span>
+      </summary>
+      <div class="testo">
+        <p>Anto, sei tra le persone più simili a me che io conosca. Ci conosciamo da non so quanti anni, ma ci siamo vissuti in poche occasioni. Voglio che tu sappia che ognuna di queste occasioni per me è stata speciale: in un periodo difficile della mia vita, hai dimostrato di saper essere un grande amico da avere affianco.</p>
+        <p>Certo, vorrei fossi un po' meno simile a me, così magari riusciremmo a sentirci ogni tanto piuttosto che ghostarci di continuo.</p>
+      </div>
+    </details>
+    <details class="grazie" name="grazie">
+      <summary>
+        <span class="nome">Serena</span>
+        <span class="anteprima">Serenella, sei da poco nella mia vita ma volevo comunque dedicarti un piccolo spazio. Mi fa piacere sapere che…</span>
+      </summary>
+      <div class="testo">
+        <p>Serenella, sei da poco nella mia vita ma volevo comunque dedicarti un piccolo spazio. Mi fa piacere sapere che sorriderai sapendo che ti ho pensato mentre scrivevo i ringraziamenti. Ti voglio semplicemente ringraziare per aver condiviso con me la tua capacità di trasmettere serenità e felicità nel luogo in cui ti trovi. Credo di averti visto una volta senza il sorriso: le persone come te sono speciali e arricchiscono la mia vita di gioia.</p>
+        <p>Ti voglio bene amica</p>
+      </div>
+    </details>
+    <details class="grazie" name="grazie">
+      <summary>
+        <span class="nome">Vale</span>
+        <span class="anteprima">Cuginetta, non ci sentiamo quasi mai ma parlare e scherzare con te è sempre speciale. Sai essere empatica, psicologa…</span>
+      </summary>
+      <div class="testo">
+        <p>Cuginetta, non ci sentiamo quasi mai ma parlare e scherzare con te è sempre speciale. Sai essere empatica, psicologa per le persone che ti circondano, o anche un'amica con cui divertirsi e andare a ballare alle serate indie. Grazie per aver creato, nelle poche occasioni che abbiamo avuto, uno spazio sicuro.</p>
+      </div>
+    </details>
+    <details class="grazie" name="grazie">
+      <summary>
+        <span class="nome">William</span>
+        <span class="anteprima">Con la tua brillantezza, il tuo non sapere essere socialmente accettabile in certi contesti, la tua innocenza, la tua…</span>
+      </summary>
+      <div class="testo">
+        <p>Con la tua brillantezza, il tuo non sapere essere socialmente accettabile in certi contesti, la tua innocenza, la tua generosità, e le tue passioni liriche, mi hai regalato momenti unici. Senza il tuo supporto, pratico e spirituale, oggi non sarei qui a godermi la vita con le gambe distese sul davanzale. Grazie amico mio</p>
+      </div>
+    </details>
+    <details class="grazie" name="grazie">
+      <summary>
+        <span class="nome">Dani</span>
+        <span class="anteprima">Amica mia, voglio ringraziarti per ciò che hai fatto per me in passato. Hai una personalità introversa e dolce, ma le…</span>
+      </summary>
+      <div class="testo">
+        <p>Amica mia, voglio ringraziarti per ciò che hai fatto per me in passato. Hai una personalità introversa e dolce, ma le persone che riescono ad avvicinarsi a te capiscono il valore delle tue parole.</p>
+        <p>Non voglio dilungarmi troppo, ma se mai avrai bisogno, io sono qui. Ti voglio bene.</p>
+      </div>
+    </details>
+    <details class="grazie" name="grazie">
+      <summary>
+        <span class="nome">Altri</span>
+        <span class="anteprima">Anche se non vi ho dedicato parole singolarmente, siete per me sicuramente speciali se avete condiviso questo giorno…</span>
+      </summary>
+      <div class="testo">
+        <p>Anche se non vi ho dedicato parole singolarmente, siete per me sicuramente speciali se avete condiviso questo giorno con me. Spero che ognuno di voi continui a fare parte della mia vita anche domani. Ognuno di voi ha contribuito, anche se in piccola parte, al raggiungimento di questo grande traguardo. Vi ringrazio per riuscire a sopportarmi, so che non è facile. È grazie a voi, amici miei, se oggi sorrido serenamente.</p>
+      </div>
+    </details>
+  </main>
 
   <footer>
     <span>Roberto Rocco</span>
@@ -50,5 +240,13 @@
     <span class="mono">Università degli Studi di Napoli Federico II · 2026</span>
   </footer>
 </div>
+<script>
+// Aprendo un ringraziamento, la pagina lo porta in alto (gli altri si chiudono da soli).
+document.querySelectorAll('.grazie').forEach(d => d.addEventListener('toggle', () => {
+  if (!d.open) return;
+  const ridotto = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  setTimeout(() => d.scrollIntoView({ block: 'start', behavior: ridotto ? 'auto' : 'smooth' }), 30);
+}));
+</script>
 </body>
 </html>

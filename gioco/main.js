@@ -1,6 +1,6 @@
 import * as THREE from './lib/three.module.min.js';
 import {
-  MONDI, TRAGUARDO, BONUS_CAFFE, MALUS_BOSS_RAGAZZA, SPINTA, CRESCITA, MALUS_PRIMA_FILA, TEMPO_SCELTA,
+  MONDI, TRAGUARDO, BONUS_CAFFE, MALUS_BOSS_RAGAZZA, MALUS_MORTE, SPINTA, CRESCITA, MALUS_PRIMA_FILA, TEMPO_SCELTA,
   MODALITA_SVILUPPO, RESPAWN_DOVE_MORI, RESPAWN_INDIETRO, RESPAWN_INVULNERABILE, FISICA,
 } from './mondi.js';
 import { inviaTempo, leggiClassifica, formattaTempo } from './classifica.js';
@@ -22,6 +22,7 @@ import { creaAula, fumetto } from './aula.js';
 import { creaAulaDarmon } from './aula-darmon.js';
 import { creaAulaEsame, creaFacolta } from './aula-esame.js';
 import { creaScenaUni, creaParcheggiatore, creaPareteUni, targaAula } from './modelli-universita.js';
+import { creaPassanteOpoure, espressioneAmico } from './amici-uni.js';
 import { creaScenaRennes, giaccone } from './modelli-rennes.js';
 import { creaBossGelato, MALUS_COLPO, MAX_GRASSO } from './boss-gelato.js';
 import { creaPingPong } from './boss-pingpong.js';
@@ -87,20 +88,14 @@ function mondoDi(pos) {
 function velocitaIn(pos) {
   const t = TRATTI[mondoDi(Math.min(pos, LUNGHEZZA - 0.01))];
   const k = THREE.MathUtils.clamp((pos - t.inizio) / t.lunghezza, 0, 1);
-  return t.velocita * SPINTA * (1 + CRESCITA * k);
+  // A Rennes si cammina più piano (-25%), così si riconoscono i volti.
+  return t.velocita * SPINTA * (1 + CRESCITA * k) * (t.stile === 'rennes' ? 0.75 : 1);
 }
 
 const ENTITA = generaLivello(TRATTI, perc, velocitaIn);
 for (const t of TRATTI) if (!t.sezioni) caricaFotoLuogo(t.stile);
-// I bonus sono numerati nell'ordine del percorso: C1, C2... in casa, D1... all'Istituto, 1, 2... dopo.
-const contatori = { C: 0, D: 0, '': 0 };
-for (const e of ENTITA) {
-  if (e.genere !== 'caffe') continue;
-  const st = MONDI[e.mondo].stile;
-  const pre = st === 'casa' ? 'C' : st === 'darmon' ? 'D' : '';
-  e.num = pre + (++contatori[pre]);
-}
-const CAFFE_TOTALI = contatori.C + contatori.D + contatori[''];
+let CAFFE_TOTALI = 0;
+for (const e of ENTITA) if (e.genere === 'caffe') CAFFE_TOTALI++;
 const mezzaLunghezza = e => (e.profondita ?? 0) / 2;
 
 // Punti di ripartenza: l'inizio di ogni mondo e le tappe dentro il mondo 1.
@@ -157,7 +152,7 @@ const aulaD = creaAulaDarmon();
 const aulaE = creaAulaEsame();
 let aulaAttiva = aula;                      // la scena in classe in uso
 
-// Le scene in classe: la 5ª H al liceo, la 3ª B all'Istituto Darmon e l'esame alla magistrale. `esiti` dice cosa succede
+// Le scene in classe: la 5ª H al liceo, la 3ª A all'Istituto Darmon e l'esame alla magistrale. `esiti` dice cosa succede
 // con ogni scelta: penalità in secondi e testo del cartello.
 const EVENTO = {
   [LICEO]: {
@@ -187,7 +182,7 @@ const EVENTO = {
     domanda: 'Cosa fai?',
     opzioni: [{ id: 'copiare', etichetta: 'Copiare' }, { id: 'rispondere', etichetta: 'Rispondere' }],
     esiti: {
-      copiare: { titolo: 'Promosso con 27!', sotto: 'Grazie, Chiara', malus: 0, durata: 2.4 },
+      copiare: { titolo: 'Promosso con 27!', sotto: '', malus: 0, durata: 2.4 },
       rispondere: { titolo: 'Bocciato!', sotto: `+${MALUS_PRIMA_FILA} secondi di penalità`, malus: MALUS_PRIMA_FILA, durata: 2.6 },
     },
     esitoAllaFine: true,
@@ -478,23 +473,6 @@ function aggiornaPioggia(dt) {
 
 const INCLINATI = new Set(['ostacolo', 'semaforo', 'parete', 'soffitto', 'cartello', 'arredo']);
 
-const texNumeri = new Map();
-function texNumero(n) {
-  if (!texNumeri.has(n)) {
-    const c = document.createElement('canvas');
-    c.width = c.height = 96;
-    const g = c.getContext('2d');
-    g.fillStyle = '#1C1D2B'; g.beginPath(); g.arc(48, 48, 44, 0, Math.PI * 2); g.fill();
-    g.fillStyle = '#FFD23F'; g.beginPath(); g.arc(48, 48, 38, 0, Math.PI * 2); g.fill();
-    g.fillStyle = '#1C1D2B'; g.font = '800 44px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.fillText(String(n), 48, 52, 64);
-    const t = new THREE.CanvasTexture(c);
-    t.colorSpace = THREE.SRGBColorSpace;
-    texNumeri.set(n, t);
-  }
-  return texNumeri.get(n);
-}
-
 function creaMesh(e) {
   const t = TRATTI[e.mondo ?? 0];
   let m;
@@ -511,9 +489,14 @@ function creaMesh(e) {
     m = creaBonus(t.stile);
     e.altBonus = t.stile === 'casa' ? 0.45 : t.stile === 'darmon' ? 0.7 : 0.85;
     m.position.set(CORSIE[e.corsia], e.altBonus, 0);
-    const n = new THREE.Sprite(new THREE.SpriteMaterial({ map: texNumero(e.num), transparent: true, depthWrite: false }));
-    n.scale.set(0.7, 0.7, 1); n.position.y = 0.75;
-    m.add(n);
+  }
+  else if (e.genere === 'passanteUni') {
+    const q = creaPassanteOpoure();
+    q.radice.traverse(o => { if (o.isMesh) o.castShadow = false; });
+    q.radice.rotation.y = Math.PI;              // guarda verso Roberto che arriva
+    m = new THREE.Group();
+    m.add(q.radice);
+    e.persona = q;
   }
   else if (e.genere === 'edificio') m = creaEdificio(e, t);
   else if (e.genere === 'monumento') m = creaMonumento(e, t);
@@ -531,7 +514,7 @@ function creaMesh(e) {
   else if (e.genere === 'rennes') m = creaScenaRennes(e);
   else if (e.genere === 'lanciatore') m = creaLanciatore(e);
   else if (e.genere === 'cartello') m = creaCartelloAppeso(e.testo, e.w, e.colore);
-  else if (e.genere === 'portaAula') m = e.stile === 'darmon' ? creaPortaAula('3ª B', 0xE0533F) : e.stile === 'ia3' ? creaPortaAula('Ia3', 0x1F58B8, targaAula('Ia3', 2.2, 0.8)) : e.stile === 'facolta' ? creaFacolta() : creaPortaAula();
+  else if (e.genere === 'portaAula') m = e.stile === 'darmon' ? creaPortaAula('3ª A', 0xE0533F) : e.stile === 'ia3' ? creaPortaAula('Ia3', 0x1F58B8, targaAula('Ia3', 2.2, 0.8)) : e.stile === 'facolta' ? creaFacolta() : creaPortaAula();
   else if (e.genere === 'portone') m = e.stile === 'casa' ? creaPortaCasa() : creaPortone();
   const involucro = new THREE.Group();
   involucro.add(m);
@@ -542,7 +525,7 @@ function creaMesh(e) {
 }
 
 const bucoInStrada = e => e.genere === 'ostacolo' && e.tipo === 'buco' && e.stile === 'liceo';
-const dinamico = e => e.genere === 'caffe' || bucoInStrada(e) || (e.genere === 'ostacolo' && (e.tipo === 'persona' || e.tipo === 'crociera' || e.tipo === 'lancio' || e.tipo === 'parcheggiatore'));
+const dinamico = e => e.genere === 'caffe' || e.genere === 'passanteUni' || bucoInStrada(e) || (e.genere === 'ostacolo' && (e.tipo === 'persona' || e.tipo === 'crociera' || e.tipo === 'lancio' || e.tipo === 'parcheggiatore'));
 
 // Il parcheggiatore abusivo (Via Claudio): aspetta sul bordo della strada; quando Roberto è a
 // PARCHEGGIATORE_DA metri entra in strada e si sposta verso la sua corsia con la mano tesa ("Un euro a
@@ -556,6 +539,26 @@ scena.add(bollaEuro);
 const bollaAbuso = fumetto('Abuso!', '#ffffff', '#1C1D2B', 1.5, 1.2, 76);
 scena.add(bollaAbuso);
 const ABUSO_DA = 20;
+// "Opoure no": il ragazzo sul marciapiede di Via Claudio, quando Roberto gli passa vicino.
+const bollaOpoure = fumetto('Opoure no', '#ffffff', '#1C1D2B', 1.5, 1.2, 76);
+scena.add(bollaOpoure);
+const OPOURE_DA = 16;
+function aggiornaPassanteUni(e, d) {
+  const q = e.persona;
+  const xLat = e.lato * 3.7;
+  mettiSulPercorso(e.mesh, e.d, false);
+  e.mesh.position.x += Math.cos(tmp.psi) * xLat;
+  e.mesh.position.z += Math.sin(tmp.psi) * xLat;
+  // La testa segue Roberto mentre passa.
+  const dx = G.x - xLat, dz = Math.max(d - G.pos, 1.5);
+  q.testa.rotation.y = THREE.MathUtils.clamp(Math.atan2(dx, dz), -1.1, 1.1);
+  const vicino = d - G.pos < OPOURE_DA && d - G.pos > -3;
+  espressioneAmico(q, vicino ? 'sorriso' : 'neutro');
+  if (vicino && G.stato === 'gioco') {
+    bollaOpoure.visible = true;
+    daLocale(e.d, xLat, 2.5, 0, bollaOpoure.position);
+  }
+}
 function aggiornaParcheggiatore(e, ora) {
   const t = ora / 1000, dt = e.tPrec === null ? 0 : Math.min(0.1, t - e.tPrec);
   e.tPrec = t;
@@ -666,7 +669,7 @@ function salvaCheckpoint(i) {
 function nuovaPartita() {
   const m0 = MODALITA_SVILUPPO ? mondoDiPartenza() : 0;
   try { localStorage.setItem('gioco-laurea:dev-mondo', String(m0)); } catch {}
-  G.pos = TRATTI[m0].inizio; G.tempo = 0; G.malus = 0; G.malusBoss = 0; G.caffe = 0; G.raccolti = new Set(); G.mondo = m0; G.cadute = 0;
+  G.pos = TRATTI[m0].inizio; G.tempo = 0; G.malus = 0; G.malusBoss = 0; G.malusMorti = 0; G.caffe = 0; G.raccolti = new Set(); G.mondo = m0; G.cadute = 0;
   pingpong.reset(); amici.reset(); ragazzaBoss.reset(); triago.reset();
   G.fatti = new Set(); G.comandiVisti = new Set(); G.esitoAula = null; G.invul = 0; G.posCaduta = null; G.bassa = 0; G.exprTemp = 0;
   impostaEta(TRATTI[m0].eta);
@@ -698,6 +701,8 @@ function caduta() {
   G.stato = 'caduto';
   G.timer = 1.2;
   G.cadute++;
+  G.malus += MALUS_MORTE; G.malusMorti = (G.malusMorti ?? 0) + MALUS_MORTE;
+  scrittaTempo(`+${MALUS_MORTE}`, '#FF4D40');
   G.posCaduta = G.pos;
   if (navigator.vibrate) navigator.vibrate(120);
 }
@@ -798,12 +803,13 @@ async function fine() {
   hud.radice.hidden = true;
   elOrologio.hidden = true;
   const totale = Math.max(0, G.tempo + G.malus - G.caffe * BONUS_CAFFE);
+  const penalitaClasse = G.malus - (G.malusBoss ?? 0) - (G.malusMorti ?? 0);
   document.getElementById('fine-data').textContent = `${TRAGUARDO.nome} · ${TRAGUARDO.data}`;
   document.getElementById('fine-tempo').textContent = formattaTempo(totale);
   document.getElementById('fine-dettaglio').textContent =
     `Corsa ${formattaTempo(G.tempo)} · bonus ${G.caffe} su ${CAFFE_TOTALI} · ` +
-    (G.cadute === 1 ? '1 caduta' : `${G.cadute} cadute`) +
-    (G.malus - (G.malusBoss ?? 0) ? ` · penalità in classe +${G.malus - (G.malusBoss ?? 0)} s` : '') +
+    (G.cadute === 1 ? '1 caduta' : `${G.cadute} cadute`) + (G.malusMorti ? ` (+${G.malusMorti} s)` : '') +
+    (penalitaClasse ? ` · penalità in classe +${penalitaClasse} s` : '') +
     (G.malusBoss ? ` · boss +${G.malusBoss} s` : '');
   mostraSchermo('fine');
   const arrotondato = Math.round(totale * 10) / 10;
@@ -850,12 +856,13 @@ function applicaEsito(esito) {
   elScelta.hidden = true;
   const r = EVENTO[G.mondo].esiti[esito];
   G.malus += r.malus;
+  if (r.malus) scrittaTempo(`+${r.malus}`, '#FF4D40');
   if (!EVENTO[G.mondo].esitoAllaFine) mostraEsito();
 }
 function mostraEsito() {
   const r = EVENTO[G.mondo].esiti[G.esitoAula];
   G.esitoMostrato = true;
-  banner(`${r.titolo}<small>${r.sotto}</small>`, r.durata, 'in-basso');
+  banner(`${r.titolo}${r.sotto ? `<small>${r.sotto}</small>` : ''}`, r.durata, 'in-basso');
 }
 for (const b of bottoniScelta) {
   b.addEventListener('click', () => scegliInAula(b.dataset.scelta));
@@ -1137,6 +1144,7 @@ function aggiornaEntita(ora) {
   const pos = G.pos;
   bollaEuro.visible = false;
   bollaAbuso.visible = false;
+  bollaOpoure.visible = false;
   while (prossima < ENTITA.length && ENTITA[prossima].d - mezzaLunghezza(ENTITA[prossima]) < pos + VISTA) {
     const e = ENTITA[prossima++];
     if (distanza(e, pos) + mezzaLunghezza(e) < pos - DIETRO) continue;
@@ -1171,7 +1179,7 @@ function aggiornaEntita(ora) {
       e.anima?.(ora / 1000);
       if (e.membro === 'abuso' && d - pos < ABUSO_DA && d - pos > 0.5 && G.stato === 'gioco') {
         bollaAbuso.visible = true;
-        daLocale(d, CORSIE[e.corsia], 2.35, 0, bollaAbuso.position);
+        daLocale(d, CORSIE[e.corsia], 2.95, 0, bollaAbuso.position);
       }
     } else if (e.tipo === 'lancio') {
       // Parte quando il giocatore è vicino, nella corsia in cui si trova in quel momento.
@@ -1191,6 +1199,8 @@ function aggiornaEntita(ora) {
       const lat = latoCrociera(e, pos);
       e.mesh.position.x += Math.cos(tmp.psi) * lat;
       e.mesh.position.z += Math.sin(tmp.psi) * lat;
+    } else if (e.genere === 'passanteUni') {
+      aggiornaPassanteUni(e, d);
     } else if (e.genere === 'rennes') {
       e.anima?.(ora / 1000);
     } else if (e.interno.userData.apri) {
@@ -1646,6 +1656,7 @@ const boss = creaBossGelato(scena, {
   immune: () => Boolean(G.immune),
   colpito: () => {
     G.malus += MALUS_COLPO; G.malusBoss = (G.malusBoss ?? 0) + MALUS_COLPO;
+    scrittaTempo(`+${MALUS_COLPO}`, '#FF4D40');
     G.exprNome = 'dolore'; G.exprTemp = 0.9;
     colpoT = DURATA_COLPO;
     if (navigator.vibrate) navigator.vibrate(70);

@@ -516,9 +516,16 @@ function passante(v) {
 }
 
 // Chi cammina verso di te: lentamente, così lo si può guardare.
+// A Rennes le persone sono il 25% più grandi, con la testa ancora più grande, per riconoscere i volti.
+function ingrandisci(p) {
+  p.radice.scale.multiplyScalar(1.25);
+  p.testa.scale.setScalar(1.3);
+}
+
 export function creaPersonaRennes(e) {
   const v = e.var ?? 0;
   const p = (PERSONE[e.membro] ?? (() => passante(v)))();
+  ingrandisci(p);
   p.radice.traverse(o => { if (o.isMesh) o.castShadow = false; });
   const g = new THREE.Group();
   p.radice.rotation.y = Math.PI;
@@ -536,6 +543,7 @@ function coppiaFerma(e) {
   const v = e.var ?? 0;
   [[-0.45, v + 1, 0.3], [0.45, v + 6, -0.3]].forEach(([x, k, giro]) => {
     const p = passante(k);
+    ingrandisci(p);
     p.radice.traverse(o => { if (o.isMesh) o.castShadow = false; });
     p.radice.rotation.y = Math.PI + giro;
     p.radice.position.x = x;

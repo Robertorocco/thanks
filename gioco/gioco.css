@@ -199,7 +199,7 @@ button { cursor: pointer; }
 }
 .boss[hidden] { display: none; }
 .boss-barra { flex: 1; height: 7px; border-radius: 4px; background: rgba(255,255,255,.2); overflow: hidden; }
-.boss-barra div { height: 100%; width: 100%; background: linear-gradient(90deg, #9CCB6A, #F29BB5, #8A5A3C); transform-origin: right; }
+.boss-barra div { height: 100%; width: 100%; background: #E5392F; transform-origin: right; }
 @keyframes lampeggia { 50% { opacity: .55; } }
 
 /* Dissolvenza tra gioco e scena in classe */
