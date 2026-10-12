@@ -73,3 +73,4 @@ v44: il terzo amico dell'università ha gli occhiali e i capelli mossi corti (no
 v45: nel piazzale di Via Claudio (triennale) un ragazzo castano chiaro, secco ma muscoloso, un po' più alto di Roberto, sta sul marciapiede a destra: ti segue con lo sguardo e quando passi dice "Opoure no" (non è un ostacolo).
 v46: pagina Ringraziamenti completa: una lista con tutti i ringraziamenti (nome e breve anteprima), ognuno si apre toccandolo per leggerlo per intero. Testi come scritti da Roberto, con sole correzioni ortografiche e grammaticali.
 v47: nei Ringraziamenti ogni scheda ha un bottone "Leggi tutto" con freccia (che diventa "Chiudi" quando è aperta) al posto del + giallo.
+v48: sopra i Ringraziamenti un disclaimer ("l'ordine è puramente casuale"); dopo 15 secondi la lista si rimescola (l'ultimo, "Altri", resta in fondo; se ne è aperto uno si aspetta che venga chiuso).
