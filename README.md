@@ -75,3 +75,4 @@ v46: pagina Ringraziamenti completa: una lista con tutti i ringraziamenti (nome 
 v47: nei Ringraziamenti ogni scheda ha un bottone "Leggi tutto" con freccia (che diventa "Chiudi" quando è aperta) al posto del + giallo.
 v48: sopra i Ringraziamenti un disclaimer ("l'ordine è puramente casuale"); dopo 15 secondi la lista si rimescola (l'ultimo, "Altri", resta in fondo; se ne è aperto uno si aspetta che venga chiuso).
 v49: tolti il disclaimer e il rimescolamento dei Ringraziamenti; in fondo alla lista una riga piccola e discreta: "L'ordine non indica un ordine di importanza."
+v50: nuovo ordine dei Ringraziamenti dopo Francesca: Antonino, Uni, Gabri, Vittorini, William, Rennes, Serena, Vale, Dani, Altri.
