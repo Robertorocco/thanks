@@ -71,3 +71,4 @@ v42: Chiara ha la frangia a riga in mezzo sopra le sopracciglia (prima le ciocch
 v43: all'esame, copiando, resta solo "Promosso con 27!" (via "Grazie, Chiara"). A Rennes Roberto va più piano del 25% e tutte le persone sono più grandi del 25%, con la testa ancora più grande, per riconoscere i volti; il fumetto "Abuso!" è un po' più in alto.
 v44: il terzo amico dell'università ha gli occhiali e i capelli mossi corti (non più lunghi), tutti da un lato.
 v45: nel piazzale di Via Claudio (triennale) un ragazzo castano chiaro, secco ma muscoloso, un po' più alto di Roberto, sta sul marciapiede a destra: ti segue con lo sguardo e quando passi dice "Opoure no" (non è un ostacolo).
+v46: pagina Ringraziamenti completa: una lista con tutti i ringraziamenti (nome e breve anteprima), ognuno si apre toccandolo per leggerlo per intero. Testi come scritti da Roberto, con sole correzioni ortografiche e grammaticali.
